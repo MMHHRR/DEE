@@ -16,9 +16,11 @@ from config import (
     ACTIVITY_TYPES,
     DEEPBRICKS_API_KEY,
     DEEPBRICKS_BASE_URL,
-    TRANSPORT_MODES
+    TRANSPORT_MODES,
+    BATCH_PROCESSING,
+    BATCH_SIZE
 )
-from utils import get_day_of_week, normalize_transport_mode
+from utils import get_day_of_week, normalize_transport_mode, cached
 
 # Create OpenAI client
 client = openai.OpenAI(
@@ -36,10 +38,13 @@ class Activity:
         self.model = LLM_MODEL
         self.temperature = LLM_TEMPERATURE
         self.max_tokens = LLM_MAX_TOKENS
+        self.activity_queue = []  # For batch processing of activities
     
+    @cached
     def analyze_memory_patterns(self, memory):
         """
         Analyze the activity patterns in the historical memory.
+        Added caching to avoid repeated analysis
         
         Args:
             memory: Memory object, containing historical activity records
@@ -71,9 +76,11 @@ class Activity:
         
         return patterns
     
+    @cached
     def generate_daily_schedule(self, persona, date):
         """
-        Generate a daily activity schedule for a persona on a specific date.
+        Generate a daily schedule for a given persona.
+        Added caching to avoid repeated generation under the same conditions
         
         Args:
             persona: Persona object
@@ -89,6 +96,20 @@ class Activity:
         if hasattr(persona, 'memory') and persona.memory and persona.memory.days:
             memory_patterns = self.analyze_memory_patterns(persona.memory)
         
+        # Build cache key
+        persona_key = f"{persona.id}:{persona.age}:{persona.gender}:{persona.income}"
+        cache_key = f"daily_schedule:{persona_key}:{date}:{day_of_week}"
+        
+        # Generate schedule
+        activities = self._generate_activities_with_llm(persona, date, day_of_week, memory_patterns)
+        
+        # Validate and correct activities
+        validated_activities = self._validate_activities(activities)
+        
+        return validated_activities
+        
+    def _generate_activities_with_llm(self, persona, date, day_of_week, memory_patterns=None):
+        """Generate activities using LLM, with error handling and retry mechanism"""
         # Prepare the prompt, adding memory pattern information
         prompt = ACTIVITY_GENERATION_PROMPT.format(
             gender=persona.gender,
@@ -100,120 +121,236 @@ class Activity:
             date=date
         )
         
-        # If there are memory patterns, add them to the prompt
+        # Add historical pattern prompts
         if memory_patterns:
-            prompt += "\n\nBased on historical patterns:"
+            prompt += "\nBased on historical patterns, this person tends to:"
             
-            # Add frequent locations
+            # Add frequently visited places
             if memory_patterns['frequent_locations']:
-                top_locations = sorted(memory_patterns['frequent_locations'].items(), 
-                                    key=lambda x: x[1], reverse=True)[:3]
-                prompt += f"\nMost visited locations: {[loc[0] for loc in top_locations]}"
+                top_locations = sorted(
+                    memory_patterns['frequent_locations'].items(), 
+                    key=lambda x: x[1], 
+                    reverse=True
+                )[:3]
+                prompt += "\n- Visit these locations frequently: " + ", ".join([f"{loc[0]}" for loc in top_locations])
             
             # Add time preferences
             if memory_patterns['time_preferences']:
-                prompt += "\nTypical timing for activities:"
                 for activity_type, times in memory_patterns['time_preferences'].items():
-                    avg_time = sum([int(t.split(':')[0]) for t in times]) / len(times)
-                    prompt += f"\n- {activity_type}: typically around {int(avg_time)}:00"
+                    if len(times) >= 2:  # Only add if we have enough data
+                        average_time = sum([int(t.split(':')[0]) for t in times]) / len(times)
+                        prompt += f"\n- Start {activity_type} activities around {int(average_time)}:00"
         
-        # Call LLM to generate activity schedule
-        try:
-            response = client.chat.completions.create(
-                model=self.model,
-                messages=[
-                    {"role": "system", "content": "You are a human behavior simulator that creates realistic daily schedules."},
-                    {"role": "user", "content": prompt}
-                ],
-                temperature=self.temperature,
-                max_tokens=self.max_tokens
-            )
-            
-            # Extract and parse the generated schedule
-            generated_text = response.choices[0].message.content
-            # print(f"Raw LLM response (first 100 chars): {generated_text[:100]}...")
-            
-            # Clean the text for better parsing
-            cleaned_text = generated_text.strip()
-            
-            # Enhanced JSON parsing logic with better error handling
-            activities = []
-            
-            # Step 1: Try direct JSON parsing
+        max_retries = 2
+        for attempt in range(max_retries + 1):
             try:
-                activities = json.loads(cleaned_text)
-                print("Successfully parsed complete response as JSON")
-            except json.JSONDecodeError as e:
-                # print(f"Direct JSON parsing failed: {e}")
-                pass
+                # Generate activities using LLM
+                response = client.chat.completions.create(
+                    model=self.model,
+                    messages=[{"role": "user", "content": prompt}],
+                    temperature=self.temperature,
+                    max_tokens=self.max_tokens
+                )
                 
-                # Step 2: Try to extract a JSON array
-                try:
-                    # Look for array pattern with non-greedy matching
-                    array_pattern = r'\[\s*\{.*?\}\s*\]'
-                    array_match = re.search(array_pattern, cleaned_text, re.DOTALL)
+                # Extract activities from the response
+                activities = self._extract_activities_from_text(response.choices[0].message.content)
+                
+                # If activities were extracted, return the results
+                if activities:
+                    return activities
                     
-                    if array_match:
-                        array_content = array_match.group(0)
-                        # print(f"Found potential JSON array: {array_content[:50]}...")
-                        
-                        try:
-                            # Try to parse the extracted array
-                            activities = json.loads(array_content)
-                            print("Successfully parsed extracted JSON array")
-                        except json.JSONDecodeError as inner_e:
-                            print(f"Parsing extracted array failed: {inner_e}")
-                            
-                            # Try to fix common JSON formatting issues
-                            fixed_array = self._fix_json_array(array_content)
-                            try:
-                                activities = json.loads(fixed_array)
-                                print("Successfully parsed fixed JSON array")
-                            except json.JSONDecodeError:
-                                print("Failed to fix and parse JSON array")
-                    else:
-                        print("No JSON array pattern found")
-                        
-                        # Try to extract individual activity objects
-                        object_pattern = r'\{\s*"activity_type".*?\}'
-                        objects = re.findall(object_pattern, cleaned_text, re.DOTALL)
-                        
-                        if objects:
-                            print(f"Found {len(objects)} individual activity objects")
-                            for obj in objects:
-                                try:
-                                    activity = json.loads(obj)
-                                    activities.append(activity)
-                                except json.JSONDecodeError:
-                                    try:
-                                        fixed_obj = self._fix_json_array(obj)
-                                        activity = json.loads(fixed_obj)
-                                        activities.append(activity)
-                                    except:
-                                        continue
-                except Exception as ex:
-                    print(f"Error extracting JSON: {ex}")
+                # If no activities were extracted, but there are still retry attempts, continue trying
+                if attempt < max_retries:
+                    print(f"Failed to extract activities, retrying... (attempt {attempt + 1}/{max_retries + 1})")
+                    continue
+                    
+                # Last retry failed, return default activities
+                print("Failed to generate activities with LLM, using default activities")
+                return self._generate_default_activities(persona)
                 
-                # Step 3: If all above fails, try manual text parsing
-                if not activities:
-                    print("Attempting manual text parsing")
-                    activities = self._extract_activities_from_text(cleaned_text)
+            except Exception as e:
+                print(f"Error generating activities: {e}")
+                if attempt < max_retries:
+                    print(f"Retrying... (attempt {attempt + 1}/{max_retries + 1})")
+                    continue
+                
+                # Last retry failed, return default activities
+                print("Error with LLM API, using default activities")
+                return self._generate_default_activities(persona)
+    
+    def refine_activity(self, persona, activity, date):
+        """
+        Refine an activity with more details.
+        实现批量处理以减少API调用
+        
+        Args:
+            persona: Persona object
+            activity: Activity dictionary
+            date: Date string (YYYY-MM-DD)
+        
+        Returns:
+            dict: Refined activity with more details
+        """
+        # If batch processing is enabled, add activity to queue
+        if BATCH_PROCESSING:
+            # Add to queue
+            self.activity_queue.append((persona, activity, date))
             
-            # Step 4: If everything fails, use default activities
-            if not activities:
-                print("No valid activities found, using defaults")
-                activities = self._generate_default_activities(persona)
+            # If queue is full or last activity, process entire batch
+            if len(self.activity_queue) >= BATCH_SIZE:
+                batch_results = self._process_activity_batch(self.activity_queue)
+                self.activity_queue = []  # Clear queue
+                
+                # Find result for current activity
+                for batch_persona, batch_activity, batch_date, refined_activity in batch_results:
+                    if (batch_persona.id == persona.id and 
+                        batch_activity['activity_type'] == activity['activity_type'] and
+                        batch_activity['start_time'] == activity['start_time']):
+                        return refined_activity
+                
+                # If no matching result found, process current activity separately
+                return self._refine_single_activity(persona, activity, date)
             
-            # Validate and clean up activities
-            validated_activities = self._validate_activities(activities)
+            # Queue not full, return original activity (will be processed later)
+            return activity
+        else:
+            # No batch processing, process single activity directly
+            return self._refine_single_activity(persona, activity, date)
+
+    def _process_activity_batch(self, activity_queue):
+        """
+        处理一批活动的细化
+        
+        Args:
+            activity_queue: 活动队列，格式为[(persona, activity, date),...]
             
-            return validated_activities
+        Returns:
+            list: [(persona, original_activity, date, refined_activity),...]
+        """
+        results = []
+        
+        try:
+            if not activity_queue:
+                return results
+                
+            # Build prompts for batch processing
+            prompts = []
+            for i, (persona, activity, date) in enumerate(activity_queue):
+                day_of_week = get_day_of_week(date)
+                prompt = f"Activity {i+1}:\n"
+                prompt += f"Description: {activity.get('description', 'No description')}\n"
+                prompt += f"Activity Type: {activity.get('activity_type', 'Unknown')}\n"
+                prompt += f"Time: {activity.get('start_time', '00:00')} - {activity.get('end_time', '00:00')}\n"
+                prompt += f"Person: {persona.age} year old {persona.gender}, income ${persona.income}, {persona.education} education\n"
+                prompt += f"Day: {day_of_week}, {date}\n\n"
+                prompts.append(prompt)
+                
+            # Build full prompt
+            full_prompt = "You are helping to refine the details of a daily activity schedule. " \
+                          "For each activity, provide more specific details about the location and environment.\n\n"
+            full_prompt += "".join(prompts)
+            full_prompt += "\nFor each activity, provide:\n" \
+                          "1. A more refined description of what the person would do\n" \
+                          "2. The type of location where this would occur\n" \
+                          "3. Any equipment or items they would need\n" \
+                          "4. Environmental characteristics of the location\n" \
+                          "5. Appropriate transportation mode (walking, driving, public_transit, cycling, rideshare)\n\n" \
+                          "Format your response as a JSON array:\n" \
+                          "[\n" \
+                          "  {\n" \
+                          "    \"activity_index\": 1,\n" \
+                          "    \"refined_description\": \"...\",\n" \
+                          "    \"location_type\": \"...\",\n" \
+                          "    \"equipment\": \"...\",\n" \
+                          "    \"environment\": \"...\",\n" \
+                          "    \"transport_mode\": \"...\"\n" \
+                          "  },\n" \
+                          "  ...\n" \
+                          "]"
             
+            # Call LLM for batch refinement
+            refinements = []  # Default to empty list
+            try:
+                response = client.chat.completions.create(
+                    model=self.model,
+                    messages=[{"role": "user", "content": full_prompt}],
+                    temperature=self.temperature,
+                    max_tokens=self.max_tokens
+                )
+                
+                # Extract returned JSON, including potential fixes
+                text = response.choices[0].message.content
+                try:
+                    # Try to parse JSON
+                    refinements = json.loads(text)
+                    if not isinstance(refinements, list):
+                        refinements = []
+                except Exception:
+                    # Try extracting JSON from text
+                    try:
+                        json_text = re.search(r'\[.*\]', text, re.DOTALL)
+                        if json_text:
+                            json_text = self._fix_json_array(json_text.group(0))
+                            refinements = json.loads(json_text)
+                        else:
+                            refinements = []
+                    except Exception as je:
+                        print(f"Error extracting JSON from response: {je}")
+                        refinements = []
+            except Exception as e:
+                print(f"Error calling LLM API: {e}")
+                # API call failed, keep empty refinements list
+            
+            # Apply refined activities
+            for refinement in refinements:
+                if 'activity_index' in refinement:
+                    index = int(refinement['activity_index']) - 1
+                    if 0 <= index < len(activity_queue):
+                        persona, activity, date = activity_queue[index]
+                        
+                        # Copy original activity and update
+                        refined_activity = activity.copy()
+                        
+                        if 'refined_description' in refinement:
+                            refined_activity['description'] = refinement['refined_description']
+                        
+                        if 'location_type' in refinement:
+                            refined_activity['location_type'] = refinement['location_type']
+                        
+                        if 'equipment' in refinement:
+                            refined_activity['equipment'] = refinement['equipment']
+                        
+                        if 'environment' in refinement:
+                            refined_activity['environment'] = refinement['environment']
+                            
+                        if 'transport_mode' in refinement:
+                            refined_activity['transport_mode'] = normalize_transport_mode(refinement['transport_mode'])
+                        
+                        results.append((persona, activity, date, refined_activity))
+            
+            # Process unrefined activities
+            processed_indices = [int(r.get('activity_index', 0)) - 1 for r in refinements]
+            for i, (persona, activity, date) in enumerate(activity_queue):
+                if i not in processed_indices:
+                    results.append((persona, activity, date, activity))  # Use original activity
+        
         except Exception as e:
-            print(f"Error generating activity schedule: {e}")
-            # Return default activities as fallback
-            default_activities = self._generate_default_activities(persona)
-            return self._validate_activities(default_activities)
+            print(f"Error in batch processing: {e}")
+            # Batch processing failed, return original activity
+            for persona, activity, date in activity_queue:
+                results.append((persona, activity, date, activity))
+        
+        return results
+
+    @cached
+    def _refine_single_activity(self, persona, activity, date):
+        """处理单个活动的细化，可被缓存"""
+        # Simplify batch processing to single activity processing
+        results = self._process_activity_batch([(persona, activity, date)])
+        if results:
+            _, _, _, refined_activity = results[0]
+            return refined_activity
+        return activity
     
     def _validate_activities(self, activities):
         """
@@ -254,6 +391,30 @@ class Activity:
             # Get current activity location type
             location_type = activity.get('location_type', '')
             
+            # Get transport mode if available
+            transport_mode = activity.get('transport_mode', '')
+            
+            # Normalize transport mode if specified
+            if transport_mode:
+                transport_mode = normalize_transport_mode(transport_mode)
+            
+            # If no transportation mode specified and not first activity, determine default transportation based on activity type and location
+            if not transport_mode and len(validated) > 0:
+                # Home activities usually don't require transportation
+                if location_type == 'home':
+                    transport_mode = 'walking'  # Default walking at home
+                # Work commute
+                elif location_type == 'work' or activity_type == 'work':
+                    transport_mode = 'driving'  # Default driving to work
+                # Short activities default to walking
+                elif activity_type in ['shopping', 'dining', 'leisure', 'errands']:
+                    transport_mode = 'walking'
+                # Medium/long activities default to public transportation
+                elif activity_type in ['recreation', 'healthcare', 'social', 'education']:
+                    transport_mode = 'public_transit'
+                else:
+                    transport_mode = 'driving'  # Other cases default to driving
+            
             # Create validated activity
             validated_activity = {
                 'activity_type': activity_type,
@@ -266,6 +427,10 @@ class Activity:
             if location_type:
                 validated_activity['location_type'] = location_type
                 previous_location_type = location_type
+            
+            # Add transport mode if available
+            if transport_mode:
+                validated_activity['transport_mode'] = transport_mode
             
             validated.append(validated_activity)
         
@@ -372,111 +537,6 @@ class Activity:
         
         # If all formats fail, raise ValueError
         raise ValueError(f"Could not parse time string: {time_str}")
-    
-    def refine_activity(self, persona, activity, date):
-        """
-        Refine an activity with more detailed information.
-        
-        Args:
-            persona: Persona object
-            activity: Activity dictionary
-            date: Date string (YYYY-MM-DD)
-        
-        Returns:
-            dict: Refined activity with additional details
-        """
-        # Copy original activity
-        refined = activity.copy()
-        
-        # For specific types of activities (sleep, home, work), do not generate additional details
-        if activity['activity_type'].lower() in ['sleep', 'home', 'work']:
-            # Set basic location types for these fixed position activities
-            if activity['activity_type'].lower() == 'sleep' or activity['activity_type'].lower() == 'home':
-                refined['location_type'] = 'home'
-            elif activity['activity_type'].lower() == 'work':
-                refined['location_type'] = 'workplace'
-            
-            return refined
-        
-        # Check the activity description, if it mentions activities at home, set location_type to home directly
-        description_lower = activity['description'].lower()
-        if 'at home' in description_lower or 'home' in description_lower and ('cook' in description_lower or 'dinner' in description_lower or 'breakfast' in description_lower or 'lunch' in description_lower):
-            refined['location_type'] = 'home'
-            return refined
-        
-        # For other activity types, generate detailed descriptions
-        try:
-            # Prepare the prompt
-            prompt = f"""
-            Based on the following information, provide a more detailed description of this activity:
-            
-            Person:
-            - Gender: {persona.gender}
-            - Age: {persona.age}
-            - Income: ${persona.income}
-            - Consumption habits: {persona.consumption}
-            - Education: {persona.education}
-            
-            Activity:
-            - Type: {activity['activity_type']}
-            - Description: {activity['description']}
-            - Time: {activity['start_time']} to {activity['end_time']}
-            - Day: {get_day_of_week(date)}
-            
-            Provide your response as a JSON object with the following fields:
-            {{
-                "detailed_description": "A paragraph describing what exactly the person will do during this activity, considering their demographics",
-                "location_type": "A specific type of place where this activity would occur (e.g., 'upscale restaurant' rather than just 'restaurant')",
-                "specific_preferences": "What preferences might this person have for this type of activity, considering their income and consumption habits"
-            }}
-            
-            IMPORTANT: If the activity takes place at home (e.g., "dinner at home", "cooking at home"), always set "location_type" to EXACTLY "home" without any additional details.
-            """
-            
-            response = client.chat.completions.create(
-                model=self.model,
-                messages=[
-                    {"role": "system", "content": "You are an activity detail generator for human daily activities."},
-                    {"role": "user", "content": prompt}
-                ],
-                temperature=self.temperature,
-                max_tokens=self.max_tokens
-            )
-            
-            response_text = response.choices[0].message.content
-            
-            # Parse the JSON response
-            import re
-            json_match = re.search(r'({.*})', response_text, re.DOTALL)
-            
-            if json_match:
-                try:
-                    details = json.loads(json_match.group(1))
-                    
-                    # Add detailed information to the refined activity
-                    for key, value in details.items():
-                        refined[key] = value
-                    
-                    # Confirm again: If the activity is at home, force location_type to "home"
-                    if 'location_type' in refined:
-                        if 'home' in refined['location_type'].lower() or ('at home' in description_lower and not refined['location_type'] == 'home'):
-                            refined['location_type'] = 'home'
-                    
-                except Exception as e:
-                    print(f"Error parsing activity details: {e}")
-                
-        except Exception as e:
-            print(f"Error generating activity details: {e}")
-        
-        # Final check: Ensure the location_type for home activities is "home"
-        if 'location_type' in refined and ('home' in refined['location_type'].lower() and not refined['location_type'] == 'home'):
-            refined['location_type'] = 'home'
-        
-        # If the activity is at home, force location_type to "home"
-        if 'at home' in activity['description'].lower():
-            refined['location_type'] = 'home'
-        
-        return refined
     
     def _fix_json_array(self, json_str):
         """

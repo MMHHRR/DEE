@@ -16,6 +16,7 @@ class Persona:
             persona_data (dict): Dictionary containing persona attributes
         """
         self.id = persona_data.get('id')
+        self.name = persona_data.get('name', f"Person-{self.id}")
         self.home = tuple(persona_data.get('home', [0, 0]))
         self.work = tuple(persona_data.get('work', [0, 0]))
         self.gender = persona_data.get('gender', 'unknown')
@@ -30,11 +31,16 @@ class Persona:
         self.has_children = persona_data.get('has_children', False)
         self.has_car = persona_data.get('has_car', True)
         self.has_bike = persona_data.get('has_bike', False)
+        
+        # Transportation preference - supports two attribute names
         self.preferred_transport = persona_data.get('preferred_transport', 'driving')
+        # For compatibility, providing transportation_preference as an alias
+        self.transportation_preference = self.preferred_transport
         
         # Current state
         self.current_location = self.home  # Start at home
-        self.current_activity = None
+        self.current_activity = None       # Complete activity information
+        self.current_activity_type = None  # Current activity type (string)
     
     def get_basic_info(self):
         """
@@ -80,36 +86,65 @@ class Persona:
         Update the current activity of the persona.
         
         Args:
-            activity (str): Current activity
+            activity (dict): Activity dictionary
         """
         self.current_activity = activity
+        if activity and 'activity_type' in activity:
+            self.current_activity_type = activity['activity_type']
     
     def to_dict(self):
         """
-        Convert persona to dictionary representation.
+        Convert persona to dictionary.
         
         Returns:
-            dict: Dictionary representation of the persona
+            dict: Dictionary representation of persona
         """
-        return {
+        data = {
             'id': self.id,
-            'home': self.home,
-            'work': self.work,
+            'name': self.name,
             'gender': self.gender,
+            'age': self.age,
             'race': self.race,
             'education': self.education,
             'income': self.income,
-            'consumption': self.consumption,
-            'age': self.age,
-            'household_size': self.household_size,
-            'has_children': self.has_children,
-            'has_car': self.has_car,
-            'has_bike': self.has_bike,
-            'preferred_transport': self.preferred_transport,
-            'current_location': self.current_location,
-            'current_activity': self.current_activity
+            'consumption': self.consumption
         }
+        
+        # Include location data if available
+        if hasattr(self, 'home') and self.home:
+            data['home'] = self.home
+        
+        if hasattr(self, 'work') and self.work:
+            data['work'] = self.work
+            
+        if hasattr(self, 'current_location') and self.current_location:
+            data['current_location'] = self.current_location
+            
+        # Add transportation preference (consistently use preferred_transport)
+        if hasattr(self, 'preferred_transport') and self.preferred_transport:
+            data['preferred_transport'] = self.preferred_transport
+            
+        # Include vehicle availability if defined
+        for attr in ['has_car', 'has_bike']:
+            if hasattr(self, attr):
+                data[attr] = getattr(self, attr)
+        
+        # Include current activity if available
+        if hasattr(self, 'current_activity_type') and self.current_activity_type:
+            data['current_activity_type'] = self.current_activity_type
+            
+        return data
     
     def __str__(self):
-        """String representation of the persona."""
-        return f"Persona {self.id}: {self.gender}, {self.age} years old, {self.education} education, ${self.income} income" 
+        """
+        Return string representation of persona.
+        
+        Returns:
+            str: String representation
+        """
+        return (
+            f"Persona {self.id}: {self.name}\n"
+            f"Age: {self.age}, Gender: {self.gender}\n"
+            f"Income: ${self.income}, Education: {self.education}\n"
+            f"Consumption: {self.consumption}"
+        ) 

@@ -10,9 +10,121 @@ import numpy as np
 from geopy.distance import geodesic
 import folium
 import matplotlib.pyplot as plt
-from config import RESULTS_DIR, TRANSPORT_MODES
+from config import RESULTS_DIR, TRANSPORT_MODES, ENABLE_CACHING, CACHE_EXPIRY
 import requests
 import math
+import hashlib
+import time
+import functools
+
+# Add caching system
+class Cache:
+    def __init__(self):
+        self.cache = {}
+        self.cache_hits = 0
+        self.cache_misses = 0
+        self.enabled = ENABLE_CACHING
+        self.expiry = CACHE_EXPIRY
+        
+        # Ensure cache directory exists
+        os.makedirs(os.path.join(RESULTS_DIR, 'cache'), exist_ok=True)
+        self.cache_file = os.path.join(RESULTS_DIR, 'cache', 'function_cache.json')
+        self.load_cache()
+    
+    def get(self, key):
+        """Get value from cache"""
+        if not self.enabled:
+            return None
+            
+        if key in self.cache:
+            value, timestamp = self.cache[key]
+            # Check if expired
+            if time.time() - timestamp < self.expiry:
+                self.cache_hits += 1
+                return value
+        self.cache_misses += 1
+        return None
+    
+    def set(self, key, value):
+        """Set cache value"""
+        if not self.enabled:
+            return
+            
+        self.cache[key] = (value, time.time())
+        # Save every 100 cache operations
+        if (self.cache_hits + self.cache_misses) % 100 == 0:
+            self.save_cache()
+    
+    def load_cache(self):
+        """Load cache from file"""
+        if not self.enabled:
+            return
+            
+        if os.path.exists(self.cache_file):
+            try:
+                with open(self.cache_file, 'r', encoding='utf-8') as f:
+                    loaded_cache = json.load(f)
+                    self.cache = {k: (v[0], v[1]) for k, v in loaded_cache.items()}
+            except Exception as e:
+                print(f"Error loading cache: {e}")
+                self.cache = {}
+    
+    def save_cache(self):
+        """Save cache to file"""
+        if not self.enabled:
+            return
+            
+        try:
+            with open(self.cache_file, 'w', encoding='utf-8') as f:
+                json.dump(self.cache, f)
+        except Exception as e:
+            print(f"Error saving cache: {e}")
+    
+    def clear(self):
+        """Clear cache"""
+        self.cache = {}
+        if os.path.exists(self.cache_file):
+            os.remove(self.cache_file)
+    
+    def stats(self):
+        """Return cache statistics"""
+        total = self.cache_hits + self.cache_misses
+        hit_ratio = self.cache_hits / total if total > 0 else 0
+        return {
+            "hits": self.cache_hits,
+            "misses": self.cache_misses,
+            "total": total,
+            "hit_ratio": hit_ratio,
+            "size": len(self.cache)
+        }
+
+# Create global cache instance
+cache = Cache()
+
+def cached(func):
+    """Cache decorator, used to cache function call results"""
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        if not cache.enabled:
+            return func(*args, **kwargs)
+            
+        # Create cache key
+        key_parts = [func.__name__]
+        key_parts.extend([str(arg) for arg in args])
+        key_parts.extend([f"{k}:{v}" for k, v in sorted(kwargs.items())])
+        key = hashlib.md5(":".join(key_parts).encode()).hexdigest()
+        
+        # Try to get from cache
+        cached_result = cache.get(key)
+        if cached_result is not None:
+            return cached_result
+        
+        # Calculate result and cache
+        result = func(*args, **kwargs)
+        cache.set(key, result)
+        return result
+    
+    return wrapper
 
 def load_json(file_path):
     """Load data from a JSON file."""
@@ -79,13 +191,13 @@ def visualize_trajectory(trajectory_data, output_file):
     # Create map
     m = folium.Map(location=[center_lat, center_lon], zoom_start=13)
     
-    # 创建位置字典来跟踪重复位置
+    # Create location dictionary to track repeated locations
     location_counts = {}
     
-    # 添加时间线连接点
+    # Add time line connection points
     coordinates = []
     
-    # 定义不同活动类型的图标
+    # Define different activity type icons
     icons = {
         'travel': 'car',
         'work': 'briefcase',
@@ -99,19 +211,19 @@ def visualize_trajectory(trajectory_data, output_file):
     # Add markers for each point
     for point in trajectory_data:
         lat, lon = point['location']
-        loc_key = f"{lat:.5f},{lon:.5f}"  # 使用5位小数精度作为位置键
+        loc_key = f"{lat:.5f},{lon:.5f}"  # Use 5 decimal precision as location key
         
-        # 检查是否有重复位置，如果有则偏移
+        # Check if there are repeated locations, if so, offset
         if loc_key in location_counts:
             location_counts[loc_key] += 1
-            # 根据重复次数计算偏移量（每次偏移约20米）
+            # Calculate offset based on repeated times (approximately 20 meters each time)
             offset = location_counts[loc_key] * 0.0002
             lat += offset
             lon += offset
         else:
             location_counts[loc_key] = 0
             
-        # 记录坐标用于绘制时间线
+        # Record coordinates for drawing time line
         coordinates.append([lat, lon])
         
         # Set marker color and icon based on activity type
@@ -132,7 +244,7 @@ def visualize_trajectory(trajectory_data, output_file):
         else:
             color = 'purple'
             
-        # 获取活动类型对应的图标
+        # Get activity type corresponding icon
         icon_name = icons.get(point['activity_type'].lower(), 'info-sign')
             
         # Create popup content
@@ -147,10 +259,10 @@ def visualize_trajectory(trajectory_data, output_file):
             icon=folium.Icon(color=color, icon=icon_name, prefix='fa')
         ).add_to(m)
         
-        # 如果有路线坐标，添加路线
+        # If there are route coordinates, add route
         if 'route_coordinates' in point and point['route_coordinates']:
             route_coords = point['route_coordinates']
-            # 根据交通方式选择路线样式
+            # Select route style based on transportation mode
             if 'transport_mode' in point:
                 if point['transport_mode'] == 'walking':
                     color = 'green'
@@ -181,7 +293,7 @@ def visualize_trajectory(trajectory_data, output_file):
                 dash_array=dash_array
             ).add_to(m)
     
-    # 添加时间线连接所有点
+    # Add time line connection all points
     folium.PolyLine(
         coordinates,
         weight=1,
@@ -209,15 +321,28 @@ def plot_activity_distribution(memory_data, output_file=None):
             start_time = activity.get('start_time', '00:00')
             end_time = activity.get('end_time', '23:59')
             
-            # Calculate duration in minutes
-            start_hour, start_minute = map(int, start_time.split(':'))
-            end_hour, end_minute = map(int, end_time.split(':'))
+            # Calculate activity duration (minutes)
+            start_minutes = time_to_minutes(start_time)
+            end_minutes = time_to_minutes(end_time)
             
-            # Handle activities that cross midnight
-            if end_hour < start_hour:
-                end_hour += 24
-            
-            duration = (end_hour - start_hour) * 60 + (end_minute - start_minute)
+            # Special handling for activities that cross midnight
+            if end_minutes < start_minutes:
+                # For activities crossing midnight, calculate time until midnight plus time after midnight
+                duration = (24 * 60 - start_minutes) + end_minutes
+                
+                # For sleep activities, ensure no duplicate counting
+                if activity_type == 'sleep' and end_time == '08:00' and start_time == '22:30':
+                    # Typical night sleep pattern, calculate normally
+                    duration = (24 * 60 - start_minutes) + end_minutes
+                elif activity_type == 'sleep' and end_time == '08:00' and start_time == '22:00':
+                    # Another sleep pattern
+                    duration = (24 * 60 - start_minutes) + end_minutes
+                else:
+                    # Other activities crossing midnight
+                    duration = (24 * 60 - start_minutes) + end_minutes
+            else:
+                # Activities within the same day
+                duration = end_minutes - start_minutes
             
             # Add to the appropriate activity type
             activity_durations[activity_type] = activity_durations.get(activity_type, 0) + duration
@@ -288,33 +413,33 @@ def generate_random_location_near(center, max_distance_km=5.0):
 
 def normalize_transport_mode(mode):
     """
-    标准化交通方式，将任何交通方式转换为系统支持的标准格式。
+    Standardize transportation mode, converting any transportation string to the system supported standard format.
     
     Args:
-        mode: 原始交通方式字符串
+        mode: Original transportation string
         
     Returns:
-        str: 标准化的交通方式
+        str: Standardized transportation mode
     """
-    # 默认交通方式
+    # Default transportation mode
     DEFAULT_MODE = 'walking'
     
-    # 检查空值或特殊情况
+    # Check for null or special cases
     if not mode or not isinstance(mode, str):
         return DEFAULT_MODE
         
     mode = mode.lower().strip()
     
-    # 处理特殊值
+    # Handle special values
     invalid_values = ['n/a', 'none', 'null', 'nan', '']
     if mode in invalid_values:
         return DEFAULT_MODE
         
-    # 如果已经是标准交通方式，直接返回
+    # If already standardized transportation mode, return directly
     if mode in TRANSPORT_MODES:
         return mode
         
-    # 简单的映射表，将常见的非标准交通方式映射到标准方式
+    # Simple mapping table, map common non-standard transportation modes to standard modes
     mode_mapping = {
         'foot': 'walking',
         'pedestrian': 'walking',
@@ -336,29 +461,29 @@ def normalize_transport_mode(mode):
         'didi': 'rideshare'
     }
     
-    # 通过映射表快速匹配
+    # Quickly match using mapping table
     if mode in mode_mapping:
         return mode_mapping[mode]
     
-    # 如果无法匹配，返回默认交通方式
+    # If no match, return default transportation mode
     return DEFAULT_MODE 
 
 def get_route_coordinates(start_location, end_location, transport_mode='driving'):
     """
-    使用OSRM获取两点之间的路线坐标
+    Get coordinates for a route between two locations using OSRM API.
     
     Args:
-        start_location: (latitude, longitude) 起点坐标
-        end_location: (latitude, longitude) 终点坐标
-        transport_mode: 交通方式 ('driving', 'walking', 'cycling')
+        start_location: (latitude, longitude)
+        end_location: (latitude, longitude)
+        transport_mode: Mode of transportation
     
     Returns:
-        list: 路线上的坐标点列表 [(lat1, lon1), (lat2, lon2), ...]
+        list: List of coordinates along the route [(lat1, lon1), (lat2, lon2), ...]
     """
-    # OSRM服务的基础URL（使用演示服务器）
+    # OSRM service base URL (using demo server)
     base_url = "http://router.project-osrm.org"
     
-    # 构建API请求URL
+    # Build API request URL
     url = f"{base_url}/route/v1/{transport_mode}/{start_location[1]},{start_location[0]};{end_location[1]},{end_location[0]}"
     params = {
         "overview": "full",
@@ -372,14 +497,118 @@ def get_route_coordinates(start_location, end_location, transport_mode='driving'
         data = response.json()
         
         if "routes" in data and len(data["routes"]) > 0:
-            # 提取路线坐标
+            # Extract route coordinates
             coordinates = data["routes"][0]["geometry"]["coordinates"]
-            # OSRM返回的坐标格式是[lon, lat]，我们需要转换为[lat, lon]
+            # OSRM returns coordinates as [lon, lat], we need to convert to [lat, lon]
             return [(coord[1], coord[0]) for coord in coordinates]
         else:
-            print(f"无法找到从 {start_location} 到 {end_location} 的路线")
+            print(f"Could not find route from {start_location} to {end_location}")
             return []
             
     except Exception as e:
-        print(f"获取路线时出错: {str(e)}")
-        return [] 
+        print(f"Error getting route: {str(e)}")
+        return []
+
+@cached
+def estimate_travel_time(start_location, end_location, transport_mode, persona=None):
+    """
+    Estimate travel time between two locations based on distance and transport mode.
+    Added caching to avoid redundant calculations.
+    
+    Args:
+        start_location: (latitude, longitude)
+        end_location: (latitude, longitude)
+        transport_mode: Mode of transportation
+        persona: Person object containing transportation preferences
+    
+    Returns:
+        tuple: (travel_time_minutes, selected_transport_mode)
+    """
+    distance_km = calculate_distance(start_location, end_location)
+    
+    # If no transport mode specified, select appropriate mode based on distance and person characteristics
+    if not transport_mode:
+        # Default transport mode selection logic
+        if persona:
+            # Consider person characteristics and preferences
+            if distance_km < 0.5:
+                # Very short distance, typically walking
+                transport_mode = 'walking'
+            elif distance_km < 3:
+                # Short distance, decide based on bike availability and preferences
+                if persona.has_bike and (persona.preferred_transport == 'cycling' or random.random() < 0.7):
+                    transport_mode = 'cycling'
+                else:
+                    transport_mode = 'walking'
+            elif distance_km < 10:
+                # Medium distance
+                if persona.has_bike and persona.preferred_transport == 'cycling':
+                    transport_mode = 'cycling'
+                elif persona.has_car and persona.preferred_transport == 'driving':
+                    transport_mode = 'driving'
+                elif persona.preferred_transport == 'public_transit':
+                    transport_mode = 'public_transit'
+                else:
+                    # Choose based on availability
+                    if persona.has_car:
+                        transport_mode = 'driving'
+                    elif persona.has_bike:
+                        transport_mode = 'cycling'
+                    else:
+                        transport_mode = 'public_transit'
+            else:
+                # Long distance
+                if persona.has_car:
+                    transport_mode = 'driving'
+                elif persona.preferred_transport == 'public_transit':
+                    transport_mode = 'public_transit'
+                else:
+                    transport_mode = 'rideshare'
+        else:
+            # If no persona information, use simple distance-based logic
+            if distance_km < 1:
+                transport_mode = 'walking'
+            elif distance_km < 5:
+                transport_mode = 'cycling'
+            elif distance_km < 15:
+                transport_mode = 'public_transit'
+            else:
+                transport_mode = 'driving'
+    
+    # Normalize transport mode
+    transport_mode = normalize_transport_mode(transport_mode)
+    
+    # Average speeds in km/h
+    speeds = {
+        'walking': 5,
+        'cycling': 15,
+        'driving': 30,
+        'public_transit': 20,
+        'rideshare': 25
+    }
+    
+    # Get speed for the transport mode, default to walking if not found
+    speed_kmh = speeds.get(transport_mode, speeds['walking'])
+    
+    # Calculate time in minutes
+    time_hours = distance_km / speed_kmh
+    time_minutes = int(time_hours * 60)
+    
+    # Add some randomness to account for traffic, waiting times, etc.
+    time_minutes = int(time_minutes * random.uniform(0.8, 1.2))
+    
+    # Minimum travel time
+    return max(5, time_minutes), transport_mode
+
+def time_to_minutes(time_str):
+    """
+    Convert time string (HH:MM) to minutes
+    
+    Args:
+        time_str: Time string in HH:MM format
+        
+    Returns:
+        int: Total minutes
+    """
+    hours, minutes = parse_time(time_str)
+    return hours * 60 + minutes 

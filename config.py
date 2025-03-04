@@ -11,7 +11,7 @@ load_dotenv()
 # API Keys
 GOOGLE_MAPS_API_KEY = os.getenv("GOOGLE_MAPS_API_KEY")
 
-# DeepBricks API配置
+# DeepBricks API configuration
 DEEPBRICKS_API_KEY = os.getenv("DEEPBRICKS_API_KEY")
 DEEPBRICKS_BASE_URL = os.getenv("DEEPBRICKS_BASE_URL")
 USE_DEEPBRICKS_API = True  # Always use DeepBricks API
@@ -19,7 +19,7 @@ USE_DEEPBRICKS_API = True  # Always use DeepBricks API
 # LLM Configuration
 LLM_MODEL = "gpt-4o-mini"
 LLM_TEMPERATURE = 0.7
-LLM_MAX_TOKENS = 1000
+LLM_MAX_TOKENS = 800
 
 # Simulation Parameters
 NUM_DAYS_TO_SIMULATE = 3
@@ -88,7 +88,13 @@ IMPORTANT RULES FOR ACTIVITY TYPES:
 - "leisure": relaxing activities (reading, watching TV, etc.)
 - "errands": short tasks (bank, post office, etc.)
 
-DO NOT SPECIFY TRANSPORT MODES in your response. The system will determine appropriate transportation methods later based on distance, time constraints, and other factors.
+TRANSPORTATION MODES:
+For each activity that requires travel to a new location, you MUST specify a transportation mode from this list:
+- "walking": on foot (for short distances, usually <1km, or for exercise)
+- "cycling": using a bicycle (for medium distances, usually <5km, or for exercise)
+- "public_transit": using bus, subway, train (common for medium-long distances in urban areas)
+- "driving": using a private car (common for longer distances or when convenience is needed)
+- "rideshare": using taxi, Uber, Lyft, etc. (for special occasions or when other options aren't available)
 
 For each activity, specify:
 1. Activity type (MUST be one from the list above)
@@ -96,6 +102,7 @@ For each activity, specify:
 3. End time
 4. Brief description of the activity
 5. Location type (e.g., "home", "work", "restaurant", "gym", "park", etc.)
+6. Transport mode (MUST be one from the list above, for traveling to this activity location)
 
 Format your response as a JSON array of activities:
 [
@@ -104,7 +111,8 @@ Format your response as a JSON array of activities:
     "start_time": "...",
     "end_time": "...",
     "description": "...",
-    "location_type": "..."
+    "location_type": "...",
+    "transport_mode": "..."
   }},
   ...
 ]
@@ -135,4 +143,12 @@ Format your response as a single JSON object:
   "distance_preference": "preferred travel distance in kilometers",
   "price_level": "price level preference (1-4, where 4 is most expensive)"
 }}
-""" 
+"""
+
+# Add batch processing configuration
+BATCH_PROCESSING = True  # Enable batch processing
+BATCH_SIZE = 5  # Number of activities to process at once
+
+# Add cache configuration
+ENABLE_CACHING = True  # Enable caching
+CACHE_EXPIRY = 3600  # Cache expiration time (seconds) 
