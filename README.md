@@ -32,11 +32,10 @@ This project uses large language models (LLMs) to simulate human daily mobility 
 ## Configuration
 
 Modify `config.py` to adjust simulation parameters:
-- Number of days to simulate
-- LLM model to use
-- Prompt templates
-- Environmental exposure factors to track 
+- Number of days to simulate: `NUM_DAYS_TO_SIMULATE = 3`
+- LLM model to use: `LLM_MODEL = "gpt-4o-mini"`
+- Prompt templates: `ACTIVITY_GENERATION_PROMPT`
 
 ## TODO List
-- 
-- 是否可以增加多智能体互动？
+- Add validation section (compare to real world): matrix framework
+- Add peception modual (VLM perception environment)
