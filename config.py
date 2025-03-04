@@ -18,8 +18,8 @@ USE_DEEPBRICKS_API = True  # Always use DeepBricks API
 
 # LLM Configuration
 LLM_MODEL = "gpt-4o-mini"
-LLM_TEMPERATURE = 0.7
-LLM_MAX_TOKENS = 800
+LLM_TEMPERATURE = 0.6
+LLM_MAX_TOKENS = 700
 
 # Simulation Parameters
 NUM_DAYS_TO_SIMULATE = 3
@@ -95,6 +95,14 @@ For each activity that requires travel to a new location, you MUST specify a tra
 - "public_transit": using bus, subway, train (common for medium-long distances in urban areas)
 - "driving": using a private car (common for longer distances or when convenience is needed)
 - "rideshare": using taxi, Uber, Lyft, etc. (for special occasions or when other options aren't available)
+
+IMPORTANT TRANSPORTATION LOGIC RULES:
+1. A person MUST use the SAME transport mode throughout the day unless they return home. For example, if they drive to work, they must drive back home or to other places after work.
+2. If they start the day by walking/cycling/public transit, they CANNOT suddenly start driving without going home first to get their car.
+3. If the first activity is at home, choose a transport mode for going to the second activity that makes sense based on the person's profile and distance.
+4. Always consider the person's demographics (age, income, etc.) when choosing appropriate transport modes.
+5. Be realistic about travel times - don't use walking for very long distances or for elderly people traveling far.
+6. Home-to-home activities (like going for a run from home and returning) can use different transport modes.
 
 For each activity, specify:
 1. Activity type (MUST be one from the list above)

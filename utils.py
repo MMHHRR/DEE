@@ -75,8 +75,18 @@ class Cache:
             return
             
         try:
+            # Create a JSON serializable version of the cache
+            json_safe_cache = {}
+            for k, v in self.cache.items():
+                # Convert keys to strings if they're not already JSON serializable
+                if isinstance(k, (str, int, float, bool)) or k is None:
+                    json_key = k
+                else:
+                    json_key = str(k)
+                json_safe_cache[json_key] = v
+                
             with open(self.cache_file, 'w', encoding='utf-8') as f:
-                json.dump(self.cache, f)
+                json.dump(json_safe_cache, f)
         except Exception as e:
             print(f"Error saving cache: {e}")
     
@@ -441,32 +451,81 @@ def normalize_transport_mode(mode):
         
     # Simple mapping table, map common non-standard transportation modes to standard modes
     mode_mapping = {
+        # Walking related
         'foot': 'walking',
         'pedestrian': 'walking',
         'stroll': 'walking',
+        'walk': 'walking',
+        'on foot': 'walking',
+        'by foot': 'walking',
+        'strolling': 'walking',
+        'hiking': 'walking',
+        
+        # Driving related
         'car': 'driving',
         'automobile': 'driving',
         'vehicle': 'driving',
+        'drive': 'driving',
+        'by car': 'driving',
+        'personal car': 'driving',
+        'private car': 'driving',
+        'own car': 'driving',
+        
+        # Public transit related
         'bus': 'public_transit',
         'train': 'public_transit',
         'subway': 'public_transit',
         'metro': 'public_transit',
         'tram': 'public_transit',
+        'public transport': 'public_transit',
+        'public transportation': 'public_transit',
+        'transit': 'public_transit',
+        'rail': 'public_transit',
+        'light rail': 'public_transit',
+        'commuter rail': 'public_transit',
+        'ferry': 'public_transit',
+        
+        # Cycling related
         'bike': 'cycling',
         'bicycle': 'cycling',
+        'cycle': 'cycling',
+        'biking': 'cycling',
+        'by bike': 'cycling',
+        'by bicycle': 'cycling',
+        
+        # Rideshare related
         'cab': 'rideshare',
         'taxi': 'rideshare',
         'uber': 'rideshare',
         'lyft': 'rideshare',
-        'didi': 'rideshare'
+        'didi': 'rideshare',
+        'ride-sharing': 'rideshare',
+        'ridesharing': 'rideshare',
+        'ride sharing': 'rideshare',
+        'ride hailing': 'rideshare',
+        'ride-hailing': 'rideshare',
+        'shared ride': 'rideshare'
     }
     
     # Quickly match using mapping table
     if mode in mode_mapping:
         return mode_mapping[mode]
     
+    # If direct match failed, try fuzzy matching by checking if mode contains key words
+    mode_keywords = {
+        'walking': ['walk', 'foot', 'pedestrian', 'stroll', 'hike'],
+        'driving': ['drive', 'car', 'auto', 'vehicle'],
+        'public_transit': ['bus', 'train', 'subway', 'metro', 'transit', 'public', 'tram', 'rail'],
+        'cycling': ['bike', 'cycle', 'bicycle'],
+        'rideshare': ['taxi', 'cab', 'uber', 'lyft', 'ride', 'sharing', 'hail']
+    }
+    
+    for std_mode, keywords in mode_keywords.items():
+        if any(keyword in mode for keyword in keywords):
+            return std_mode
+    
     # If no match, return default transportation mode
-    return DEFAULT_MODE 
+    return DEFAULT_MODE
 
 def get_route_coordinates(start_location, end_location, transport_mode='driving'):
     """

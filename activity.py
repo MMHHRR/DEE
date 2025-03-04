@@ -295,7 +295,7 @@ class Activity:
                         else:
                             refinements = []
                     except Exception as je:
-                        print(f"Error extracting JSON from response: {je}")
+                        # print(f"Error extracting JSON from response: {je}")
                         refinements = []
             except Exception as e:
                 print(f"Error calling LLM API: {e}")
@@ -437,7 +437,76 @@ class Activity:
         # Sort by start time
         validated.sort(key=lambda x: x['start_time'])
         
+        # Apply transport mode consistency validation
+        validated = self._ensure_transport_mode_consistency(validated)
+        
         return validated
+    
+    def _ensure_transport_mode_consistency(self, activities):
+        """
+        Ensure transportation mode consistency throughout the day.
+        A person must use the same transport mode until they return home.
+        
+        Args:
+            activities: Sorted list of validated activity dictionaries
+            
+        Returns:
+            list: Activities with consistent transport modes
+        """
+        if not activities or len(activities) <= 1:
+            return activities
+            
+        # Track current transport mode and whether person is at home
+        current_transport_mode = None
+        at_home = False
+        last_location_type = None
+        result = []
+        
+        for i, activity in enumerate(activities):
+            location_type = activity.get('location_type', '')
+            transport_mode = activity.get('transport_mode', 'walking')  # Default to walking if not specified
+            
+            # First activity of the day
+            if i == 0:
+                # If first activity is at home, allow any transport mode for now
+                if location_type == 'home':
+                    at_home = True
+                else:
+                    # First activity not at home, establish initial transport mode
+                    current_transport_mode = transport_mode
+                    
+                result.append(activity)
+                last_location_type = location_type
+                continue
+                
+            # Person returned home
+            if location_type == 'home':
+                at_home = True
+                result.append(activity)
+                last_location_type = 'home'
+                continue
+                
+            # Person left home - can choose any transport mode
+            if last_location_type == 'home' and location_type != 'home':
+                at_home = False
+                current_transport_mode = transport_mode
+                result.append(activity)
+                last_location_type = location_type
+                continue
+                
+            # Person is traveling between non-home locations - must use consistent transport
+            if not at_home and current_transport_mode:
+                # Force consistent transport mode
+                activity_copy = activity.copy()
+                activity_copy['transport_mode'] = current_transport_mode
+                result.append(activity_copy)
+            else:
+                # Default case - keep original activity
+                result.append(activity)
+                
+            last_location_type = location_type
+                
+        return result
     
     def _correct_activity_type_based_on_description(self, activity_type, description):
         """
@@ -559,6 +628,38 @@ class Activity:
         
         # Fix boolean values and null
         fixed = fixed.replace('True', 'true').replace('False', 'false').replace('None', 'null')
+        
+        # Fix issues with unquoted values that should be strings
+        fixed = re.sub(r':\s*([a-zA-Z][a-zA-Z0-9_]*)\s*([,}])', r':"\1"\2', fixed)
+        
+        # Fix missing commas between properties
+        fixed = re.sub(r'"\s*}\s*"', '","', fixed)
+        fixed = re.sub(r'"\s*]\s*"', '","', fixed)
+
+        # Fix trailing commas
+        fixed = re.sub(r',\s*}', '}', fixed)
+        fixed = re.sub(r',\s*]', ']', fixed)
+        
+        # Try to handle specific error case from error message
+        try:
+            json.loads(fixed)
+        except json.JSONDecodeError as e:
+            error_message = str(e)
+            if 'Expecting \',\' delimiter' in error_message:
+                # Extract location details
+                match = re.search(r'line (\d+) column (\d+)', error_message)
+                if match:
+                    line_num = int(match.group(1))
+                    col_num = int(match.group(2))
+                    
+                    # Split into lines
+                    lines = fixed.split('\n')
+                    if 0 <= line_num-1 < len(lines):
+                        line = lines[line_num-1]
+                        if col_num < len(line):
+                            # Insert a comma at the problem spot
+                            lines[line_num-1] = line[:col_num] + ',' + line[col_num:]
+                            fixed = '\n'.join(lines)
         
         return fixed
     
