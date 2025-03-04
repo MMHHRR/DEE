@@ -130,19 +130,64 @@ class Memory:
         
         # Get location name (if available)
         start_location_name = "Starting point"
-        end_location_name = "Destination"
+        end_location_name = None  # Initialize as None to track if we find a name
         
-        # Try to get location name from previous trajectory points
+        # Try to get start location name from previous trajectory points
         if self.current_day['trajectory']:
             last_point = self.current_day['trajectory'][-1]
             if 'location_name' in last_point:
                 start_location_name = last_point['location_name']
         
         # Try to get destination name from activity records
-        for activity in reversed(self.current_day['activities']):
-            if self._is_same_location(activity.get('location'), end_location) and 'location_name' in activity:
-                end_location_name = activity['location_name']
-                break
+        # 首先检查紧接着的活动（通过时间和位置匹配）
+        next_activity = None
+        min_time_diff = float('inf')
+        matching_activity = None
+
+        for activity in self.current_day['activities']:
+            # 检查活动是否在这次旅程之后
+            if activity.get('start_time', '') >= end_time:
+                # 检查位置是否匹配
+                if self._is_same_location(activity.get('location'), end_location):
+                    # 计算时间差（分钟）
+                    time_diff = self._calculate_time_diff(end_time, activity.get('start_time', ''))
+                    # 如果这个活动更接近旅程结束时间
+                    if time_diff < min_time_diff:
+                        min_time_diff = time_diff
+                        matching_activity = activity
+
+        # 如果找到匹配的下一个活动
+        if matching_activity and 'location_name' in matching_activity:
+            end_location_name = matching_activity['location_name']
+        else:
+            # 如果找不到下一个活动，查找之前的活动记录
+            for activity in reversed(self.current_day['activities']):
+                if self._is_same_location(activity.get('location'), end_location) and 'location_name' in activity:
+                    end_location_name = activity['location_name']
+                    break
+        
+        # 如果仍然没有找到名称，检查是否是家或工作地点
+        if end_location_name is None:
+            if self.persona_info and 'home' in self.persona_info and self._is_same_location(end_location, self.persona_info['home']):
+                end_location_name = "Home"
+            elif self.persona_info and 'work' in self.persona_info and self._is_same_location(end_location, self.persona_info['work']):
+                end_location_name = "Workplace"
+            else:
+                # 如果实在找不到名称，尝试从下一个活动的类型推断
+                if matching_activity:
+                    activity_type = matching_activity.get('activity_type', '').lower()
+                    location_type = matching_activity.get('location_type', '').lower()
+                    
+                    if activity_type == 'dining' or 'restaurant' in location_type:
+                        end_location_name = "Restaurant"
+                    elif activity_type == 'shopping' or 'shop' in location_type or 'mall' in location_type:
+                        end_location_name = "Shopping Center"
+                    elif activity_type == 'recreation' or 'gym' in location_type:
+                        end_location_name = "Fitness Center"
+                    elif activity_type == 'leisure' or 'park' in location_type:
+                        end_location_name = "Park"
+                    else:
+                        end_location_name = "Destination"  # 使用更通用的词替代 "Unknown location"
         
         # Normalize transport mode
         normalized_transport_mode = normalize_transport_mode(transport_mode)
@@ -182,6 +227,28 @@ class Memory:
             'description': f"Ending {normalized_transport_mode} journey",
             'location_name': end_location_name
         })
+
+    def _calculate_time_diff(self, time1, time2):
+        """
+        Calculate the time difference in minutes between two time strings in HH:MM format.
+        
+        Args:
+            time1: First time string (HH:MM)
+            time2: Second time string (HH:MM)
+            
+        Returns:
+            float: Absolute time difference in minutes
+        """
+        try:
+            h1, m1 = map(int, time1.split(':'))
+            h2, m2 = map(int, time2.split(':'))
+            
+            minutes1 = h1 * 60 + m1
+            minutes2 = h2 * 60 + m2
+            
+            return abs(minutes2 - minutes1)
+        except:
+            return float('inf')
     
     def _is_valid_location(self, location):
         """

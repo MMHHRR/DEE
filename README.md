@@ -2,6 +2,8 @@
 
 This project uses large language models (LLMs) to simulate human daily mobility behavior for environmental exposure research.
 
+![Research Framework](./data/framework.png)
+
 ## Project Structure
 
 - `persona.py`: Defines individual attributes and characteristics
