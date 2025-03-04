@@ -1,0 +1,1135 @@
+{
+  "persona_id": 1,
+  "persona_info": {
+    "id": 1,
+    "home": [
+      40.850054,
+      -73.903656
+    ],
+    "work": [
+      40.812993,
+      -73.907788
+    ],
+    "gender": "male",
+    "race": "asian",
+    "education": "bachelor",
+    "income": 92000,
+    "consumption": "high",
+    "age": 35,
+    "household_size": 1,
+    "has_children": false,
+    "has_car": true,
+    "has_bike": false,
+    "preferred_transport": "driving",
+    "current_location": [
+      40.850054,
+      -73.903656
+    ],
+    "current_activity": null
+  },
+  "days": [
+    {
+      "date": "2025-02-03",
+      "day_of_week": "Monday",
+      "activities": [
+        {
+          "activity_type": "sleep",
+          "start_time": "00:00",
+          "end_time": "07:00",
+          "description": "Nighttime rest",
+          "location": [
+            40.850054,
+            -73.903656
+          ],
+          "location_name": "Home",
+          "location_type": "home"
+        },
+        {
+          "activity_type": "dining",
+          "start_time": "07:00",
+          "end_time": "08:00",
+          "description": "Morning routine including shower and breakfast.",
+          "location": [
+            40.850054,
+            -73.903656
+          ],
+          "location_name": "Home",
+          "transport_mode": "walking",
+          "detailed_description": "On Monday morning, this 35-year-old male begins his day with a refreshing shower, using high-quality grooming products that align with his consumption habits. After his shower, he transitions to the kitchen for breakfast, where he prepares a well-balanced meal that includes organic eggs, avocado toast, and freshly squeezed juice. He enjoys his breakfast while reading the news on his tablet, utilizing this time to mentally prepare for the day ahead. This morning routine sets a positive tone for his week, combining self-care with a nutritious start.",
+          "location_type": "home"
+        },
+        {
+          "activity_type": "travel",
+          "start_time": "08:00",
+          "end_time": "08:06",
+          "start_location": [
+            40.850054,
+            -73.903656
+          ],
+          "end_location": [
+            40.812993,
+            -73.907788
+          ],
+          "start_location_name": "Home",
+          "end_location_name": "Destination",
+          "transport_mode": "driving",
+          "description": "Travel from Home to Destination by driving"
+        },
+        {
+          "activity_type": "work",
+          "start_time": "08:06",
+          "end_time": "12:00",
+          "description": "Focused work at the office, including meetings and project work.",
+          "location": [
+            40.812993,
+            -73.907788
+          ],
+          "location_name": "Workplace",
+          "transport_mode": "driving",
+          "location_type": "workplace"
+        },
+        {
+          "activity_type": "work",
+          "start_time": "12:00",
+          "end_time": "13:00",
+          "description": "Lunch at a nearby caf\u00e9 with co-workers.",
+          "location": [
+            40.812993,
+            -73.907788
+          ],
+          "location_name": "Workplace",
+          "transport_mode": "walking",
+          "location_type": "workplace"
+        },
+        {
+          "activity_type": "work",
+          "start_time": "13:00",
+          "end_time": "17:00",
+          "description": "Afternoon work session focusing on reports and emails.",
+          "location": [
+            40.812993,
+            -73.907788
+          ],
+          "location_name": "Workplace",
+          "transport_mode": "walking",
+          "location_type": "workplace"
+        },
+        {
+          "activity_type": "travel",
+          "start_time": "17:00",
+          "end_time": "17:05",
+          "start_location": [
+            40.812993,
+            -73.907788
+          ],
+          "end_location": [
+            40.8237265,
+            -73.89157689999999
+          ],
+          "start_location_name": "Workplace",
+          "end_location_name": "Destination",
+          "transport_mode": "driving",
+          "description": "Travel from Workplace to Destination by driving"
+        },
+        {
+          "activity_type": "recreation",
+          "start_time": "17:30",
+          "end_time": "18:30",
+          "description": "Gym workout session for fitness.",
+          "location": [
+            40.8237265,
+            -73.89157689999999
+          ],
+          "location_name": "Planet Fitness",
+          "transport_mode": "driving",
+          "detailed_description": "The 35-year-old male, with a bachelor's degree and a high-income bracket, heads to his upscale gym for an invigorating workout session. Arriving at 5:30 PM, he begins with a dynamic warm-up to prepare his body for an intense training regimen focused on strength and conditioning. His routine includes a combination of weightlifting exercises targeting major muscle groups, followed by high-intensity interval training (HIIT) to boost his cardiovascular fitness. He enjoys using top-of-the-line equipment and often engages in personalized training sessions with a fitness coach. After his workout, he typically spends some time stretching and cooling down, ensuring his body recovers well. This session emphasizes not only physical fitness but also mental well-being, aligning with his active lifestyle and high consumption habits in health and wellness.",
+          "location_type": "upscale gym"
+        },
+        {
+          "activity_type": "travel",
+          "start_time": "18:30",
+          "end_time": "19:10",
+          "start_location": [
+            40.8237265,
+            -73.89157689999999
+          ],
+          "end_location": [
+            40.850054,
+            -73.903656
+          ],
+          "start_location_name": "Planet Fitness",
+          "end_location_name": "Home",
+          "transport_mode": "walking",
+          "description": "Travel from Planet Fitness to Home by walking"
+        },
+        {
+          "activity_type": "dining",
+          "start_time": "19:10",
+          "end_time": "20:00",
+          "description": "Dinner at home, preparing a healthy meal.",
+          "location": [
+            40.850054,
+            -73.903656
+          ],
+          "location_name": "Home",
+          "transport_mode": "walking",
+          "location_type": "home"
+        },
+        {
+          "activity_type": "leisure",
+          "start_time": "20:00",
+          "end_time": "22:00",
+          "description": "Watching a movie and relaxing at home.",
+          "location": [
+            40.850054,
+            -73.903656
+          ],
+          "location_name": "Home",
+          "transport_mode": "walking",
+          "location_type": "home"
+        }
+      ],
+      "trajectory": [
+        {
+          "location": [
+            40.850054,
+            -73.903656
+          ],
+          "timestamp": "00:00",
+          "activity_type": "sleep",
+          "description": "Nighttime rest",
+          "location_name": "Home"
+        },
+        {
+          "location": [
+            40.850054,
+            -73.903656
+          ],
+          "timestamp": "07:00",
+          "activity_type": "dining",
+          "description": "Morning routine including shower and breakfast.",
+          "location_name": "Home"
+        },
+        {
+          "location": [
+            40.850054,
+            -73.903656
+          ],
+          "timestamp": "08:00",
+          "activity_type": "travel",
+          "transport_mode": "driving",
+          "description": "Starting driving journey",
+          "location_name": "Home"
+        },
+        {
+          "location": [
+            40.812993,
+            -73.907788
+          ],
+          "timestamp": "08:06",
+          "activity_type": "travel",
+          "transport_mode": "driving",
+          "description": "Ending driving journey",
+          "location_name": "Destination"
+        },
+        {
+          "location": [
+            40.812993,
+            -73.907788
+          ],
+          "timestamp": "08:06",
+          "activity_type": "work",
+          "description": "Focused work at the office, including meetings and project work.",
+          "location_name": "Workplace"
+        },
+        {
+          "location": [
+            40.812993,
+            -73.907788
+          ],
+          "timestamp": "12:00",
+          "activity_type": "work",
+          "description": "Lunch at a nearby caf\u00e9 with co-workers.",
+          "location_name": "Workplace"
+        },
+        {
+          "location": [
+            40.812993,
+            -73.907788
+          ],
+          "timestamp": "13:00",
+          "activity_type": "work",
+          "description": "Afternoon work session focusing on reports and emails.",
+          "location_name": "Workplace"
+        },
+        {
+          "location": [
+            40.812993,
+            -73.907788
+          ],
+          "timestamp": "17:00",
+          "activity_type": "travel",
+          "transport_mode": "driving",
+          "description": "Starting driving journey",
+          "location_name": "Workplace"
+        },
+        {
+          "location": [
+            40.8237265,
+            -73.89157689999999
+          ],
+          "timestamp": "17:05",
+          "activity_type": "travel",
+          "transport_mode": "driving",
+          "description": "Ending driving journey",
+          "location_name": "Destination"
+        },
+        {
+          "location": [
+            40.8237265,
+            -73.89157689999999
+          ],
+          "timestamp": "17:30",
+          "activity_type": "recreation",
+          "description": "Gym workout session for fitness.",
+          "location_name": "Planet Fitness"
+        },
+        {
+          "location": [
+            40.8237265,
+            -73.89157689999999
+          ],
+          "timestamp": "18:30",
+          "activity_type": "travel",
+          "transport_mode": "walking",
+          "description": "Starting walking journey",
+          "location_name": "Planet Fitness"
+        },
+        {
+          "location": [
+            40.850054,
+            -73.903656
+          ],
+          "timestamp": "19:10",
+          "activity_type": "travel",
+          "transport_mode": "walking",
+          "description": "Ending walking journey",
+          "location_name": "Home"
+        },
+        {
+          "location": [
+            40.850054,
+            -73.903656
+          ],
+          "timestamp": "19:10",
+          "activity_type": "dining",
+          "description": "Dinner at home, preparing a healthy meal.",
+          "location_name": "Home"
+        },
+        {
+          "location": [
+            40.850054,
+            -73.903656
+          ],
+          "timestamp": "20:00",
+          "activity_type": "leisure",
+          "description": "Watching a movie and relaxing at home.",
+          "location_name": "Home"
+        }
+      ]
+    },
+    {
+      "date": "2025-02-04",
+      "day_of_week": "Tuesday",
+      "activities": [
+        {
+          "activity_type": "sleep",
+          "start_time": "00:00",
+          "end_time": "09:00",
+          "description": "Nighttime rest",
+          "location": [
+            40.850054,
+            -73.903656
+          ],
+          "location_name": "Home",
+          "location_type": "home"
+        },
+        {
+          "activity_type": "travel",
+          "start_time": "09:00",
+          "end_time": "09:45",
+          "start_location": [
+            40.850054,
+            -73.903656
+          ],
+          "end_location": [
+            40.812993,
+            -73.907788
+          ],
+          "start_location_name": "Home",
+          "end_location_name": "Destination",
+          "transport_mode": "walking",
+          "description": "Travel from Home to Destination by walking"
+        },
+        {
+          "activity_type": "work",
+          "start_time": "09:45",
+          "end_time": "11:00",
+          "description": "Morning work session, focusing on emails and project updates.",
+          "location": [
+            40.812993,
+            -73.907788
+          ],
+          "location_name": "Workplace",
+          "transport_mode": "walking",
+          "location_type": "workplace"
+        },
+        {
+          "activity_type": "work",
+          "start_time": "11:00",
+          "end_time": "13:00",
+          "description": "Attend team meetings and collaborate with colleagues on ongoing projects.",
+          "location": [
+            40.812993,
+            -73.907788
+          ],
+          "location_name": "Workplace",
+          "transport_mode": "walking",
+          "location_type": "workplace"
+        },
+        {
+          "activity_type": "travel",
+          "start_time": "13:00",
+          "end_time": "13:38",
+          "start_location": [
+            40.812993,
+            -73.907788
+          ],
+          "end_location": [
+            40.7939874,
+            -73.9411026
+          ],
+          "start_location_name": "Workplace",
+          "end_location_name": "Destination",
+          "transport_mode": "walking",
+          "description": "Travel from Workplace to Destination by walking"
+        },
+        {
+          "activity_type": "dining",
+          "start_time": "13:38",
+          "end_time": "14:00",
+          "description": "Lunch at a nearby caf\u00e9 with a colleague.",
+          "location": [
+            40.7939874,
+            -73.9411026
+          ],
+          "location_name": "Dell'Aria - Italian Love for Coffee",
+          "transport_mode": "walking",
+          "detailed_description": "At 13:00 on Tuesday, the 35-year-old male, who enjoys high consumption habits and has a bachelor\u2019s degree, meets a colleague at a trendy caf\u00e9 located nearby for lunch. They engage in casual conversation while enjoying gourmet sandwiches and artisanal coffee. The caf\u00e9\u2019s vibrant atmosphere, complemented by modern decor and a diverse menu, caters to his appreciation for quality dining experiences. The meal lasts until 14:00, allowing ample time for networking and discussing work-related topics in a relaxed setting.",
+          "location_type": "trendy caf\u00e9"
+        },
+        {
+          "activity_type": "travel",
+          "start_time": "14:00",
+          "end_time": "14:49",
+          "start_location": [
+            40.7939874,
+            -73.9411026
+          ],
+          "end_location": [
+            40.812993,
+            -73.907788
+          ],
+          "start_location_name": "Dell'Aria - Italian Love for Coffee",
+          "end_location_name": "Workplace",
+          "transport_mode": "walking",
+          "description": "Travel from Dell'Aria - Italian Love for Coffee to Workplace by walking"
+        },
+        {
+          "activity_type": "work",
+          "start_time": "14:49",
+          "end_time": "17:00",
+          "description": "Afternoon work session, focusing on reports and deadlines.",
+          "location": [
+            40.812993,
+            -73.907788
+          ],
+          "location_name": "Workplace",
+          "transport_mode": "walking",
+          "location_type": "workplace"
+        },
+        {
+          "activity_type": "travel",
+          "start_time": "17:00",
+          "end_time": "17:05",
+          "start_location": [
+            40.812993,
+            -73.907788
+          ],
+          "end_location": [
+            40.8091514,
+            -73.9099413
+          ],
+          "start_location_name": "Workplace",
+          "end_location_name": "Destination",
+          "transport_mode": "driving",
+          "description": "Travel from Workplace to Destination by driving"
+        },
+        {
+          "activity_type": "recreation",
+          "start_time": "17:05",
+          "end_time": "18:00",
+          "description": "Gym workout focusing on strength training.",
+          "location": [
+            40.8091514,
+            -73.9099413
+          ],
+          "location_name": "Grit City Strength & Conditioning",
+          "transport_mode": "driving",
+          "detailed_description": "At 5:00 PM on Tuesday, the 35-year-old male will arrive at a local fitness center equipped with state-of-the-art strength training machines and free weights. He will begin his workout with a dynamic warm-up to prepare his body, followed by a structured strength training regimen that includes compound movements such as squats, deadlifts, and bench presses, focusing on both major muscle groups and accessory lifts to enhance overall strength. Given his high consumption habits, he may also utilize supplements like protein shakes post-workout to aid recovery. He values efficiency and results, aiming to maximize the benefits of his one-hour session while ensuring proper form and technique. As an educated individual, he likely stays informed on the latest fitness trends and may even incorporate high-intensity interval training (HIIT) elements into his routine to maintain variety and challenge his body.",
+          "location_type": "upscale gym"
+        },
+        {
+          "activity_type": "travel",
+          "start_time": "18:00",
+          "end_time": "18:05",
+          "start_location": [
+            40.8091514,
+            -73.9099413
+          ],
+          "end_location": [
+            40.812993,
+            -73.907788
+          ],
+          "start_location_name": "Grit City Strength & Conditioning",
+          "end_location_name": "Workplace",
+          "transport_mode": "walking",
+          "description": "Travel from Grit City Strength & Conditioning to Workplace by walking"
+        },
+        {
+          "activity_type": "work",
+          "start_time": "18:30",
+          "end_time": "19:30",
+          "description": "Dinner at home, cooking a new recipe.",
+          "location": [
+            40.812993,
+            -73.907788
+          ],
+          "location_name": "Workplace",
+          "transport_mode": "walking",
+          "location_type": "workplace"
+        },
+        {
+          "activity_type": "travel",
+          "start_time": "19:30",
+          "end_time": "20:26",
+          "start_location": [
+            40.812993,
+            -73.907788
+          ],
+          "end_location": [
+            40.850054,
+            -73.903656
+          ],
+          "start_location_name": "Workplace",
+          "end_location_name": "Home",
+          "transport_mode": "walking",
+          "description": "Travel from Workplace to Home by walking"
+        },
+        {
+          "activity_type": "leisure",
+          "start_time": "20:26",
+          "end_time": "21:00",
+          "description": "Relaxing while watching a favorite TV show.",
+          "location": [
+            40.850054,
+            -73.903656
+          ],
+          "location_name": "Home",
+          "transport_mode": "walking",
+          "detailed_description": "On Tuesday evening from 19:30 to 21:00, this 35-year-old male will unwind after a long day by indulging in his favorite TV show, likely seated comfortably in his living room. He might prepare a light snack or enjoy a drink while immersing himself in the storyline, possibly selecting a show that aligns with his interests in drama or comedy. Given his high consumption habits, he might also be watching on a premium streaming service, ensuring he has access to the latest episodes and high-quality viewing options. The ambiance will be relaxed, with dim lighting and his favorite couch or recliner enhancing his comfort during this leisure time.",
+          "location_type": "home"
+        }
+      ],
+      "trajectory": [
+        {
+          "location": [
+            40.850054,
+            -73.903656
+          ],
+          "timestamp": "00:00",
+          "activity_type": "sleep",
+          "description": "Nighttime rest",
+          "location_name": "Home"
+        },
+        {
+          "location": [
+            40.850054,
+            -73.903656
+          ],
+          "timestamp": "09:00",
+          "activity_type": "travel",
+          "transport_mode": "walking",
+          "description": "Starting walking journey",
+          "location_name": "Home"
+        },
+        {
+          "location": [
+            40.812993,
+            -73.907788
+          ],
+          "timestamp": "09:45",
+          "activity_type": "travel",
+          "transport_mode": "walking",
+          "description": "Ending walking journey",
+          "location_name": "Destination"
+        },
+        {
+          "location": [
+            40.812993,
+            -73.907788
+          ],
+          "timestamp": "09:45",
+          "activity_type": "work",
+          "description": "Morning work session, focusing on emails and project updates.",
+          "location_name": "Workplace"
+        },
+        {
+          "location": [
+            40.812993,
+            -73.907788
+          ],
+          "timestamp": "11:00",
+          "activity_type": "work",
+          "description": "Attend team meetings and collaborate with colleagues on ongoing projects.",
+          "location_name": "Workplace"
+        },
+        {
+          "location": [
+            40.812993,
+            -73.907788
+          ],
+          "timestamp": "13:00",
+          "activity_type": "travel",
+          "transport_mode": "walking",
+          "description": "Starting walking journey",
+          "location_name": "Workplace"
+        },
+        {
+          "location": [
+            40.7939874,
+            -73.9411026
+          ],
+          "timestamp": "13:38",
+          "activity_type": "travel",
+          "transport_mode": "walking",
+          "description": "Ending walking journey",
+          "location_name": "Destination"
+        },
+        {
+          "location": [
+            40.7939874,
+            -73.9411026
+          ],
+          "timestamp": "13:38",
+          "activity_type": "dining",
+          "description": "Lunch at a nearby caf\u00e9 with a colleague.",
+          "location_name": "Dell'Aria - Italian Love for Coffee"
+        },
+        {
+          "location": [
+            40.7939874,
+            -73.9411026
+          ],
+          "timestamp": "14:00",
+          "activity_type": "travel",
+          "transport_mode": "walking",
+          "description": "Starting walking journey",
+          "location_name": "Dell'Aria - Italian Love for Coffee"
+        },
+        {
+          "location": [
+            40.812993,
+            -73.907788
+          ],
+          "timestamp": "14:49",
+          "activity_type": "travel",
+          "transport_mode": "walking",
+          "description": "Ending walking journey",
+          "location_name": "Workplace"
+        },
+        {
+          "location": [
+            40.812993,
+            -73.907788
+          ],
+          "timestamp": "14:49",
+          "activity_type": "work",
+          "description": "Afternoon work session, focusing on reports and deadlines.",
+          "location_name": "Workplace"
+        },
+        {
+          "location": [
+            40.812993,
+            -73.907788
+          ],
+          "timestamp": "17:00",
+          "activity_type": "travel",
+          "transport_mode": "driving",
+          "description": "Starting driving journey",
+          "location_name": "Workplace"
+        },
+        {
+          "location": [
+            40.8091514,
+            -73.9099413
+          ],
+          "timestamp": "17:05",
+          "activity_type": "travel",
+          "transport_mode": "driving",
+          "description": "Ending driving journey",
+          "location_name": "Destination"
+        },
+        {
+          "location": [
+            40.8091514,
+            -73.9099413
+          ],
+          "timestamp": "17:05",
+          "activity_type": "recreation",
+          "description": "Gym workout focusing on strength training.",
+          "location_name": "Grit City Strength & Conditioning"
+        },
+        {
+          "location": [
+            40.8091514,
+            -73.9099413
+          ],
+          "timestamp": "18:00",
+          "activity_type": "travel",
+          "transport_mode": "walking",
+          "description": "Starting walking journey",
+          "location_name": "Grit City Strength & Conditioning"
+        },
+        {
+          "location": [
+            40.812993,
+            -73.907788
+          ],
+          "timestamp": "18:05",
+          "activity_type": "travel",
+          "transport_mode": "walking",
+          "description": "Ending walking journey",
+          "location_name": "Workplace"
+        },
+        {
+          "location": [
+            40.812993,
+            -73.907788
+          ],
+          "timestamp": "18:30",
+          "activity_type": "work",
+          "description": "Dinner at home, cooking a new recipe.",
+          "location_name": "Workplace"
+        },
+        {
+          "location": [
+            40.812993,
+            -73.907788
+          ],
+          "timestamp": "19:30",
+          "activity_type": "travel",
+          "transport_mode": "walking",
+          "description": "Starting walking journey",
+          "location_name": "Workplace"
+        },
+        {
+          "location": [
+            40.850054,
+            -73.903656
+          ],
+          "timestamp": "20:26",
+          "activity_type": "travel",
+          "transport_mode": "walking",
+          "description": "Ending walking journey",
+          "location_name": "Home"
+        },
+        {
+          "location": [
+            40.850054,
+            -73.903656
+          ],
+          "timestamp": "20:26",
+          "activity_type": "leisure",
+          "description": "Relaxing while watching a favorite TV show.",
+          "location_name": "Home"
+        }
+      ]
+    },
+    {
+      "date": "2025-02-05",
+      "day_of_week": "Wednesday",
+      "activities": [
+        {
+          "activity_type": "sleep",
+          "start_time": "00:00",
+          "end_time": "08:00",
+          "description": "Nighttime rest",
+          "location": [
+            40.850054,
+            -73.903656
+          ],
+          "location_name": "Home",
+          "location_type": "home"
+        },
+        {
+          "activity_type": "travel",
+          "start_time": "08:00",
+          "end_time": "08:09",
+          "start_location": [
+            40.850054,
+            -73.903656
+          ],
+          "end_location": [
+            40.812993,
+            -73.907788
+          ],
+          "start_location_name": "Home",
+          "end_location_name": "Destination",
+          "transport_mode": "driving",
+          "description": "Travel from Home to Destination by driving"
+        },
+        {
+          "activity_type": "work",
+          "start_time": "08:09",
+          "end_time": "12:00",
+          "description": "Working at the office, focusing on project deadlines.",
+          "location": [
+            40.812993,
+            -73.907788
+          ],
+          "location_name": "Workplace",
+          "transport_mode": "driving",
+          "location_type": "workplace"
+        },
+        {
+          "activity_type": "travel",
+          "start_time": "12:00",
+          "end_time": "12:14",
+          "start_location": [
+            40.812993,
+            -73.907788
+          ],
+          "end_location": [
+            40.8101505,
+            -73.9216761
+          ],
+          "start_location_name": "Workplace",
+          "end_location_name": "Destination",
+          "transport_mode": "walking",
+          "description": "Travel from Workplace to Destination by walking"
+        },
+        {
+          "activity_type": "dining",
+          "start_time": "12:14",
+          "end_time": "13:00",
+          "description": "Lunch at a nearby cafe with colleagues.",
+          "location": [
+            40.8101505,
+            -73.9216761
+          ],
+          "location_name": "Mottley Kitchen",
+          "transport_mode": "walking",
+          "detailed_description": "At 12:00 PM on Wednesday, the 35-year-old male will meet with his colleagues for lunch at a nearby upscale cafe known for its vibrant atmosphere and diverse menu options. Given his high consumption habits and bachelor\u2019s degree, he is likely to engage in lively discussions about work projects while enjoying gourmet sandwiches and artisanal salads. He may opt for a craft beer or a specialty coffee to complement his meal. This lunch outing will not only provide a chance to bond with co-workers but also a brief escape from the office environment, allowing for casual conversation and connection over delicious food.",
+          "location_type": "upscale cafe"
+        },
+        {
+          "activity_type": "travel",
+          "start_time": "13:00",
+          "end_time": "13:15",
+          "start_location": [
+            40.8101505,
+            -73.9216761
+          ],
+          "end_location": [
+            40.812993,
+            -73.907788
+          ],
+          "start_location_name": "Mottley Kitchen",
+          "end_location_name": "Workplace",
+          "transport_mode": "walking",
+          "description": "Travel from Mottley Kitchen to Workplace by walking"
+        },
+        {
+          "activity_type": "work",
+          "start_time": "13:15",
+          "end_time": "17:00",
+          "description": "Continuing work tasks and attending meetings.",
+          "location": [
+            40.812993,
+            -73.907788
+          ],
+          "location_name": "Workplace",
+          "transport_mode": "walking",
+          "location_type": "workplace"
+        },
+        {
+          "activity_type": "work",
+          "start_time": "17:00",
+          "end_time": "18:00",
+          "description": "Going for a jog in the park to unwind after work.",
+          "location": [
+            40.812993,
+            -73.907788
+          ],
+          "location_name": "Workplace",
+          "transport_mode": "walking",
+          "location_type": "workplace"
+        },
+        {
+          "activity_type": "travel",
+          "start_time": "18:00",
+          "end_time": "18:05",
+          "start_location": [
+            40.812993,
+            -73.907788
+          ],
+          "end_location": [
+            40.8284647,
+            -73.9258825
+          ],
+          "start_location_name": "Workplace",
+          "end_location_name": "Destination",
+          "transport_mode": "driving",
+          "description": "Travel from Workplace to Destination by driving"
+        },
+        {
+          "activity_type": "dining",
+          "start_time": "18:30",
+          "end_time": "19:30",
+          "description": "Dinner at a restaurant with friends.",
+          "location": [
+            40.8284647,
+            -73.9258825
+          ],
+          "location_name": "NYY Steak",
+          "transport_mode": "driving",
+          "detailed_description": "On Wednesday evening at 6:30 PM, the 35-year-old male, with a bachelor's degree and a high income, will meet his friends at an upscale restaurant to enjoy dinner together. Given his high consumption habits, he is likely to indulge in a multi-course meal, starting with appetizers like artisanal cheeses or gourmet bruschetta, followed by a main course featuring premium steak or fresh seafood. He may also select a fine wine to complement his meal and finish with an exquisite dessert. The atmosphere will be lively yet sophisticated, providing a perfect backdrop for catching up with friends and enjoying good food.",
+          "location_type": "upscale restaurant"
+        },
+        {
+          "activity_type": "travel",
+          "start_time": "19:30",
+          "end_time": "20:10",
+          "start_location": [
+            40.8284647,
+            -73.9258825
+          ],
+          "end_location": [
+            40.850054,
+            -73.903656
+          ],
+          "start_location_name": "NYY Steak",
+          "end_location_name": "Home",
+          "transport_mode": "walking",
+          "description": "Travel from NYY Steak to Home by walking"
+        },
+        {
+          "activity_type": "leisure",
+          "start_time": "20:10",
+          "end_time": "22:00",
+          "description": "Watching a movie at home to relax.",
+          "location": [
+            40.850054,
+            -73.903656
+          ],
+          "location_name": "Home",
+          "transport_mode": "walking",
+          "location_type": "home"
+        }
+      ],
+      "trajectory": [
+        {
+          "location": [
+            40.850054,
+            -73.903656
+          ],
+          "timestamp": "00:00",
+          "activity_type": "sleep",
+          "description": "Nighttime rest",
+          "location_name": "Home"
+        },
+        {
+          "location": [
+            40.850054,
+            -73.903656
+          ],
+          "timestamp": "08:00",
+          "activity_type": "travel",
+          "transport_mode": "driving",
+          "description": "Starting driving journey",
+          "location_name": "Home"
+        },
+        {
+          "location": [
+            40.812993,
+            -73.907788
+          ],
+          "timestamp": "08:09",
+          "activity_type": "travel",
+          "transport_mode": "driving",
+          "description": "Ending driving journey",
+          "location_name": "Destination"
+        },
+        {
+          "location": [
+            40.812993,
+            -73.907788
+          ],
+          "timestamp": "08:09",
+          "activity_type": "work",
+          "description": "Working at the office, focusing on project deadlines.",
+          "location_name": "Workplace"
+        },
+        {
+          "location": [
+            40.812993,
+            -73.907788
+          ],
+          "timestamp": "12:00",
+          "activity_type": "travel",
+          "transport_mode": "walking",
+          "description": "Starting walking journey",
+          "location_name": "Workplace"
+        },
+        {
+          "location": [
+            40.8101505,
+            -73.9216761
+          ],
+          "timestamp": "12:14",
+          "activity_type": "travel",
+          "transport_mode": "walking",
+          "description": "Ending walking journey",
+          "location_name": "Destination"
+        },
+        {
+          "location": [
+            40.8101505,
+            -73.9216761
+          ],
+          "timestamp": "12:14",
+          "activity_type": "dining",
+          "description": "Lunch at a nearby cafe with colleagues.",
+          "location_name": "Mottley Kitchen"
+        },
+        {
+          "location": [
+            40.8101505,
+            -73.9216761
+          ],
+          "timestamp": "13:00",
+          "activity_type": "travel",
+          "transport_mode": "walking",
+          "description": "Starting walking journey",
+          "location_name": "Mottley Kitchen"
+        },
+        {
+          "location": [
+            40.812993,
+            -73.907788
+          ],
+          "timestamp": "13:15",
+          "activity_type": "travel",
+          "transport_mode": "walking",
+          "description": "Ending walking journey",
+          "location_name": "Workplace"
+        },
+        {
+          "location": [
+            40.812993,
+            -73.907788
+          ],
+          "timestamp": "13:15",
+          "activity_type": "work",
+          "description": "Continuing work tasks and attending meetings.",
+          "location_name": "Workplace"
+        },
+        {
+          "location": [
+            40.812993,
+            -73.907788
+          ],
+          "timestamp": "17:00",
+          "activity_type": "work",
+          "description": "Going for a jog in the park to unwind after work.",
+          "location_name": "Workplace"
+        },
+        {
+          "location": [
+            40.812993,
+            -73.907788
+          ],
+          "timestamp": "18:00",
+          "activity_type": "travel",
+          "transport_mode": "driving",
+          "description": "Starting driving journey",
+          "location_name": "Workplace"
+        },
+        {
+          "location": [
+            40.8284647,
+            -73.9258825
+          ],
+          "timestamp": "18:05",
+          "activity_type": "travel",
+          "transport_mode": "driving",
+          "description": "Ending driving journey",
+          "location_name": "Destination"
+        },
+        {
+          "location": [
+            40.8284647,
+            -73.9258825
+          ],
+          "timestamp": "18:30",
+          "activity_type": "dining",
+          "description": "Dinner at a restaurant with friends.",
+          "location_name": "NYY Steak"
+        },
+        {
+          "location": [
+            40.8284647,
+            -73.9258825
+          ],
+          "timestamp": "19:30",
+          "activity_type": "travel",
+          "transport_mode": "walking",
+          "description": "Starting walking journey",
+          "location_name": "NYY Steak"
+        },
+        {
+          "location": [
+            40.850054,
+            -73.903656
+          ],
+          "timestamp": "20:10",
+          "activity_type": "travel",
+          "transport_mode": "walking",
+          "description": "Ending walking journey",
+          "location_name": "Home"
+        },
+        {
+          "location": [
+            40.850054,
+            -73.903656
+          ],
+          "timestamp": "20:10",
+          "activity_type": "leisure",
+          "description": "Watching a movie at home to relax.",
+          "location_name": "Home"
+        }
+      ]
+    }
+  ]
+}

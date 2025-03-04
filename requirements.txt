@@ -1,0 +1,9 @@
+openai
+pandas
+numpy
+python-dotenv==1.0.0
+geopy==2.4.1
+osmnx==1.7.1
+folium==0.14.0
+matplotlib
+requests

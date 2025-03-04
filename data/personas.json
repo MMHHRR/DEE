@@ -1,0 +1,37 @@
+[
+  {
+    "id": 1,
+    "home": [40.850054, -73.903656],
+    "work": [40.812993, -73.907788],
+    "gender": "male",
+    "race": "asian",
+    "education": "bachelor",
+    "income": 92000,
+    "consumption": "high",
+    "age": 35
+  },
+
+  {
+    "id": 2,
+    "home": [40.7128, -74.0060],
+    "work": [40.7580, -73.9855],
+    "gender": "female",
+    "race": "white",
+    "education": "below bachelor",
+    "income": 78231,
+    "consumption": "slightly high",
+    "age": 70
+  },
+  
+  {
+    "id": 3,
+    "home": [40.6892, -73.9081],
+    "work": [40.7527, -73.9772],
+    "gender": "male",
+    "race": "black",
+    "education": "master",
+    "income": 105000,
+    "consumption": "medium",
+    "age": 42
+  }
+] 
