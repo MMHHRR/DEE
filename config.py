@@ -88,21 +88,14 @@ IMPORTANT RULES FOR ACTIVITY TYPES:
 - "leisure": relaxing activities (reading, watching TV, etc.)
 - "errands": short tasks (bank, post office, etc.)
 
-IMPORTANT RULES FOR TRANSPORT MODES:
-- ONLY specify a transport mode when the person is ACTUALLY TRAVELING from one location to another
-- "walking": for short distances on foot
-- "driving": using a personal car
-- "public_transit": using buses, trains, subway, etc.
-- "cycling": using a bicycle
-- "rideshare": using taxis, Uber, Lyft, etc.
-- If the activity happens at the same location as the previous one, do NOT specify a transport mode
+DO NOT SPECIFY TRANSPORT MODES in your response. The system will determine appropriate transportation methods later based on distance, time constraints, and other factors.
 
 For each activity, specify:
 1. Activity type (MUST be one from the list above)
 2. Start time
 3. End time
 4. Brief description of the activity
-5. Mode of transportation ONLY if traveling to a new location
+5. Location type (e.g., "home", "work", "restaurant", "gym", "park", etc.)
 
 Format your response as a JSON array of activities:
 [
@@ -111,7 +104,7 @@ Format your response as a JSON array of activities:
     "start_time": "...",
     "end_time": "...",
     "description": "...",
-    "transport_mode": "..." // ONLY include if traveling to a new location
+    "location_type": "..."
   }},
   ...
 ]

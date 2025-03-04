@@ -8,7 +8,13 @@ import json
 import datetime
 import numpy as np
 from config import RESULTS_DIR
-from utils import visualize_trajectory, plot_activity_distribution, save_json, normalize_transport_mode
+from utils import (
+    visualize_trajectory, 
+    plot_activity_distribution, 
+    save_json, 
+    normalize_transport_mode, 
+    get_route_coordinates
+)
 
 class Memory:
     """
@@ -78,11 +84,21 @@ class Memory:
         if 'location_name' in activity:
             activity_record['location_name'] = activity['location_name']
         
-        # Only add transport mode if it's a travel activity
-        if activity['activity_type'] == 'travel' and 'transport_mode' in activity and activity['transport_mode']:
-            # Normalize transport mode
-            transport_mode = normalize_transport_mode(activity['transport_mode'])
-            activity_record['transport_mode'] = transport_mode
+        # 只在有起始坐标的情况下添加路线
+        if 'start_location' in activity and 'end_location' in activity:
+            # 如果是travel活动，使用transport_mode
+            transport_mode = 'walking'  # 默认步行
+            if activity['activity_type'] == 'travel' and 'transport_mode' in activity:
+                transport_mode = normalize_transport_mode(activity['transport_mode'])
+                activity_record['transport_mode'] = transport_mode
+            
+            # route_coords = get_route_coordinates(
+            #     activity['start_location'],
+            #     activity['end_location'],
+            #     transport_mode
+            # )
+            # if route_coords:
+            #     activity_record['route_coordinates'] = route_coords
         
         # Add only essential additional details
         if 'detailed_description' in activity:
@@ -101,13 +117,14 @@ class Memory:
             'description': activity['description']
         }
         
-        # Add location name to trajectory point if available
-        if 'location_name' in activity:
-            trajectory_point['location_name'] = activity['location_name']
+        if 'transport_mode' in activity_record:
+            trajectory_point['transport_mode'] = activity_record['transport_mode']
         
-        # Only add transport mode if it's a travel activity
-        if activity['activity_type'] == 'travel' and 'transport_mode' in activity and activity['transport_mode']:
-            trajectory_point['transport_mode'] = normalize_transport_mode(activity['transport_mode'])
+        if 'location_name' in activity_record:
+            trajectory_point['location_name'] = activity_record['location_name']
+        
+        if 'route_coordinates' in activity_record:
+            trajectory_point['route_coordinates'] = activity_record['route_coordinates']
         
         self.current_day['trajectory'].append(trajectory_point)
     
@@ -194,6 +211,13 @@ class Memory:
         # Normalize transport mode
         normalized_transport_mode = normalize_transport_mode(transport_mode)
         
+        # 计算路线坐标
+        route_coords = get_route_coordinates(
+            start_location,
+            end_location,
+            normalized_transport_mode
+        )
+        
         # Create travel record
         travel_record = {
             'activity_type': 'travel',
@@ -205,30 +229,35 @@ class Memory:
             'end_location_name': end_location_name,
             'transport_mode': normalized_transport_mode,
             'description': f"Travel from {start_location_name} to {end_location_name} by {normalized_transport_mode}"
+            # 从activities中移除路线坐标，避免重复存储
         }
         
         self.current_day['activities'].append(travel_record)
         
         # Create intermediate trajectory points for visualization
         # First point - departure
-        self.current_day['trajectory'].append({
+        departure_point = {
             'location': start_location,
             'timestamp': start_time,
             'activity_type': 'travel',
             'transport_mode': normalized_transport_mode,
             'description': f"Starting {normalized_transport_mode} journey",
-            'location_name': start_location_name
-        })
+            'location_name': start_location_name,
+            'route_coordinates': route_coords if route_coords else []  # 添加路线坐标
+        }
+        self.current_day['trajectory'].append(departure_point)
         
         # Last point - arrival
-        self.current_day['trajectory'].append({
+        arrival_point = {
             'location': end_location,
             'timestamp': end_time,
             'activity_type': 'travel',
             'transport_mode': normalized_transport_mode,
             'description': f"Ending {normalized_transport_mode} journey",
-            'location_name': end_location_name
-        })
+            'location_name': end_location_name,
+            'route_coordinates': route_coords if route_coords else []  # 添加路线坐标
+        }
+        self.current_day['trajectory'].append(arrival_point)
 
     def _calculate_time_diff(self, time1, time2):
         """

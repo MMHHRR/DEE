@@ -11,6 +11,8 @@ from geopy.distance import geodesic
 import folium
 import matplotlib.pyplot as plt
 from config import RESULTS_DIR, TRANSPORT_MODES
+import requests
+import math
 
 def load_json(file_path):
     """Load data from a JSON file."""
@@ -57,64 +59,139 @@ def get_day_of_week(date_str):
     date_obj = datetime.datetime.strptime(date_str, "%Y-%m-%d")
     return date_obj.strftime("%A")
 
-def visualize_trajectory(trajectories, output_file=None):
+def visualize_trajectory(trajectory_data, output_file):
     """
-    Visualize mobility trajectories on a map.
+    Visualize a day's trajectory on a map.
     
     Args:
-        trajectories: List of dictionaries with location, timestamp, etc.
-        output_file: File path to save the map (HTML format)
+        trajectory_data: List of trajectory points
+        output_file: Output HTML file path
     """
-    if not trajectories:
+    if not trajectory_data:
         return
     
-    # Get the average location for the center of the map
-    lats = [t['location'][0] for t in trajectories]
-    lons = [t['location'][1] for t in trajectories]
+    # Calculate center point
+    lats = [point['location'][0] for point in trajectory_data]
+    lons = [point['location'][1] for point in trajectory_data]
     center_lat = sum(lats) / len(lats)
     center_lon = sum(lons) / len(lons)
     
-    # Create a map
+    # Create map
     m = folium.Map(location=[center_lat, center_lon], zoom_start=13)
     
-    # Add markers for each point in the trajectory
-    for i, point in enumerate(trajectories):
-        popup_text = f"Activity: {point.get('activity_type', 'Unknown')}<br>" \
-                     f"Time: {point.get('timestamp', 'Unknown')}<br>" \
-                     f"Description: {point.get('description', 'Unknown')}"
+    # 创建位置字典来跟踪重复位置
+    location_counts = {}
+    
+    # 添加时间线连接点
+    coordinates = []
+    
+    # 定义不同活动类型的图标
+    icons = {
+        'travel': 'car',
+        'work': 'briefcase',
+        'leisure': 'leaf',
+        'shopping': 'shopping-cart',
+        'dining': 'cutlery',
+        'home': 'home',
+        'sleep': 'bed'
+    }
+    
+    # Add markers for each point
+    for point in trajectory_data:
+        lat, lon = point['location']
+        loc_key = f"{lat:.5f},{lon:.5f}"  # 使用5位小数精度作为位置键
         
-        # Color by activity type
-        activity_colors = {
-            'home': 'green',
-            'work': 'blue',
-            'shopping': 'orange',
-            'dining': 'red',
-            'recreation': 'purple',
-            'healthcare': 'pink',
-            'social': 'yellow',
-            'education': 'brown',
-            'leisure': 'beige',
-            'errands': 'gray'
-        }
+        # 检查是否有重复位置，如果有则偏移
+        if loc_key in location_counts:
+            location_counts[loc_key] += 1
+            # 根据重复次数计算偏移量（每次偏移约20米）
+            offset = location_counts[loc_key] * 0.0002
+            lat += offset
+            lon += offset
+        else:
+            location_counts[loc_key] = 0
+            
+        # 记录坐标用于绘制时间线
+        coordinates.append([lat, lon])
         
-        color = activity_colors.get(point.get('activity_type', 'unknown').lower(), 'gray')
+        # Set marker color and icon based on activity type
+        if point['activity_type'] == 'travel':
+            color = 'gray'
+        elif point['activity_type'] == 'work':
+            color = 'red'
+        elif point['activity_type'] == 'leisure':
+            color = 'blue'
+        elif point['activity_type'] == 'shopping':
+            color = 'green'
+        elif point['activity_type'] == 'dining':
+            color = 'orange'
+        elif point['activity_type'] == 'home':
+            color = 'purple'
+        elif point['activity_type'] == 'sleep':
+            color = 'darkblue'
+        else:
+            color = 'purple'
+            
+        # 获取活动类型对应的图标
+        icon_name = icons.get(point['activity_type'].lower(), 'info-sign')
+            
+        # Create popup content
+        popup_content = f"Activity: {point['activity_type']}<br>"
+        popup_content += f"Time: {point['timestamp']}<br>"
+        popup_content += f"Description: {point['description']}"
         
+        # Add marker with custom icon
         folium.Marker(
-            location=point['location'],
-            popup=popup_text,
-            icon=folium.Icon(color=color)
+            location=[lat, lon],
+            popup=popup_content,
+            icon=folium.Icon(color=color, icon=icon_name, prefix='fa')
         ).add_to(m)
+        
+        # 如果有路线坐标，添加路线
+        if 'route_coordinates' in point and point['route_coordinates']:
+            route_coords = point['route_coordinates']
+            # 根据交通方式选择路线样式
+            if 'transport_mode' in point:
+                if point['transport_mode'] == 'walking':
+                    color = 'green'
+                    weight = 2
+                    dash_array = '5,10'
+                elif point['transport_mode'] == 'cycling':
+                    color = 'blue'
+                    weight = 2
+                    dash_array = '5,5'
+                elif point['transport_mode'] == 'driving':
+                    color = 'red'
+                    weight = 3
+                    dash_array = None
+                else:  # public transit or other
+                    color = 'purple'
+                    weight = 3
+                    dash_array = '10,10'
+            else:
+                color = 'gray'
+                weight = 2
+                dash_array = None
+                
+            folium.PolyLine(
+                route_coords,
+                weight=weight,
+                color=color,
+                opacity=0.8,
+                dash_array=dash_array
+            ).add_to(m)
     
-    # Connect points with a line
-    locations = [point['location'] for point in trajectories]
-    folium.PolyLine(locations=locations, color='blue', weight=2.5, opacity=0.8).add_to(m)
+    # 添加时间线连接所有点
+    folium.PolyLine(
+        coordinates,
+        weight=1,
+        color='black',
+        opacity=0.5,
+        dash_array='3,6'
+    ).add_to(m)
     
-    # Save to file if specified
-    if output_file:
-        os.makedirs(os.path.dirname(output_file), exist_ok=True)
-        m.save(output_file)
-    
-    return m
+    # Save map
+    m.save(output_file)
 
 def plot_activity_distribution(memory_data, output_file=None):
     """
@@ -265,3 +342,44 @@ def normalize_transport_mode(mode):
     
     # 如果无法匹配，返回默认交通方式
     return DEFAULT_MODE 
+
+def get_route_coordinates(start_location, end_location, transport_mode='driving'):
+    """
+    使用OSRM获取两点之间的路线坐标
+    
+    Args:
+        start_location: (latitude, longitude) 起点坐标
+        end_location: (latitude, longitude) 终点坐标
+        transport_mode: 交通方式 ('driving', 'walking', 'cycling')
+    
+    Returns:
+        list: 路线上的坐标点列表 [(lat1, lon1), (lat2, lon2), ...]
+    """
+    # OSRM服务的基础URL（使用演示服务器）
+    base_url = "http://router.project-osrm.org"
+    
+    # 构建API请求URL
+    url = f"{base_url}/route/v1/{transport_mode}/{start_location[1]},{start_location[0]};{end_location[1]},{end_location[0]}"
+    params = {
+        "overview": "full",
+        "geometries": "geojson",
+        "steps": "true"
+    }
+    
+    try:
+        response = requests.get(url, params=params)
+        response.raise_for_status()
+        data = response.json()
+        
+        if "routes" in data and len(data["routes"]) > 0:
+            # 提取路线坐标
+            coordinates = data["routes"][0]["geometry"]["coordinates"]
+            # OSRM返回的坐标格式是[lon, lat]，我们需要转换为[lat, lon]
+            return [(coord[1], coord[0]) for coord in coordinates]
+        else:
+            print(f"无法找到从 {start_location} 到 {end_location} 的路线")
+            return []
+            
+    except Exception as e:
+        print(f"获取路线时出错: {str(e)}")
+        return [] 

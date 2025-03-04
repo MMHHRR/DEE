@@ -66,6 +66,15 @@ class Destination:
             activity['location_name'] = "Workplace"
             return persona.work
         
+        # 计算可用的时间窗口
+        if 'start_time' in activity and 'end_time' in activity:
+            available_minutes = self._calculate_time_window(activity['start_time'], activity['end_time'])
+        else:
+            available_minutes = 120  # 默认2小时
+            
+        # 考虑交通方式和时间限制来确定最大搜索半径
+        max_radius = self._calculate_max_radius(available_minutes, persona)
+        
         # Determine the appropriate destination type using LLM
         destination_type = self._determine_destination_type(
             persona, 
@@ -73,6 +82,10 @@ class Destination:
             time, 
             day_of_week
         )
+        
+        # 将时间和距离约束添加到目的地类型中
+        destination_type['max_radius'] = max_radius
+        destination_type['available_minutes'] = available_minutes
         
         # Retrieve the actual location based on the destination type
         if self.use_google_maps and self.google_maps_api_key:
@@ -93,6 +106,46 @@ class Destination:
             activity['location_name'] = location_details.get('name', 'Unknown location (OSM)')
             activity['location_details'] = location_details
             return location_coords
+    
+    def _calculate_time_window(self, start_time, end_time):
+        """计算两个时间点之间的分钟数"""
+        try:
+            start_h, start_m = map(int, start_time.split(':'))
+            end_h, end_m = map(int, end_time.split(':'))
+            
+            total_minutes = (end_h * 60 + end_m) - (start_h * 60 + start_m)
+            return max(30, total_minutes)  # 至少预留30分钟
+        except:
+            return 120  # 默认2小时
+            
+    def _calculate_max_radius(self, available_minutes, persona):
+        """根据可用时间和交通方式计算最大搜索半径（公里）"""
+        # 预留一半时间用于活动本身
+        travel_minutes = available_minutes * 0.25  # 单程交通时间不超过总时间的1/4
+        
+        # 根据不同交通方式计算最大距离
+        max_distances = {
+            'walking': travel_minutes * (5.0 / 60),  # 步行 5km/h
+            'cycling': travel_minutes * (15.0 / 60),  # 自行车 15km/h
+            'driving': travel_minutes * (30.0 / 60),  # 开车 30km/h
+            'public_transit': travel_minutes * (20.0 / 60),  # 公交 20km/h
+            'rideshare': travel_minutes * (25.0 / 60)  # 网约车 25km/h
+        }
+        
+        # 根据persona的交通方式可用性选择最大距离
+        available_distances = []
+        if persona.has_car:
+            available_distances.append(max_distances['driving'])
+        if persona.has_bike:
+            available_distances.append(max_distances['cycling'])
+        available_distances.extend([
+            max_distances['walking'],
+            max_distances['public_transit'],
+            max_distances['rideshare']
+        ])
+        
+        # 返回可用交通方式中的最大距离，但不超过20公里
+        return min(20, max(available_distances))
     
     def _determine_destination_type(self, persona, activity, time, day_of_week):
         """
@@ -305,56 +358,48 @@ class Destination:
         """
         if not self.google_maps_api_key:
             print("Google Maps API key not provided. Using random location.")
-            random_location = generate_random_location_near(current_location)
+            random_location = generate_random_location_near(current_location, max_distance_km=destination_type.get('max_radius', 5))
             return random_location, {"name": "Unknown location", "address": "Unknown address"}
         
         try:
-            # Prepare the request
+            # 准备搜索参数
             search_query = destination_type.get('search_query', 'restaurant')
+            initial_radius = min(50, max(0.5, destination_type.get('max_radius', 5))) * 1000  # 转换为米
             
-            # Ensure search_query is a string and not too long
-            if not isinstance(search_query, str):
-                search_query = str(search_query)
-            search_query = search_query[:100]  # Limit length
+            # 定义搜索半径递增策略
+            radius_multipliers = [1, 1.5, 2, 3]  # 逐步扩大搜索范围
             
-            # Safety check for distance preference
-            try:
-                distance_preference = float(destination_type.get('distance_preference', 5))
-                if distance_preference <= 0 or distance_preference > 50:
-                    distance_preference = 5.0
-            except (ValueError, TypeError):
-                distance_preference = 5.0
+            for radius_multiplier in radius_multipliers:
+                current_radius = initial_radius * radius_multiplier
                 
-            # Convert km to meters with safe bounds
-            radius = min(50000, max(1000, int(distance_preference * 1000)))
-            
-            # Call Google Places API
-            url = "https://maps.googleapis.com/maps/api/place/nearbysearch/json"
-            params = {
-                'location': f"{current_location[0]},{current_location[1]}",
-                'radius': radius,
-                'key': self.google_maps_api_key
-            }
-            
-            # Add optional parameters if available
-            place_type = destination_type.get('place_type', '').lower().replace(' ', '_')
-            if place_type and len(place_type) < 50:  # Safety check
-                params['type'] = place_type
+                # Call Google Places API
+                url = "https://maps.googleapis.com/maps/api/place/nearbysearch/json"
+                params = {
+                    'location': f"{current_location[0]},{current_location[1]}",
+                    'radius': current_radius,
+                    'key': self.google_maps_api_key
+                }
                 
-            if search_query:
-                params['keyword'] = search_query
+                # Add optional parameters
+                place_type = destination_type.get('place_type', '').lower().replace(' ', '_')
+                if place_type and len(place_type) < 50:
+                    params['type'] = place_type
+                    
+                if search_query:
+                    params['keyword'] = search_query
 
-            response = requests.get(url, params=params, timeout=10)
-            
-            if response.status_code == 200:
-                try:
+                response = requests.get(url, params=params, timeout=10)
+                
+                if response.status_code == 200:
                     data = response.json()
                     results = data.get('results', [])
                     
                     if results:
-                        # 简化评分逻辑，只考虑距离和评分
+                        # 根据评分和距离对结果进行排序
                         scored_results = []
-                        for result in results[:10]:  # 只处理前10个结果
+                        available_minutes = destination_type.get('available_minutes', 120)
+                        
+                        for result in results[:10]:
                             try:
                                 location = result.get('geometry', {}).get('location', {})
                                 lat, lng = location.get('lat'), location.get('lng')
@@ -362,33 +407,32 @@ class Destination:
                                 if not lat or not lng:
                                     continue
                                     
-                                try:
-                                    lat = float(lat)
-                                    lng = float(lng)
-                                except (ValueError, TypeError):
-                                    continue
-                                    
-                                # 计算距离
                                 dest_coords = (lat, lng)
                                 distance = calculate_distance(current_location, dest_coords)
                                 
-                                # 获取评分和价格
+                                # 估算最快的交通时间
+                                min_travel_time = (distance / 30) * 60  # 假设最快速度30km/h
+                                
+                                # 如果交通时间超过可用时间的1/4，跳过
+                                if min_travel_time > (available_minutes * 0.25):
+                                    continue
+                                
+                                # 计算综合评分
                                 rating = float(result.get('rating', 0))
-                                try:
-                                    price_level = int(result.get('price_level', 2))
-                                    if price_level < 1 or price_level > 4:
-                                        price_level = 2
-                                except (ValueError, TypeError):
-                                    price_level = 2
+                                price_level = int(result.get('price_level', 2))
                                 
-                                distance_score = min(1.0, distance / 5.0)  # 标准化距离(最大5km)
-                                rating_score = (5 - min(5, rating)) / 5  # 转换评分使得较低分数更好
+                                # 评分权重
+                                distance_score = 1 - (distance / (current_radius/1000))
+                                rating_score = rating / 5
+                                time_score = 1 - (min_travel_time / (available_minutes * 0.25))
                                 
-                                # 组合评分
-                                score = (distance_score * 0.7) + (rating_score * 0.3)
-                                score = score + (price_level / 100.0)  # Very small influence 
-
-                                # 存储基本信息
+                                # 最终评分
+                                final_score = (
+                                    time_score * 0.3 +
+                                    distance_score * 0.4 +
+                                    rating_score * 0.3
+                                )
+                                
                                 location_details = {
                                     "name": str(result.get('name', 'Unknown location'))[:100],
                                     "address": str(result.get('vicinity', 'Unknown address'))[:200],
@@ -397,35 +441,28 @@ class Destination:
                                     "price_level": price_level
                                 }
                                 
-                                scored_results.append((score, dest_coords, location_details))
+                                scored_results.append((final_score, dest_coords, location_details))
+                                
                             except Exception as item_e:
                                 print(f"Error processing place result: {item_e}")
                                 continue
-
+                        
                         if scored_results:
                             # 按评分排序
-                            scored_results.sort(key=lambda x: x[0])
-                            
-                            # 直接选择排序后的第一个结果
-                            selected = scored_results[0]
-                            
-                            return selected[1], selected[2]
-                        
-                except Exception as parse_e:
-                    print(f"Error parsing Google Places API response: {parse_e}. Using random location.")
+                            scored_results.sort(key=lambda x: x[0], reverse=True)
+                            return scored_results[0][1], scored_results[0][2]
+                    
+                    print(f"No results found in current radius ({current_radius/1000:.1f}km), trying larger radius...")
+                    continue
                 
-                # If we get here, we couldn't find or process any valid results
-                print(f"No suitable places found for {search_query}. Using random location.")
-                random_location = generate_random_location_near(current_location)
-                return random_location, {"name": "Unknown location", "address": "Unknown address"}
-            else:
-                print(f"Error calling Google Places API: {response.status_code} - {response.text}. Using random location.")
-                random_location = generate_random_location_near(current_location)
-                return random_location, {"name": "Unknown location", "address": "Unknown address"}
-                
+            # 如果所有半径都没找到合适的地点，生成随机位置
+            print(f"No suitable places found for {search_query}. Using random location within {initial_radius/1000:.1f}km.")
+            random_location = generate_random_location_near(current_location, max_distance_km=initial_radius/1000)
+            return random_location, {"name": f"Random {destination_type.get('place_type', 'location')}", "address": "Generated location"}
+            
         except Exception as e:
             print(f"Error retrieving location from Google Maps: {e}. Using random location.")
-            random_location = generate_random_location_near(current_location)
+            random_location = generate_random_location_near(current_location, max_distance_km=destination_type.get('max_radius', 5))
             return random_location, {"name": "Unknown location", "address": "Unknown address"}
     
     def _retrieve_location_osm(self, current_location, destination_type):

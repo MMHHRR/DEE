@@ -101,7 +101,7 @@ from utils import (
     
 #     return exposures
 
-def estimate_travel_time(start_location, end_location, transport_mode):
+def estimate_travel_time(start_location, end_location, transport_mode, persona=None):
     """
     Estimate travel time between two locations based on distance and transport mode.
     
@@ -109,11 +109,61 @@ def estimate_travel_time(start_location, end_location, transport_mode):
         start_location: (latitude, longitude)
         end_location: (latitude, longitude)
         transport_mode: Mode of transportation
+        persona: 人物对象，包含交通偏好信息
     
     Returns:
-        int: Estimated travel time in minutes
+        tuple: (travel_time_minutes, selected_transport_mode)
     """
     distance_km = calculate_distance(start_location, end_location)
+    
+    # 如果没有指定交通方式，根据距离和人物特征自动选择合适的交通方式
+    if not transport_mode:
+        # 默认交通方式选择逻辑
+        if persona:
+            # 考虑人物特征和偏好
+            if distance_km < 0.5:
+                # 非常短距离，通常选择步行
+                transport_mode = 'walking'
+            elif distance_km < 3:
+                # 短距离，根据是否有自行车和偏好决定
+                if persona.has_bike and (persona.preferred_transport == 'cycling' or random.random() < 0.7):
+                    transport_mode = 'cycling'
+                else:
+                    transport_mode = 'walking'
+            elif distance_km < 10:
+                # 中等距离
+                if persona.has_bike and persona.preferred_transport == 'cycling':
+                    transport_mode = 'cycling'
+                elif persona.has_car and persona.preferred_transport == 'driving':
+                    transport_mode = 'driving'
+                elif persona.preferred_transport == 'public_transit':
+                    transport_mode = 'public_transit'
+                else:
+                    # 根据可用性选择
+                    if persona.has_car:
+                        transport_mode = 'driving'
+                    elif persona.has_bike:
+                        transport_mode = 'cycling'
+                    else:
+                        transport_mode = 'public_transit'
+            else:
+                # 长距离
+                if persona.has_car:
+                    transport_mode = 'driving'
+                elif persona.preferred_transport == 'public_transit':
+                    transport_mode = 'public_transit'
+                else:
+                    transport_mode = 'rideshare'
+        else:
+            # 如果没有人物信息，使用简单的基于距离的逻辑
+            if distance_km < 1:
+                transport_mode = 'walking'
+            elif distance_km < 5:
+                transport_mode = 'cycling'
+            elif distance_km < 15:
+                transport_mode = 'public_transit'
+            else:
+                transport_mode = 'driving'
     
     # Normalize transport mode
     transport_mode = normalize_transport_mode(transport_mode)
@@ -138,7 +188,7 @@ def estimate_travel_time(start_location, end_location, transport_mode):
     time_minutes = int(time_minutes * random.uniform(0.8, 1.2))
     
     # Minimum travel time
-    return max(5, time_minutes)
+    return max(5, time_minutes), transport_mode
 
 def format_time_after_minutes(start_time, minutes):
     """
@@ -295,13 +345,18 @@ def simulate_persona(persona_data, num_days=7, start_date=None):
                         # Estimate travel time if location is different from current location
                         transport_mode = refined_activity.get('transport_mode')
                         
-                        if activity_type.lower() != 'sleep' and i > 0 and persona.current_location != location and transport_mode:
+                        if activity_type.lower() != 'sleep' and i > 0 and persona.current_location != location:
                             try:
-                                travel_time = estimate_travel_time(
+                                # 不使用预定义的交通方式，而是由系统根据距离和人物特征自动选择
+                                travel_time, selected_transport_mode = estimate_travel_time(
                                     persona.current_location, 
                                     location, 
-                                    transport_mode
+                                    None,  # 不预先指定交通方式
+                                    persona  # 传入人物对象
                                 )
+                                
+                                # 使用选择的交通方式
+                                transport_mode = selected_transport_mode
                                 
                                 # Record travel information
                                 travel_start_time = current_time
