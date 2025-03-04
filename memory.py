@@ -78,8 +78,8 @@ class Memory:
         if 'location_name' in activity:
             activity_record['location_name'] = activity['location_name']
         
-        # Only add transport mode if it's actually needed
-        if 'transport_mode' in activity and activity['transport_mode']:
+        # Only add transport mode if it's a travel activity
+        if activity['activity_type'] == 'travel' and 'transport_mode' in activity and activity['transport_mode']:
             # Normalize transport mode
             transport_mode = normalize_transport_mode(activity['transport_mode'])
             activity_record['transport_mode'] = transport_mode
@@ -90,8 +90,6 @@ class Memory:
         
         if 'location_type' in activity:
             activity_record['location_type'] = activity['location_type']
-        
-        # Remove other detailed information to keep memory records lightweight
         
         self.current_day['activities'].append(activity_record)
         
@@ -106,6 +104,10 @@ class Memory:
         # Add location name to trajectory point if available
         if 'location_name' in activity:
             trajectory_point['location_name'] = activity['location_name']
+        
+        # Only add transport mode if it's a travel activity
+        if activity['activity_type'] == 'travel' and 'transport_mode' in activity and activity['transport_mode']:
+            trajectory_point['transport_mode'] = normalize_transport_mode(activity['transport_mode'])
         
         self.current_day['trajectory'].append(trajectory_point)
     
@@ -130,7 +132,7 @@ class Memory:
         
         # Get location name (if available)
         start_location_name = "Starting point"
-        end_location_name = None  # Initialize as None to track if we find a name
+        end_location_name = None 
         
         # Try to get start location name from previous trajectory points
         if self.current_day['trajectory']:
@@ -187,7 +189,7 @@ class Memory:
                     elif activity_type == 'leisure' or 'park' in location_type:
                         end_location_name = "Park"
                     else:
-                        end_location_name = "Destination"  # 使用更通用的词替代 "Unknown location"
+                        end_location_name = "Destination"  # 使用更通用的词替
         
         # Normalize transport mode
         normalized_transport_mode = normalize_transport_mode(transport_mode)
