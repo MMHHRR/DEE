@@ -38,6 +38,5 @@ Modify `config.py` to adjust simulation parameters:
 - Environmental exposure factors to track 
 
 ## TODO List
-- 目的地模块更新（谷歌地图API）
-- memory模块需要重视，现在的记忆没有被调用
+- 
 - 是否可以增加多智能体互动？

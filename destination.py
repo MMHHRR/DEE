@@ -143,7 +143,8 @@ class Destination:
             # Step 1: Try direct JSON parsing
             try:
                 destination_type = json.loads(cleaned_text)
-                print("Successfully parsed destination response as JSON")
+                # print("Successfully parsed destination response as JSON")
+                pass
             except json.JSONDecodeError as e:
                 # print(f"Direct destination JSON parsing failed: {e}")
                 pass
