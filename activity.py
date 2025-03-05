@@ -13,6 +13,7 @@ from config import (
     LLM_TEMPERATURE, 
     LLM_MAX_TOKENS,
     ACTIVITY_GENERATION_PROMPT,
+    ACTIVITY_REFINEMENT_PROMPT,
     ACTIVITY_TYPES,
     DEEPBRICKS_API_KEY,
     DEEPBRICKS_BASE_URL,
@@ -102,17 +103,17 @@ class Activity:
         
         # Generate schedule
         activities = self._generate_activities_with_llm(persona, date, day_of_week, memory_patterns)
-        
+
         # Refine and potentially decompose activities
         refined_activities = []
         for activity in activities:
-            # result = self.refine_activity(persona, activity, date)
+            result = self.refine_activity(persona, activity, date, day_of_week)
+            
             # Check if result is a list (decomposed activities) or dict (single refined activity)
-            # if isinstance(result, list):
-            #     refined_activities.extend(result)  # Add all sub-activities
-            # else:
-            #     refined_activities.append(result)  # Add single refined activity
-            refined_activities.append(activity)  # 直接添加活动
+            if isinstance(result, list):
+                refined_activities.extend(result)  # Add all sub-activities
+            else:
+                refined_activities.append(result)  # Add single refined activity
         
         # Validate and correct activities
         validated_activities = self._validate_activities(refined_activities)
@@ -191,79 +192,177 @@ class Activity:
                 print("Error with LLM API, using default activities")
                 return self._generate_default_activities(persona)
     
-    # def refine_activity(self, persona, activity, date):
-    #     """
-    #     细化活动并可能将其拆解为更小粒度的子活动。
-    #     实现批量处理以减少API调用
+    def refine_activity(self, persona, activity, date, day_of_week):
+        """
+        Refine activity, adding more details and potentially breaking it into sub-activities
         
-    #     Args:
-    #         persona: Persona object
-    #         activity: Activity dictionary
-    #         date: Date string (YYYY-MM-DD)
+        Args:
+            persona: Persona object
+            activity: Activity dictionary
+            date: Date string (YYYY-MM-DD)
+            day_of_week: Day of week
         
-    #     Returns:
-    #         dict或list: 细化后的单一活动或拆解后的多个子活动列表
-    #     """
-    #     # If batch processing is enabled, add activity to queue
-    #     if BATCH_PROCESSING:
-    #         # Add to queue
-    #         self.activity_queue.append((persona, activity, date))
+        Returns:
+            list or dict: List of sub-activities or a single refined activity
+        """
+        # Skip refinement for sleep activities (they don't need much detail)
+        if activity.get('activity_type') == 'sleep':
+            return activity
+        
+        # if activity.get('activity_type') == 'work':
+        #     return activity
             
-    #         # If queue is full or last activity, process entire batch
-    #         if len(self.activity_queue) >= BATCH_SIZE:
-    #             batch_results = self._process_activity_batch(self.activity_queue)
-    #             self.activity_queue = []  # Clear queue
+        # Build the prompt
+        prompt = ACTIVITY_REFINEMENT_PROMPT.format(
+            gender=persona.gender,
+            age=persona.age,
+            income=persona.income,
+            consumption=persona.consumption,
+            education=persona.education,
+            date=date,
+            day_of_week=day_of_week,
+            # activity_type=activity.get('activity_type', ''),
+            activity_description=activity.get('description', ''),
+            location_type=activity.get('location_type', ''),
+            start_time=activity.get('start_time', ''),
+            end_time=activity.get('end_time', '')
+        )
+        
+        try:
+            # Use LLM to refine the activity
+            response = client.chat.completions.create(
+                model=self.model,
+                messages=[{"role": "user", "content": prompt}],
+                temperature=self.temperature,
+                max_tokens=self.max_tokens
+            )
+            
+            # Extract the refined activity or sub-activities
+            content = response.choices[0].message.content
+            # print(f"Refining activity: {activity.get('activity_type')} ({activity.get('start_time')} - {activity.get('end_time')})")
+            
+            # Try to parse the JSON response
+            try:
+                # Find JSON object in the text
+                start_idx = content.find('{')
+                end_idx = content.rfind('}') + 1
                 
-    #             # Find result for current activity
-    #             for batch_persona, batch_activity, batch_date, refined_result in batch_results:
-    #                 if (batch_persona.id == persona.id and 
-    #                     batch_activity['activity_type'] == activity['activity_type'] and
-    #                     batch_activity['start_time'] == activity['start_time']):
-    #                     return refined_result
-                
-    #             # If no matching result found, process current activity separately
-    #             return self._refine_single_activity(persona, activity, date)
+                if start_idx != -1 and end_idx != -1:
+                    json_str = content[start_idx:end_idx]
+                    # Fix common JSON formatting issues
+                    fixed_json = self._fix_json_array(json_str)
+                    
+                    try:
+                        refined_data = json.loads(fixed_json)
+                        
+                        # 检查返回的数据是否为数组（多个活动）
+                        if isinstance(refined_data, list):
+                            # 处理多个活动的情况
+                            sub_activities = []
+                            
+                            for sub in refined_data:
+                                # 创建正确的子活动，包含父活动的必要字段
+                                sub_activity = {
+                                    'activity_type': sub.get('activity_type', activity.get('activity_type')),
+                                    'start_time': self._format_time(sub.get('start_time', '')),
+                                    'end_time': self._format_time(sub.get('end_time', '')),
+                                    'description': sub.get('description', ''),
+                                    'location_type': sub.get('location_type', activity.get('location_type', ''))
+                                }
+                                
+                                # 检查必须的交通方式字段
+                                if 'transport_mode' in sub:
+                                    sub_activity['transport_mode'] = sub.get('transport_mode', '')
+                                
+                                # 验证活动类型
+                                if sub_activity['activity_type'] not in ACTIVITY_TYPES:
+                                    sub_activity['activity_type'] = activity.get('activity_type', 'leisure')
+                                
+                                sub_activities.append(sub_activity)
+                            
+                            if sub_activities:
+                                #print(f"  Decomposed into {len(sub_activities)} sub-activities")
+                                return sub_activities
+                        
+                        # Check if the response contains sub-activities
+                        if 'sub_activities' in refined_data and isinstance(refined_data['sub_activities'], list):
+                            # Handle decomposed activities
+                            sub_activities = []
+                            
+                            # Copy location from parent to all sub-activities if present
+                            parent_location = activity.get('location', None)
+                            parent_location_name = activity.get('location_name', None)
+                            
+                            for sub in refined_data['sub_activities']:
+                                # Create proper sub-activity with essential fields from parent activity
+                                sub_activity = {
+                                    'activity_type': sub.get('activity_type', activity.get('activity_type')),
+                                    'start_time': self._format_time(sub.get('start_time', '')),
+                                    'end_time': self._format_time(sub.get('end_time', '')),
+                                    'description': sub.get('description', ''),
+                                    'location_type': sub.get('location_type', activity.get('location_type', ''))
+                                }
+                                
+                                # Validate activity type
+                                if sub_activity['activity_type'] not in ACTIVITY_TYPES:
+                                    sub_activity['activity_type'] = activity.get('activity_type', 'leisure')
+                                
+                                sub_activities.append(sub_activity)
+                            
+                            if sub_activities:
+                                print(f"  Decomposed into {len(sub_activities)} sub-activities")
+                                return sub_activities
+                        
+                        # Handle single refined activity
+                        refined_activity = {
+                            'activity_type': refined_data.get('activity_type', activity.get('activity_type')),
+                            'start_time': self._format_time(refined_data.get('start_time', activity.get('start_time', ''))),
+                            'end_time': self._format_time(refined_data.get('end_time', activity.get('end_time', ''))),
+                            'description': refined_data.get('description', activity.get('description', '')),
+                            'location_type': refined_data.get('location_type', activity.get('location_type', ''))
+                        }
+                        
+                        # Validate activity type
+                        if refined_activity['activity_type'] not in ACTIVITY_TYPES:
+                            refined_activity['activity_type'] = activity.get('activity_type', 'leisure')
+                        
+                        # Add any additional fields from original activity that weren't in the refinement
+                        for key, value in activity.items():
+                            if key not in refined_activity:
+                                refined_activity[key] = value
+                        
+                        return refined_activity
+                    
+                    except json.JSONDecodeError as e:
+                        print(f"Failed to parse refined activity JSON: {e}")
+                        print(f"Content: {fixed_json}")
+                        
+                        # 尝试使用_extract_activities_from_text函数提取活动
+                        extracted_activities = self._extract_activities_from_text(content)
+                        if extracted_activities:
+                            print(f"  Extracted {len(extracted_activities)} activities using text extraction")
+                            if len(extracted_activities) > 1:
+                                return extracted_activities
+                            else:
+                                return extracted_activities[0]
             
-    #         # Queue not full, return original activity (will be processed later)
-    #         return activity
-    #     else:
-    #         # No batch processing, process single activity directly
-    #         return self._refine_single_activity(persona, activity, date)
-
-    # def _process_activity_batch(self, activity_queue):
-    #     """
-    #     此方法已被注释掉，因为批处理功能在实际应用中效果有限。
-    #     批处理旨在提高API调用效率，但简化后直接处理单个活动更为清晰。
-        
-    #     Args:
-    #         activity_queue: 活动队列 (未使用)
+            except Exception as e:
+                print(f"Error processing LLM refinement response: {e}")
             
-    #     Returns:
-    #         list: 处理结果 (简化为直接返回原始活动)
-    #     """
-    #     # 简化实现，直接返回原始活动
-    #     results = []
-    #     for persona, activity, date in activity_queue:
-    #         results.append((persona, activity, date, activity))
-    #     return results
-
-    # @cached
-    # def _refine_single_activity(self, persona, activity, date):
-    #     """处理单个活动的细化，可被缓存"""
-    #     # Simplify batch processing to single activity processing
-    #     results = self._process_activity_batch([(persona, activity, date)])
-    #     if results:
-    #         _, _, _, refined_activity = results[0]
-    #         return refined_activity
-    #     return activity
+            # If parsing fails, return the original activity
+            return activity
+            
+        except Exception as e:
+            print(f"Error refining activity: {e}")
+            return activity
     
     def _validate_activities(self, activities):
         """
         Validate and clean activities data.
-        支持处理拆解后的子活动，确保时间连续性和活动类型正确性
+        Support handling decomposed sub-activities, ensuring time continuity and correct activity types.
         
         Args:
-            activities: List of activity dictionaries (包括普通活动和拆解后的子活动)
+            activities: List of activity dictionaries (including normal activities and decomposed sub-activities)
             
         Returns:
             list: Validated activities
@@ -271,14 +370,45 @@ class Activity:
         if not activities:
             return []
             
-        validated = []
-        previous_location_type = None
-        previous_end_time = None
-        
         # First sort by start time to ensure proper time sequence
         sorted_activities = sorted(activities, key=lambda x: self._format_time(x.get('start_time', '00:00')))
         
-        for activity in sorted_activities:
+        # 添加睡眠时间并确保时间连续性
+        final_activities = []
+        last_end_time = "00:00"
+        
+        # 如果第一个活动不是从00:00开始，添加睡眠时间
+        if sorted_activities and self._format_time(sorted_activities[0].get('start_time')) != "00:00":
+            final_activities.append({
+                'activity_type': 'sleep',
+                'start_time': '00:00',
+                'end_time': sorted_activities[0].get('start_time'),
+                'description': 'Sleeping at home',
+                'location_type': 'home'
+            })
+        
+        # 预处理：调整travel活动的时间
+        processed_activities = []
+        for i, activity in enumerate(sorted_activities):
+            if activity['activity_type'].lower() == 'travel':
+                # 查找下一个非travel活动
+                next_activity = None
+                for next_act in sorted_activities[i+1:]:
+                    if next_act['activity_type'].lower() != 'travel':
+                        next_activity = next_act
+                        break
+                
+                if next_activity:
+                    # 调整travel活动的结束时间为下一个活动的开始时间
+                    activity = activity.copy()
+                    activity['end_time'] = next_activity['start_time']
+            
+            processed_activities.append(activity)
+        
+        # 使用处理后的活动列表
+        sorted_activities = processed_activities
+        
+        for i, activity in enumerate(sorted_activities):
             # Skip invalid activities
             if 'activity_type' not in activity or 'start_time' not in activity or 'end_time' not in activity:
                 continue
@@ -286,91 +416,129 @@ class Activity:
             # Get activity type and ensure it's valid
             activity_type = activity['activity_type'].lower()
             
-            # Check description for more accurate activity type
-            if 'description' in activity and activity['description']:
-                activity_type = self._correct_activity_type_based_on_description(
-                    activity_type, 
-                    activity['description']
-                )
-            
             # Format times consistently
             try:
                 start_time = self._format_time(activity['start_time'])
                 end_time = self._format_time(activity['end_time'])
+                
+                # 确保结束时间不超过23:59
+                if end_time > "23:59":
+                    end_time = "23:59"
+                    
             except:
                 # Skip activities with invalid times
                 continue
-                
-            # Ensure time continuity - fix gaps or overlaps with previous activity
-            if previous_end_time and start_time != previous_end_time:
-                # If there's a gap between activities or they overlap
-                if len(validated) > 0:
-                    # Fix time gaps - adjust start time of current activity
-                    if start_time > previous_end_time:
-                        # Gap case: If gap is small (< 30 minutes), just extend previous activity
-                        time_diff = datetime.datetime.strptime(start_time, "%H:%M") - datetime.datetime.strptime(previous_end_time, "%H:%M")
-                        if time_diff.total_seconds() < 1800:  # Less than 30 minutes
-                            validated[-1]['end_time'] = start_time
-                    # Fix overlaps - adjust end time of previous activity
-                    elif start_time < previous_end_time:
-                        validated[-1]['end_time'] = start_time
             
-            # Get current activity location type
-            location_type = activity.get('location_type', '')
-            
-            # Get transport mode if available
-            transport_mode = activity.get('transport_mode', '')
-            
-            # Normalize transport mode if specified
-            if transport_mode:
-                transport_mode = normalize_transport_mode(transport_mode)
-            
-            # If no transportation mode specified and not first activity, determine default transportation based on activity type and location
-            if not transport_mode and len(validated) > 0:
-                # Check if transportation is needed based on location change
-                if previous_location_type != location_type and self._needs_transportation(previous_location_type, location_type, activity_type):
-                    # Home activities usually don't require transportation
-                    if location_type == 'home':
-                        transport_mode = 'walking'  # Default walking at home
-                    # Work commute
-                    elif location_type == 'work' or activity_type == 'work':
-                        transport_mode = 'driving'  # Default driving to work
-                    # Short activities default to walking
-                    elif activity_type in ['shopping', 'dining', 'leisure', 'errands']:
-                        transport_mode = 'walking'
-                    # Medium/long activities default to public transportation
-                    elif activity_type in ['recreation', 'healthcare', 'social', 'education']:
-                        transport_mode = 'public_transit'
-                    else:
-                        transport_mode = 'driving'  # Other cases default to driving
-            
-            # Create validated activity
-            validated_activity = {
+            # 创建更新后的活动
+            updated_activity = {
+                **activity,
                 'activity_type': activity_type,
                 'start_time': start_time,
-                'end_time': end_time,
-                'description': activity.get('description', ''),
+                'end_time': end_time
             }
             
-            # Add location type if available
-            if location_type:
-                validated_activity['location_type'] = location_type
-                previous_location_type = location_type
+            # 检查是否需要填补时间空隙
+            if start_time > last_end_time:
+                # 添加睡眠时间（凌晨或晚上）
+                if (int(start_time.split(':')[0]) < 6 or  # 凌晨时间
+                    int(last_end_time.split(':')[0]) >= 22):  # 晚上时间
+                    gap_activity = {
+                        'activity_type': 'sleep',
+                        'start_time': last_end_time,
+                        'end_time': start_time,
+                        'description': 'Sleeping at home',
+                        'location_type': 'home'
+                    }
+                    final_activities.append(gap_activity)
             
-            # Add transport mode if available AND needed (only if the location has changed)
-            needs_transport = previous_location_type != location_type and self._needs_transportation(previous_location_type, location_type, activity_type)
-            if transport_mode and needs_transport:
-                validated_activity['transport_mode'] = transport_mode
+            # 检查与最后一个活动的重叠
+            if final_activities:
+                last_activity = final_activities[-1]
+                if start_time < last_activity['end_time']:
+                    # 处理重叠情况
+                    if activity_type == last_activity['activity_type']:
+                        # 如果是相同类型的活动，合并它们
+                        last_activity['end_time'] = max(last_activity['end_time'], end_time)
+                        continue
+                    elif activity_type == 'travel' or last_activity['activity_type'] == 'travel':
+                        # 如果其中一个是travel活动，调整时间
+                        if activity_type == 'travel':
+                            # travel活动开始时间为上一个活动的结束时间
+                            updated_activity['start_time'] = last_activity['end_time']
+                        else:
+                            # 非travel活动开始时间为travel活动的结束时间
+                            last_activity['end_time'] = start_time
+                    elif activity_type == 'sleep' or last_activity['activity_type'] == 'sleep':
+                        # 如果其中一个是睡眠活动，保留睡眠活动
+                        if activity_type == 'sleep':
+                            # 更新最后一个活动的结束时间
+                            last_activity['end_time'] = start_time
+                            final_activities.append(updated_activity)
+                        continue
+                    else:
+                        # 调整当前活动的开始时间
+                        start_time = last_activity['end_time']
+                        updated_activity['start_time'] = start_time
+                        
+                        # 如果调整后开始时间晚于或等于结束时间，跳过此活动
+                        if start_time >= end_time:
+                            continue
             
-            # Copy any other relevant fields from the original activity
-            for key, value in activity.items():
-                if key not in validated_activity and key not in ['activity_type', 'start_time', 'end_time', 'description', 'location_type', 'transport_mode']:
-                    validated_activity[key] = value
-            
-            validated.append(validated_activity)
-            previous_end_time = end_time
+            final_activities.append(updated_activity)
+            last_end_time = end_time
         
-        return validated
+        # 如果最后一个活动不是在23:59结束，添加睡眠时间
+        if final_activities and final_activities[-1]['end_time'] != "23:59":
+            final_activities.append({
+                'activity_type': 'sleep',
+                'start_time': final_activities[-1]['end_time'],
+                'end_time': '23:59',
+                'description': 'Sleeping at home',
+                'location_type': 'home'
+            })
+        
+        # 合并连续的相同类型活动
+        merged_activities = []
+        current_activity = None
+        
+        for activity in final_activities:
+            if not current_activity:
+                current_activity = activity.copy()
+                continue
+                
+            if (current_activity['activity_type'] == activity['activity_type'] and
+                current_activity['end_time'] == activity['start_time']):
+                # 合并连续的相同类型活动
+                current_activity['end_time'] = activity['end_time']
+            else:
+                merged_activities.append(current_activity)
+                current_activity = activity.copy()
+        
+        if current_activity:
+            merged_activities.append(current_activity)
+        
+        # 最后按开始时间重新排序
+        return sorted(merged_activities, key=lambda x: x['start_time'])
+        
+    def _calculate_duration_minutes(self, start_time, end_time):
+        """
+        计算两个时间点之间的分钟差
+        
+        Args:
+            start_time: 开始时间 (HH:MM)
+            end_time: 结束时间 (HH:MM)
+            
+        Returns:
+            int: 分钟差
+        """
+        start_hour, start_minute = map(int, start_time.split(':'))
+        end_hour, end_minute = map(int, end_time.split(':'))
+        
+        # 处理跨天的情况
+        if end_hour < start_hour or (end_hour == start_hour and end_minute < start_minute):
+            end_hour += 24
+            
+        return (end_hour - start_hour) * 60 + (end_minute - start_minute)
     
     def _correct_activity_type_based_on_description(self, activity_type, description):
         """
@@ -449,12 +617,21 @@ class Activity:
         Returns:
             str: Formatted time string (HH:MM)
         """
+        # 首先，检查是否为ISO 8601格式的日期时间字符串
+        iso_match = re.search(r'(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})', time_str)
+        if iso_match:
+            # 提取时间部分
+            hours, minutes = iso_match.group(4), iso_match.group(5)
+            return f"{hours}:{minutes}"
+            
         # Try different formats
         formats = [
             '%H:%M',  # 14:30
             '%I:%M %p',  # 2:30 PM
             '%I%p',  # 2PM
-            '%I %p'  # 2 PM
+            '%I %p',  # 2 PM
+            '%Y-%m-%dT%H:%M:%S',  # ISO 8601格式: 2025-02-03T12:00:00
+            '%Y-%m-%d %H:%M:%S'   # 日期时间格式: 2025-02-03 12:00:00
         ]
         
         # First, clean up the string
@@ -467,6 +644,21 @@ class Activity:
                 return dt.strftime('%H:%M')
             except ValueError:
                 continue
+            
+        # 如果无法解析，尝试从字符串中提取时间部分
+        time_pattern = re.search(r'(\d{1,2})[:\.](\d{2})(?:\s*([APap][Mm])?)?', time_str)
+        if time_pattern:
+            hour = int(time_pattern.group(1))
+            minute = time_pattern.group(2)
+            ampm = time_pattern.group(3)
+            
+            # 处理AM/PM
+            if ampm and ampm.upper() == 'PM' and hour < 12:
+                hour += 12
+            elif ampm and ampm.upper() == 'AM' and hour == 12:
+                hour = 0
+                
+            return f"{hour:02d}:{minute}"
         
         # If all formats fail, raise ValueError
         raise ValueError(f"Could not parse time string: {time_str}")
@@ -481,51 +673,112 @@ class Activity:
         Returns:
             str: Fixed JSON string
         """
-        # Replace single quotes with double quotes
-        fixed = json_str.replace("'", '"')
-        
-        # Ensure property names have double quotes
-        fixed = re.sub(r'([{,])\s*(\w+):', r'\1"\2":', fixed)
-        
-        # Fix missing commas between objects
-        fixed = re.sub(r'}\s*{', '},{', fixed)
-        
-        # Fix boolean values and null
-        fixed = fixed.replace('True', 'true').replace('False', 'false').replace('None', 'null')
-        
-        # Fix issues with unquoted values that should be strings
-        fixed = re.sub(r':\s*([a-zA-Z][a-zA-Z0-9_]*)\s*([,}])', r':"\1"\2', fixed)
-        
-        # Fix missing commas between properties
-        fixed = re.sub(r'"\s*}\s*"', '","', fixed)
-        fixed = re.sub(r'"\s*]\s*"', '","', fixed)
-
-        # Fix trailing commas
-        fixed = re.sub(r',\s*}', '}', fixed)
-        fixed = re.sub(r',\s*]', ']', fixed)
-        
-        # Try to handle specific error case from error message
         try:
-            json.loads(fixed)
-        except json.JSONDecodeError as e:
-            error_message = str(e)
-            if 'Expecting \',\' delimiter' in error_message:
-                # Extract location details
-                match = re.search(r'line (\d+) column (\d+)', error_message)
-                if match:
-                    line_num = int(match.group(1))
-                    col_num = int(match.group(2))
-                    
-                    # Split into lines
-                    lines = fixed.split('\n')
-                    if 0 <= line_num-1 < len(lines):
-                        line = lines[line_num-1]
-                        if col_num < len(line):
-                            # Insert a comma at the problem spot
-                            lines[line_num-1] = line[:col_num] + ',' + line[col_num:]
-                            fixed = '\n'.join(lines)
+            # 首先尝试直接解析
+            json.loads(json_str)
+            return json_str
+        except json.JSONDecodeError:
+            pass
         
-        return fixed
+        # 预处理：处理可能导致问题的字符
+        # 1. 处理撇号问题
+        json_str = re.sub(r'(\w)\'s\b', r'\1s', json_str)  # 替换所有的's为s
+        json_str = re.sub(r'(\w)\'(\w)', r'\1\2', json_str)  # 移除词中的撇号
+        
+        # 2. 替换不规范的引号
+        json_str = json_str.replace("'", '"')
+        
+        # 3. 保护JSON字符串中的内容
+        protected_strings = {}
+        string_pattern = r'"([^"]*)"'
+        
+        def protect_string(match):
+            content = match.group(1)
+            key = f"__STRING_{len(protected_strings)}__"
+            # 清理字符串内容
+            content = content.replace('\\', '\\\\')  # 转义反斜杠
+            content = content.replace('"', '\\"')    # 转义双引号
+            content = re.sub(r'[\n\r\t]', ' ', content)  # 替换换行和制表符
+            protected_strings[key] = content
+            return f'"{key}"'
+        
+        # 保护字符串内容
+        json_str = re.sub(string_pattern, protect_string, json_str)
+        
+        # 4. 修复常见的JSON格式问题
+        # 确保属性名有双引号
+        json_str = re.sub(r'([{,])\s*(\w+):', r'\1"\2":', json_str)
+        
+        # 修复对象之间的逗号
+        json_str = re.sub(r'}\s*{', '},{', json_str)
+        
+        # 修复布尔值和null
+        json_str = json_str.replace('True', 'true').replace('False', 'false').replace('None', 'null')
+        
+        # 修复未加引号的字符串值
+        json_str = re.sub(r':\s*([a-zA-Z][a-zA-Z0-9_]*)\s*([,}])', r':"\1"\2', json_str)
+        
+        # 修复属性之间的逗号
+        json_str = re.sub(r'"\s*}\s*"', '","', json_str)
+        json_str = re.sub(r'"\s*]\s*"', '","', json_str)
+        
+        # 修复尾部逗号
+        json_str = re.sub(r',\s*}', '}', json_str)
+        json_str = re.sub(r',\s*]', ']', json_str)
+        
+        # 5. 恢复被保护的字符串
+        for key, value in protected_strings.items():
+            json_str = json_str.replace(f'"{key}"', f'"{value}"')
+        
+        # 6. 处理数组格式
+        # 如果看起来是多个对象但没有被数组包装
+        if json_str.strip().startswith('{') and json_str.strip().endswith('}'):
+            if re.search(r'}\s*,\s*{', json_str):
+                json_str = f'[{json_str}]'
+        
+        # 7. 最后的修复尝试
+        try:
+            json.loads(json_str)
+            return json_str
+        except json.JSONDecodeError as e:
+            # 处理特定的错误情况
+            if 'Expecting \',\' delimiter' in str(e):
+                # 尝试在错误位置添加逗号
+                match = re.search(r'line (\d+) column (\d+)', str(e))
+                if match:
+                    lines = json_str.split('\n')
+                    line_num = int(match.group(1)) - 1
+                    col_num = int(match.group(2))
+                    if 0 <= line_num < len(lines):
+                        line = lines[line_num]
+                        if col_num < len(line):
+                            lines[line_num] = line[:col_num] + ',' + line[col_num:]
+                            json_str = '\n'.join(lines)
+            
+            # 如果仍然失败，尝试提取和修复单个对象
+            matches = list(re.finditer(r'{[^{}]*(?:{[^{}]*}[^{}]*)*}', json_str))
+            if matches:
+                fixed_objects = []
+                for match in matches:
+                    obj_str = match.group(0)
+                    try:
+                        # 验证每个对象是否可以解析
+                        json.loads(obj_str)
+                        fixed_objects.append(obj_str)
+                    except:
+                        # 如果单个对象解析失败，尝试基本的修复
+                        fixed_obj = re.sub(r'([{,])\s*(\w+)(?=\s*:)', r'\1"\2"', obj_str)
+                        try:
+                            json.loads(fixed_obj)
+                            fixed_objects.append(fixed_obj)
+                        except:
+                            continue
+                
+                if fixed_objects:
+                    return f'[{",".join(fixed_objects)}]'
+            
+            # 如果所有修复尝试都失败，返回原始字符串
+            return json_str
     
     def _extract_activities_from_text(self, text):
         """
@@ -591,124 +844,66 @@ class Activity:
         
         return activities
     
-    def _generate_default_activities(self, persona):
+    def _is_valid_activity(self, activity):
         """
-        Generate a default list of activities for a day based on persona characteristics.
+        Check if an activity dictionary is valid
         
         Args:
-            persona: Persona object with demographic information
+            activity: Activity dictionary
             
         Returns:
-            list: List of activity dictionaries
+            bool: Whether the activity is valid
         """
-        # Generate activities without sleep - sleep will be added in main.py
-        activities = []
+        # Check required fields
+        required_fields = ['activity_type', 'start_time', 'end_time', 'description']
+        if not all(field in activity for field in required_fields):
+            return False
         
-        # Work day activities
-        if persona.works and get_day_of_week(persona.current_date) in ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]:
-            activities.extend([
-                {
-                    "activity_type": "home",
-                    "description": "Morning routine and breakfast",
-                    "start_time": "06:00",
-                    "end_time": "08:00",
-                    "location_type": "home"
-                },
-                {
-                    "activity_type": "work",
-                    "description": "Morning office session",
-                    "start_time": "09:00",
-                    "end_time": "12:00",
-                    "location_type": "workplace"
-                },
-                {
-                    "activity_type": "dining",
-                    "description": "Lunch break",
-                    "start_time": "12:00",
-                    "end_time": "13:00",
-                    "location_type": "restaurant"
-                },
-                {
-                    "activity_type": "work",
-                    "description": "Afternoon office session",
-                    "start_time": "13:00",
-                    "end_time": "18:00",
-                    "location_type": "workplace"
-                },
-                {
-                    "activity_type": "dining",
-                    "description": "Dinner and evening relaxation",
-                    "start_time": "19:00",
-                    "end_time": "21:30",
-                    "location_type": "home",
-                    "transport_mode": "driving"
-                }
-            ])
-        else:
-            # Weekend activities
-            activities.extend([
-                {
-                    "activity_type": "home",
-                    "description": "Morning routine and breakfast",
-                    "start_time": "07:00",
-                    "end_time": "09:00",
-                    "location_type": "home"
-                },
-                {
-                    "activity_type": "leisure",
-                    "description": "Morning relaxation time",
-                    "start_time": "09:00",
-                    "end_time": "12:00",
-                    "location_type": "home"
-                },
-                {
-                    "activity_type": "dining",
-                    "description": "Lunch time",
-                    "start_time": "12:00",
-                    "end_time": "13:00",
-                    "location_type": "home"
-                }
-            ])
-            
-            # Add shopping activity for weekends
-            if random.random() > 0.5:
-                activities.append({
-                    "activity_type": "shopping",
-                    "description": "Buying groceries",
-                    "start_time": "15:00",
-                    "end_time": "17:00",
-                    "location_type": "supermarket",
-                    "transport_mode": "driving"
-                })
-            
-            # Add evening activity
-            activities.append({
-                "activity_type": "dining",
-                "description": "Dinner time",
-                "start_time": "18:00",
-                "end_time": "19:30",
-                "location_type": "home",
-                "transport_mode": "driving"
-            })
-            
-            # Add social or leisure evening activity
-            if random.random() > 0.6:
-                activities.append({
-                    "activity_type": "social",
-                    "description": "Evening gathering with friends",
-                    "start_time": "20:00",
-                    "end_time": "21:30",
-                    "location_type": "restaurant",
-                    "transport_mode": "driving"
-                })
-            else:
-                activities.append({
-                    "activity_type": "leisure",
-                    "description": "Evening relaxation",
-                    "start_time": "20:00",
-                    "end_time": "21:30",
-                    "location_type": "home"
-                })
+        # Check activity type
+        activity_type = activity.get('activity_type', '').lower()
+        if activity_type not in [t.lower() for t in ACTIVITY_TYPES]:
+            return False
         
-        # Only return non-sleep activities, sleep activities will be handled separately in main.py
-        return activities
+        return True
+    
+    def _generate_default_activities(self, persona):
+        """
+        Generate default activities if LLM generation fails
+        
+        Args:
+            persona: Persona object
+            
+        Returns:
+            list: List of default activities
+        """
+        # Basic schedule
+        return [
+            {
+                'activity_type': 'sleep',
+                'start_time': '00:00',
+                'end_time': '07:00',
+                'description': 'Sleeping at home',
+                'location_type': 'home'
+            },
+            {
+                'activity_type': 'work',
+                'start_time': '09:00',
+                'end_time': '17:00',
+                'description': 'Working at office',
+                'location_type': 'work'
+            },
+            {
+                'activity_type': 'leisure',
+                'start_time': '18:00',
+                'end_time': '21:00',
+                'description': 'Relaxing at home',
+                'location_type': 'home'
+            },
+            {
+                'activity_type': 'sleep',
+                'start_time': '22:00',
+                'end_time': '23:59',
+                'description': 'Sleeping at home',
+                'location_type': 'home'
+            }
+        ]

@@ -18,8 +18,8 @@ USE_DEEPBRICKS_API = True  # Always use DeepBricks API
 
 # LLM Configuration
 LLM_MODEL = "gpt-4o-mini"
-LLM_TEMPERATURE = 0.6
-LLM_MAX_TOKENS = 700
+LLM_TEMPERATURE = 0.7
+LLM_MAX_TOKENS = 1000
 
 # Simulation Parameters
 NUM_DAYS_TO_SIMULATE = 3
@@ -41,7 +41,18 @@ ACTIVITY_TYPES = [
     "social",
     "education",
     "leisure",
-    "errands"
+    "errands",
+    "travel",
+    # Sub-activity types
+    "commuting",
+    "warm_up",
+    "main_exercise",
+    "cool_down",
+    "meeting",
+    "break",
+    "meal",
+    "preparation",
+    "relaxation"
 ]
 
 # Transportation Modes
@@ -75,7 +86,7 @@ You are simulating the daily activity schedule for a person with the following c
 - Home location: {home_location}
 - Work location: {work_location}
 
-Based on this information, generate a daily schedule for this person, from morning to evening. Include at least 4-6 activities throughout the day, including mandatory activities (like work), discretionary activities and travel activities.  
+Based on this information, generate a daily schedule for this person, from morning to evening. Include at least 4-6 activities throughout the day, including mandatory activities (like work) and discretionary activities. MAKE SURE the time is continuous and there is no blank window.
 
 GEOGRAPHIC RULES: considering the geographical distance between activities, such as from home to workplace.
 DEMOGRAPHIC CONSIDERATIONS: considering the demographic profile of the person, such as age, gender, income level, consumption habits, education level, etc.
@@ -83,7 +94,6 @@ DEMOGRAPHIC CONSIDERATIONS: considering the demographic profile of the person, s
 IMPORTANT RULES FOR ACTIVITY TYPES:
 - "sleep": ONLY for sleeping activities (night sleep, naps)
 - "work": work-related activities (office work, meetings, etc.)
-- "travel": travel activities (travel to a new location, usually from home to workplace or other locations)
 - "shopping": purchasing goods (groceries, clothes, etc.)
 - "dining": eating meals outside or at home (restaurants, cafes, home cooking)
 - "recreation": leisure activities (sports, exercise, etc.)
@@ -93,34 +103,88 @@ IMPORTANT RULES FOR ACTIVITY TYPES:
 - "leisure": relaxing activities (reading, watching TV, etc.)
 - "errands": short tasks (bank, post office, etc.)
 
-TRANSPORTATION MODES:
-For activities that require travel to a new location, specify a transportation mode from this list:
-- "walking": on foot (for short distances, usually <1km, or for exercise)
-- "cycling": using a bicycle (for medium distances, usually <5km, or for exercise)
-- "public_transit": using bus, subway, train (common for medium-long distances in urban areas)
-- "driving": using a private car (common for longer distances or when convenience is needed)
-- "rideshare": using taxi, Uber, Lyft, etc. (for special occasions or when other options aren't available)
-
 For each activity, specify:
 1. Activity type (MUST be one from the list above)
-2. Start time
-3. End time
-4. Brief description of the activity
+2. Start time (MAKE SURE the time is continuous and there is no blank window.)
+3. End time (MAKE SURE the time is continuous and there is no blank window.)
+4. Detailed description of the activity (limited to 20 words)
 5. Location type (e.g., "home", "work", "restaurant", "gym", "park", etc.)
-6. Transport mode (ONLY include this for activities requiring travel to a new location, using one of the transportation modes from the list above)
 
 Format your response as a JSON array of activities:
 [
   {{
     "activity_type": "...",
-    "start_time": "...",
-    "end_time": "...",
+    "start_time": "... (HH:MM)",
+    "end_time": "... (HH:MM)",
     "description": "...",
-    "location_type": "...",
-    "transport_mode": "..."  // Only include this when the person is traveling to a new location
+    "location_type": "..."
   }},
   ...
 ]
+"""
+
+# Add new prompt for refining activities
+ACTIVITY_REFINEMENT_PROMPT = """
+You are helping to refine a person's activity schedule. For complex activities, break them down into sub-activities with specific times.
+
+Person Information:
+- Gender: {gender}
+- Age: {age}
+- Income level: ${income} annually
+- Consumption habits: {consumption}
+- Education: {education}
+
+Activity Information:
+- Date: {date}
+- Day of week: {day_of_week}
+- Activity description: {activity_description}
+- Location type: {location_type}
+- Start time: {start_time}
+- End time: {end_time}
+
+ACTIVITY TYPES:
+"sleep",
+"work",
+"shopping",
+"dining",
+"recreation",
+"healthcare",
+"social",
+"education",
+"leisure",
+"errands",
+"travel",
+"commuting",
+"warm_up",
+"main_exercise",
+"cool_down",
+"meeting",
+"break",
+"meal",
+"preparation",
+"relaxation"
+
+TRANSPORTATION MODES:
+For activities that require travel to a new location, specify a transportation mode from this list:
+- "walking": on foot (suitable for trips under 15 minutes, or for exercise)
+- "cycling": using a bicycle (suitable for trips under 30 minutes, or for exercise)
+- "public_transit": using bus, subway, train (common for 30-60 minute trips in urban areas)
+- "driving": using a private car (suitable for trips over 30 minutes or when convenience is needed)
+- "rideshare": using taxi, Uber, Lyft, etc. (for special occasions or when other options aren't available)
+
+Please provide descriptions and time arrangements for the activities based on the following information:
+1. More precise start and end times, including the time of travel to the activity location
+2. More detailed activity content descriptions (limited to 20 words)
+3. The specific transport mode used for the travle activity (ONLY include this for activities requiring travel to a new location, using one of the transportation modes from the list above)
+
+Return in JSON format:
+{{
+  "activity_type": "MUST be one from the list above",
+  "start_time": "More precise start time (HH:MM)",
+  "end_time": "More precise end time (HH:MM)",
+  "description": "More detailed activity description (limited to 20 words)",
+  "transport_mode": "MUST be one from the list above (ONLY include this for activities requiring travel to a new location, using one of the transportation modes from the list above)"
+}}
 """
 
 DESTINATION_SELECTION_PROMPT = """
