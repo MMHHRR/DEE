@@ -72,13 +72,18 @@ You are simulating the daily activity schedule for a person with the following c
 - Education: {education}
 - Day of week: {day_of_week}
 - Date: {date}
+- Home location: {home_location}
+- Work location: {work_location}
 
-Based on this information, generate a realistic daily schedule for this person, from morning to evening.
-Include at least 4-6 activities throughout the day, including mandatory activities (like work) and discretionary activities.
+Based on this information, generate a daily schedule for this person, from morning to evening. Include at least 4-6 activities throughout the day, including mandatory activities (like work), discretionary activities and travel activities.  
+
+GEOGRAPHIC RULES: considering the geographical distance between activities, such as from home to workplace.
+DEMOGRAPHIC CONSIDERATIONS: considering the demographic profile of the person, such as age, gender, income level, consumption habits, education level, etc.
 
 IMPORTANT RULES FOR ACTIVITY TYPES:
 - "sleep": ONLY for sleeping activities (night sleep, naps)
 - "work": work-related activities (office work, meetings, etc.)
+- "travel": travel activities (travel to a new location, usually from home to workplace or other locations)
 - "shopping": purchasing goods (groceries, clothes, etc.)
 - "dining": eating meals outside or at home (restaurants, cafes, home cooking)
 - "recreation": leisure activities (sports, exercise, etc.)
@@ -89,20 +94,12 @@ IMPORTANT RULES FOR ACTIVITY TYPES:
 - "errands": short tasks (bank, post office, etc.)
 
 TRANSPORTATION MODES:
-For each activity that requires travel to a new location, you MUST specify a transportation mode from this list:
+For activities that require travel to a new location, specify a transportation mode from this list:
 - "walking": on foot (for short distances, usually <1km, or for exercise)
 - "cycling": using a bicycle (for medium distances, usually <5km, or for exercise)
 - "public_transit": using bus, subway, train (common for medium-long distances in urban areas)
 - "driving": using a private car (common for longer distances or when convenience is needed)
 - "rideshare": using taxi, Uber, Lyft, etc. (for special occasions or when other options aren't available)
-
-IMPORTANT TRANSPORTATION LOGIC RULES:
-1. A person MUST use the SAME transport mode throughout the day unless they return home. For example, if they drive to work, they must drive back home or to other places after work.
-2. If they start the day by walking/cycling/public transit, they CANNOT suddenly start driving without going home first to get their car.
-3. If the first activity is at home, choose a transport mode for going to the second activity that makes sense based on the person's profile and distance.
-4. Always consider the person's demographics (age, income, etc.) when choosing appropriate transport modes.
-5. Be realistic about travel times - don't use walking for very long distances or for elderly people traveling far.
-6. Home-to-home activities (like going for a run from home and returning) can use different transport modes.
 
 For each activity, specify:
 1. Activity type (MUST be one from the list above)
@@ -110,7 +107,7 @@ For each activity, specify:
 3. End time
 4. Brief description of the activity
 5. Location type (e.g., "home", "work", "restaurant", "gym", "park", etc.)
-6. Transport mode (MUST be one from the list above, for traveling to this activity location)
+6. Transport mode (ONLY include this for activities requiring travel to a new location, using one of the transportation modes from the list above)
 
 Format your response as a JSON array of activities:
 [
@@ -120,7 +117,7 @@ Format your response as a JSON array of activities:
     "end_time": "...",
     "description": "...",
     "location_type": "...",
-    "transport_mode": "..."
+    "transport_mode": "..."  // Only include this when the person is traveling to a new location
   }},
   ...
 ]
@@ -148,7 +145,7 @@ Format your response as a single JSON object:
 {{
   "place_type": "type of place (e.g., 'restaurant'). Google Places API supported types",
   "search_query": "keyword for place (e.g., 'Chinese restaurant')",
-  "distance_preference": "preferred travel distance in kilometers",
+  "distance_preference": "preferred travel distance in kilometers (1-10, where 10 means can be very far)",
   "price_level": "price level preference (1-4, where 4 is most expensive)"
 }}
 """

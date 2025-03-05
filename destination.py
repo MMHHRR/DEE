@@ -194,7 +194,6 @@ class Destination:
         
         # 3. Activity type correction
         activity_modifiers = {
-            'work': 1.3,        # Work location can be slightly further
             'shopping': 0.8,    # Shopping preference close
             'dining': 0.7,      # Dining usually close
             'recreation': 1.1,  # Entertainment venue medium
@@ -415,7 +414,6 @@ class Destination:
                 'radius': radius_meters,
                 'type': place_type,
                 'keyword': search_query,
-                'language': 'zh-CN',
                 'rankby': 'prominence'  # Default sort by popularity
             }
             
@@ -426,8 +424,8 @@ class Destination:
             data = response.json()
             
             if data.get('status') == 'OK' and data.get('results'):
-                # Process only the first 10 results
-                results = data.get('results')[:10]
+                # Process only the first 5 results
+                results = data.get('results')[:5]
                 
                 # Create candidate location list
                 candidates = []
@@ -477,67 +475,9 @@ class Destination:
                         'score': score
                     })
                 
-                # If no suitable location found, try alternative approach
+                # If no suitable location found or API returns no results, try alternative approach
                 if not candidates:
-                    # print(f"Google Places API returned no results: {data.get('status')}")
-                    
-                    # Try approach 1: Use more generic search keywords
-                    generic_keywords = {
-                        'restaurant': ['restaurant', 'dining', 'food'],
-                        'cafe': ['cafe', 'coffee', 'tea'],
-                        'shopping': ['shopping', 'mall', 'store', 'shop'],
-                        'recreation': ['park', 'recreation', 'leisure'],
-                        'work': ['office', 'business', 'work'],
-                        'education': ['school', 'library', 'bookstore'],
-                        'leisure': ['entertainment', 'cinema', 'theater'],
-                        'exercise': ['gym', 'fitness', 'sports'],
-                        'errand': ['convenience', 'pharmacy', 'service']
-                    }
-                    
-                    # Extract possible activity type from search query
-                    activity_type = None
-                    search_query = destination_type.get('search_query', '')
-                    for key, values in generic_keywords.items():
-                        if any(keyword in search_query.lower() for keyword in values):
-                            activity_type = key
-                            break
-                    
-                    if activity_type:
-                        # Search with more generic keywords
-                        generic_params = {
-                            'key': GOOGLE_MAPS_API_KEY,
-                            'location': f"{current_location[0]},{current_location[1]}",
-                            'radius': int(max_radius * 1000 * 1.5),  # Expand search range
-                            'keyword': generic_keywords.get(activity_type, ['place'])[0]
-                        }
-                        
-                        try:
-                            generic_response = requests.get(url, params=generic_params)
-                            generic_data = generic_response.json()
-                            
-                            if generic_data.get('status') == 'OK' and generic_data.get('results'):
-                                # Process found alternative location
-                                result = generic_data['results'][0]  # Use first result directly
-                                location = result.get('geometry', {}).get('location', {})
-                                dest_coords = (location.get('lat'), location.get('lng'))
-                                
-                                # Calculate distance and travel time
-                                distance = calculate_distance(current_location, dest_coords)
-                                details = {
-                                    'name': result.get('name', 'Alternative Location'),
-                                    'address': result.get('vicinity', 'Unknown address'),
-                                    'rating': result.get('rating', 3.0),
-                                    'distance': distance
-                                }
-                                
-                                # print(f"Found alternative location: {details['name']} ({details['address']})")
-                                return dest_coords, details
-                        except Exception as e:
-                            print(f"Alternative search error: {str(e)}")
-                    
-                    # Last resort use random location
-                    random_location = generate_random_location_near(current_location, max_radius)
-                    return random_location, {'name': f'Nearby Location', 'address': f'Distance: {round(calculate_distance(current_location, random_location), 1)}km'}
+                    return self._try_alternative_search(current_location, destination_type, max_radius)
                 
                 # Sort by score and select best location
                 candidates.sort(key=lambda x: x['score'], reverse=True)
@@ -549,75 +489,77 @@ class Destination:
                     cache.set(cache_key, result)
                 
                 return result
-                
             else:
                 # If API returns no results, try alternative approaches
-                # print(f"Google Places API returned no results: {data.get('status')}")
-                pass
-                
-                # Approach 1: Use more generic search keywords
-                generic_keywords = {
-                    'restaurant': ['restaurant', 'dining', 'food'],
-                    'cafe': ['cafe', 'coffee', 'tea'],
-                    'shopping': ['shopping', 'mall', 'store', 'shop'],
-                    'recreation': ['park', 'recreation', 'leisure'],
-                    'work': ['office', 'business', 'work'],
-                    'education': ['school', 'library', 'bookstore'],
-                    'leisure': ['entertainment', 'cinema', 'theater'],
-                    'exercise': ['gym', 'fitness', 'sports'],
-                    'errand': ['convenience', 'pharmacy', 'service']
-                }
-                
-                # Extract possible activity type from search query
-                activity_type = None
-                search_query = destination_type.get('search_query', '')
-                for key, values in generic_keywords.items():
-                    if any(keyword in search_query.lower() for keyword in values):
-                        activity_type = key
-                        break
-                
-                if activity_type:
-                    # Search with more generic keywords
-                    generic_params = {
-                        'key': GOOGLE_MAPS_API_KEY,
-                        'location': f"{current_location[0]},{current_location[1]}",
-                        'radius': int(max_radius * 1000 * 1.5),  # Expand search radius
-                        'keyword': generic_keywords.get(activity_type, ['place'])[0]
-                    }
-                    
-                    try:
-                        generic_response = requests.get(url, params=generic_params)
-                        generic_data = generic_response.json()
-                        
-                        if generic_data.get('status') == 'OK' and generic_data.get('results'):
-                            # Process alternative location found
-                            result = generic_data['results'][0]  # Use first result
-                            location = result.get('geometry', {}).get('location', {})
-                            dest_coords = (location.get('lat'), location.get('lng'))
-                            
-                            # Calculate distance and travel time
-                            distance = calculate_distance(current_location, dest_coords)
-                            details = {
-                                'name': result.get('name', 'Alternative location'),
-                                'address': result.get('vicinity', 'Unknown address'),
-                                'rating': result.get('rating', 3.0),
-                                'distance': distance
-                            }
-                            
-                            # print(f"    Found alternative location: {details['name']} ({details['address']})")
-                            return dest_coords, details
-                    except Exception as e:
-                        print(f"Alternative search error: {str(e)}")
-                
-                # Only use random location as last resort
-                random_location = generate_random_location_near(current_location, max_radius)
-                return random_location, {'name': f'Nearby location', 'address': f'Distance: {round(calculate_distance(current_location, random_location), 1)}km'}
+                return self._try_alternative_search(current_location, destination_type, max_radius)
                 
         except Exception as e:
             print(f"Error occurred retrieving location: {str(e)}")
             # Return random location in case of error
             random_location = generate_random_location_near(current_location, max_radius * 0.5)
             return random_location, {'name': f'Random Location (Error)', 'address': f'Distance: {round(calculate_distance(current_location, random_location), 1)}km'}
+
+    def _try_alternative_search(self, current_location, destination_type, max_radius):
+        """
+        Try alternative search approaches when primary search fails
+        """
+        # Approach 1: Use more generic search keywords
+        generic_keywords = {
+            'restaurant': ['restaurant', 'dining', 'food'],
+            'cafe': ['cafe', 'coffee', 'tea'],
+            'shopping': ['shopping', 'mall', 'store', 'shop'],
+            'recreation': ['park', 'recreation', 'leisure'],
+            'work': ['office', 'business', 'work'],
+            'education': ['school', 'library', 'bookstore'],
+            'leisure': ['entertainment', 'cinema', 'theater'],
+            'exercise': ['gym', 'fitness', 'sports'],
+            'errand': ['convenience', 'pharmacy', 'service']
+        }
+        
+        # Extract possible activity type from search query
+        activity_type = None
+        search_query = destination_type.get('search_query', '')
+        for key, values in generic_keywords.items():
+            if any(keyword in search_query.lower() for keyword in values):
+                activity_type = key
+                break
+        
+        if activity_type:
+            # Search with more generic keywords
+            generic_params = {
+                'key': GOOGLE_MAPS_API_KEY,
+                'location': f"{current_location[0]},{current_location[1]}",
+                'radius': int(max_radius * 1000 * 1.5),  # Expand search radius
+                'keyword': generic_keywords.get(activity_type, ['place'])[0]
+            }
+            
+            try:
+                url = "https://maps.googleapis.com/maps/api/place/nearbysearch/json"
+                generic_response = requests.get(url, params=generic_params)
+                generic_data = generic_response.json()
+                
+                if generic_data.get('status') == 'OK' and generic_data.get('results'):
+                    # Process alternative location found
+                    result = generic_data['results'][0]  # Use first result
+                    location = result.get('geometry', {}).get('location', {})
+                    dest_coords = (location.get('lat'), location.get('lng'))
+                    
+                    # Calculate distance
+                    distance = calculate_distance(current_location, dest_coords)
+                    details = {
+                        'name': result.get('name', 'Alternative location'),
+                        'address': result.get('vicinity', 'Unknown address'),
+                        'rating': result.get('rating', 3.0),
+                        'distance': distance
+                    }
+                    
+                    return dest_coords, details
+            except Exception as e:
+                print(f"Alternative search error: {str(e)}")
+        
+        # Only use random location as last resort
+        random_location = generate_random_location_near(current_location, max_radius)
+        return random_location, {'name': f'Nearby location', 'address': f'Distance: {round(calculate_distance(current_location, random_location), 1)}km'}
     
     def _extract_destination_from_text(self, text):
         """

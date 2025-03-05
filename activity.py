@@ -103,8 +103,19 @@ class Activity:
         # Generate schedule
         activities = self._generate_activities_with_llm(persona, date, day_of_week, memory_patterns)
         
+        # Refine and potentially decompose activities
+        refined_activities = []
+        for activity in activities:
+            # result = self.refine_activity(persona, activity, date)
+            # Check if result is a list (decomposed activities) or dict (single refined activity)
+            # if isinstance(result, list):
+            #     refined_activities.extend(result)  # Add all sub-activities
+            # else:
+            #     refined_activities.append(result)  # Add single refined activity
+            refined_activities.append(activity)  # 直接添加活动
+        
         # Validate and correct activities
-        validated_activities = self._validate_activities(activities)
+        validated_activities = self._validate_activities(refined_activities)
         
         return validated_activities
         
@@ -118,7 +129,9 @@ class Activity:
             consumption=persona.consumption,
             education=persona.education,
             day_of_week=day_of_week,
-            date=date
+            date=date,
+            home_location=persona.home,
+            work_location=persona.work
         )
         
         # Add historical pattern prompts
@@ -178,194 +191,94 @@ class Activity:
                 print("Error with LLM API, using default activities")
                 return self._generate_default_activities(persona)
     
-    def refine_activity(self, persona, activity, date):
-        """
-        Refine an activity with more details.
-        实现批量处理以减少API调用
+    # def refine_activity(self, persona, activity, date):
+    #     """
+    #     细化活动并可能将其拆解为更小粒度的子活动。
+    #     实现批量处理以减少API调用
         
-        Args:
-            persona: Persona object
-            activity: Activity dictionary
-            date: Date string (YYYY-MM-DD)
+    #     Args:
+    #         persona: Persona object
+    #         activity: Activity dictionary
+    #         date: Date string (YYYY-MM-DD)
         
-        Returns:
-            dict: Refined activity with more details
-        """
-        # If batch processing is enabled, add activity to queue
-        if BATCH_PROCESSING:
-            # Add to queue
-            self.activity_queue.append((persona, activity, date))
+    #     Returns:
+    #         dict或list: 细化后的单一活动或拆解后的多个子活动列表
+    #     """
+    #     # If batch processing is enabled, add activity to queue
+    #     if BATCH_PROCESSING:
+    #         # Add to queue
+    #         self.activity_queue.append((persona, activity, date))
             
-            # If queue is full or last activity, process entire batch
-            if len(self.activity_queue) >= BATCH_SIZE:
-                batch_results = self._process_activity_batch(self.activity_queue)
-                self.activity_queue = []  # Clear queue
+    #         # If queue is full or last activity, process entire batch
+    #         if len(self.activity_queue) >= BATCH_SIZE:
+    #             batch_results = self._process_activity_batch(self.activity_queue)
+    #             self.activity_queue = []  # Clear queue
                 
-                # Find result for current activity
-                for batch_persona, batch_activity, batch_date, refined_activity in batch_results:
-                    if (batch_persona.id == persona.id and 
-                        batch_activity['activity_type'] == activity['activity_type'] and
-                        batch_activity['start_time'] == activity['start_time']):
-                        return refined_activity
+    #             # Find result for current activity
+    #             for batch_persona, batch_activity, batch_date, refined_result in batch_results:
+    #                 if (batch_persona.id == persona.id and 
+    #                     batch_activity['activity_type'] == activity['activity_type'] and
+    #                     batch_activity['start_time'] == activity['start_time']):
+    #                     return refined_result
                 
-                # If no matching result found, process current activity separately
-                return self._refine_single_activity(persona, activity, date)
+    #             # If no matching result found, process current activity separately
+    #             return self._refine_single_activity(persona, activity, date)
             
-            # Queue not full, return original activity (will be processed later)
-            return activity
-        else:
-            # No batch processing, process single activity directly
-            return self._refine_single_activity(persona, activity, date)
+    #         # Queue not full, return original activity (will be processed later)
+    #         return activity
+    #     else:
+    #         # No batch processing, process single activity directly
+    #         return self._refine_single_activity(persona, activity, date)
 
-    def _process_activity_batch(self, activity_queue):
-        """
-        处理一批活动的细化
+    # def _process_activity_batch(self, activity_queue):
+    #     """
+    #     此方法已被注释掉，因为批处理功能在实际应用中效果有限。
+    #     批处理旨在提高API调用效率，但简化后直接处理单个活动更为清晰。
         
-        Args:
-            activity_queue: 活动队列，格式为[(persona, activity, date),...]
+    #     Args:
+    #         activity_queue: 活动队列 (未使用)
             
-        Returns:
-            list: [(persona, original_activity, date, refined_activity),...]
-        """
-        results = []
-        
-        try:
-            if not activity_queue:
-                return results
-                
-            # Build prompts for batch processing
-            prompts = []
-            for i, (persona, activity, date) in enumerate(activity_queue):
-                day_of_week = get_day_of_week(date)
-                prompt = f"Activity {i+1}:\n"
-                prompt += f"Description: {activity.get('description', 'No description')}\n"
-                prompt += f"Activity Type: {activity.get('activity_type', 'Unknown')}\n"
-                prompt += f"Time: {activity.get('start_time', '00:00')} - {activity.get('end_time', '00:00')}\n"
-                prompt += f"Person: {persona.age} year old {persona.gender}, income ${persona.income}, {persona.education} education\n"
-                prompt += f"Day: {day_of_week}, {date}\n\n"
-                prompts.append(prompt)
-                
-            # Build full prompt
-            full_prompt = "You are helping to refine the details of a daily activity schedule. " \
-                          "For each activity, provide more specific details about the location and environment.\n\n"
-            full_prompt += "".join(prompts)
-            full_prompt += "\nFor each activity, provide:\n" \
-                          "1. A more refined description of what the person would do\n" \
-                          "2. The type of location where this would occur\n" \
-                          "3. Any equipment or items they would need\n" \
-                          "4. Environmental characteristics of the location\n" \
-                          "5. Appropriate transportation mode (walking, driving, public_transit, cycling, rideshare)\n\n" \
-                          "Format your response as a JSON array:\n" \
-                          "[\n" \
-                          "  {\n" \
-                          "    \"activity_index\": 1,\n" \
-                          "    \"refined_description\": \"...\",\n" \
-                          "    \"location_type\": \"...\",\n" \
-                          "    \"equipment\": \"...\",\n" \
-                          "    \"environment\": \"...\",\n" \
-                          "    \"transport_mode\": \"...\"\n" \
-                          "  },\n" \
-                          "  ...\n" \
-                          "]"
-            
-            # Call LLM for batch refinement
-            refinements = []  # Default to empty list
-            try:
-                response = client.chat.completions.create(
-                    model=self.model,
-                    messages=[{"role": "user", "content": full_prompt}],
-                    temperature=self.temperature,
-                    max_tokens=self.max_tokens
-                )
-                
-                # Extract returned JSON, including potential fixes
-                text = response.choices[0].message.content
-                try:
-                    # Try to parse JSON
-                    refinements = json.loads(text)
-                    if not isinstance(refinements, list):
-                        refinements = []
-                except Exception:
-                    # Try extracting JSON from text
-                    try:
-                        json_text = re.search(r'\[.*\]', text, re.DOTALL)
-                        if json_text:
-                            json_text = self._fix_json_array(json_text.group(0))
-                            refinements = json.loads(json_text)
-                        else:
-                            refinements = []
-                    except Exception as je:
-                        # print(f"Error extracting JSON from response: {je}")
-                        refinements = []
-            except Exception as e:
-                print(f"Error calling LLM API: {e}")
-                # API call failed, keep empty refinements list
-            
-            # Apply refined activities
-            for refinement in refinements:
-                if 'activity_index' in refinement:
-                    index = int(refinement['activity_index']) - 1
-                    if 0 <= index < len(activity_queue):
-                        persona, activity, date = activity_queue[index]
-                        
-                        # Copy original activity and update
-                        refined_activity = activity.copy()
-                        
-                        if 'refined_description' in refinement:
-                            refined_activity['description'] = refinement['refined_description']
-                        
-                        if 'location_type' in refinement:
-                            refined_activity['location_type'] = refinement['location_type']
-                        
-                        if 'equipment' in refinement:
-                            refined_activity['equipment'] = refinement['equipment']
-                        
-                        if 'environment' in refinement:
-                            refined_activity['environment'] = refinement['environment']
-                            
-                        if 'transport_mode' in refinement:
-                            refined_activity['transport_mode'] = normalize_transport_mode(refinement['transport_mode'])
-                        
-                        results.append((persona, activity, date, refined_activity))
-            
-            # Process unrefined activities
-            processed_indices = [int(r.get('activity_index', 0)) - 1 for r in refinements]
-            for i, (persona, activity, date) in enumerate(activity_queue):
-                if i not in processed_indices:
-                    results.append((persona, activity, date, activity))  # Use original activity
-        
-        except Exception as e:
-            print(f"Error in batch processing: {e}")
-            # Batch processing failed, return original activity
-            for persona, activity, date in activity_queue:
-                results.append((persona, activity, date, activity))
-        
-        return results
+    #     Returns:
+    #         list: 处理结果 (简化为直接返回原始活动)
+    #     """
+    #     # 简化实现，直接返回原始活动
+    #     results = []
+    #     for persona, activity, date in activity_queue:
+    #         results.append((persona, activity, date, activity))
+    #     return results
 
-    @cached
-    def _refine_single_activity(self, persona, activity, date):
-        """处理单个活动的细化，可被缓存"""
-        # Simplify batch processing to single activity processing
-        results = self._process_activity_batch([(persona, activity, date)])
-        if results:
-            _, _, _, refined_activity = results[0]
-            return refined_activity
-        return activity
+    # @cached
+    # def _refine_single_activity(self, persona, activity, date):
+    #     """处理单个活动的细化，可被缓存"""
+    #     # Simplify batch processing to single activity processing
+    #     results = self._process_activity_batch([(persona, activity, date)])
+    #     if results:
+    #         _, _, _, refined_activity = results[0]
+    #         return refined_activity
+    #     return activity
     
     def _validate_activities(self, activities):
         """
         Validate and clean activities data.
+        支持处理拆解后的子活动，确保时间连续性和活动类型正确性
         
         Args:
-            activities: List of activity dictionaries
+            activities: List of activity dictionaries (包括普通活动和拆解后的子活动)
             
         Returns:
             list: Validated activities
         """
+        if not activities:
+            return []
+            
         validated = []
         previous_location_type = None
+        previous_end_time = None
         
-        for activity in activities:
+        # First sort by start time to ensure proper time sequence
+        sorted_activities = sorted(activities, key=lambda x: self._format_time(x.get('start_time', '00:00')))
+        
+        for activity in sorted_activities:
             # Skip invalid activities
             if 'activity_type' not in activity or 'start_time' not in activity or 'end_time' not in activity:
                 continue
@@ -387,6 +300,20 @@ class Activity:
             except:
                 # Skip activities with invalid times
                 continue
+                
+            # Ensure time continuity - fix gaps or overlaps with previous activity
+            if previous_end_time and start_time != previous_end_time:
+                # If there's a gap between activities or they overlap
+                if len(validated) > 0:
+                    # Fix time gaps - adjust start time of current activity
+                    if start_time > previous_end_time:
+                        # Gap case: If gap is small (< 30 minutes), just extend previous activity
+                        time_diff = datetime.datetime.strptime(start_time, "%H:%M") - datetime.datetime.strptime(previous_end_time, "%H:%M")
+                        if time_diff.total_seconds() < 1800:  # Less than 30 minutes
+                            validated[-1]['end_time'] = start_time
+                    # Fix overlaps - adjust end time of previous activity
+                    elif start_time < previous_end_time:
+                        validated[-1]['end_time'] = start_time
             
             # Get current activity location type
             location_type = activity.get('location_type', '')
@@ -400,27 +327,29 @@ class Activity:
             
             # If no transportation mode specified and not first activity, determine default transportation based on activity type and location
             if not transport_mode and len(validated) > 0:
-                # Home activities usually don't require transportation
-                if location_type == 'home':
-                    transport_mode = 'walking'  # Default walking at home
-                # Work commute
-                elif location_type == 'work' or activity_type == 'work':
-                    transport_mode = 'driving'  # Default driving to work
-                # Short activities default to walking
-                elif activity_type in ['shopping', 'dining', 'leisure', 'errands']:
-                    transport_mode = 'walking'
-                # Medium/long activities default to public transportation
-                elif activity_type in ['recreation', 'healthcare', 'social', 'education']:
-                    transport_mode = 'public_transit'
-                else:
-                    transport_mode = 'driving'  # Other cases default to driving
+                # Check if transportation is needed based on location change
+                if previous_location_type != location_type and self._needs_transportation(previous_location_type, location_type, activity_type):
+                    # Home activities usually don't require transportation
+                    if location_type == 'home':
+                        transport_mode = 'walking'  # Default walking at home
+                    # Work commute
+                    elif location_type == 'work' or activity_type == 'work':
+                        transport_mode = 'driving'  # Default driving to work
+                    # Short activities default to walking
+                    elif activity_type in ['shopping', 'dining', 'leisure', 'errands']:
+                        transport_mode = 'walking'
+                    # Medium/long activities default to public transportation
+                    elif activity_type in ['recreation', 'healthcare', 'social', 'education']:
+                        transport_mode = 'public_transit'
+                    else:
+                        transport_mode = 'driving'  # Other cases default to driving
             
             # Create validated activity
             validated_activity = {
                 'activity_type': activity_type,
                 'start_time': start_time,
                 'end_time': end_time,
-                'description': activity['description'],
+                'description': activity.get('description', ''),
             }
             
             # Add location type if available
@@ -428,85 +357,20 @@ class Activity:
                 validated_activity['location_type'] = location_type
                 previous_location_type = location_type
             
-            # Add transport mode if available
-            if transport_mode:
+            # Add transport mode if available AND needed (only if the location has changed)
+            needs_transport = previous_location_type != location_type and self._needs_transportation(previous_location_type, location_type, activity_type)
+            if transport_mode and needs_transport:
                 validated_activity['transport_mode'] = transport_mode
             
+            # Copy any other relevant fields from the original activity
+            for key, value in activity.items():
+                if key not in validated_activity and key not in ['activity_type', 'start_time', 'end_time', 'description', 'location_type', 'transport_mode']:
+                    validated_activity[key] = value
+            
             validated.append(validated_activity)
-        
-        # Sort by start time
-        validated.sort(key=lambda x: x['start_time'])
-        
-        # Apply transport mode consistency validation
-        validated = self._ensure_transport_mode_consistency(validated)
+            previous_end_time = end_time
         
         return validated
-    
-    def _ensure_transport_mode_consistency(self, activities):
-        """
-        Ensure transportation mode consistency throughout the day.
-        A person must use the same transport mode until they return home.
-        
-        Args:
-            activities: Sorted list of validated activity dictionaries
-            
-        Returns:
-            list: Activities with consistent transport modes
-        """
-        if not activities or len(activities) <= 1:
-            return activities
-            
-        # Track current transport mode and whether person is at home
-        current_transport_mode = None
-        at_home = False
-        last_location_type = None
-        result = []
-        
-        for i, activity in enumerate(activities):
-            location_type = activity.get('location_type', '')
-            transport_mode = activity.get('transport_mode', 'walking')  # Default to walking if not specified
-            
-            # First activity of the day
-            if i == 0:
-                # If first activity is at home, allow any transport mode for now
-                if location_type == 'home':
-                    at_home = True
-                else:
-                    # First activity not at home, establish initial transport mode
-                    current_transport_mode = transport_mode
-                    
-                result.append(activity)
-                last_location_type = location_type
-                continue
-                
-            # Person returned home
-            if location_type == 'home':
-                at_home = True
-                result.append(activity)
-                last_location_type = 'home'
-                continue
-                
-            # Person left home - can choose any transport mode
-            if last_location_type == 'home' and location_type != 'home':
-                at_home = False
-                current_transport_mode = transport_mode
-                result.append(activity)
-                last_location_type = location_type
-                continue
-                
-            # Person is traveling between non-home locations - must use consistent transport
-            if not at_home and current_transport_mode:
-                # Force consistent transport mode
-                activity_copy = activity.copy()
-                activity_copy['transport_mode'] = current_transport_mode
-                result.append(activity_copy)
-            else:
-                # Default case - keep original activity
-                result.append(activity)
-                
-            last_location_type = location_type
-                
-        return result
     
     def _correct_activity_type_based_on_description(self, activity_type, description):
         """
@@ -848,10 +712,3 @@ class Activity:
         
         # Only return non-sleep activities, sleep activities will be handled separately in main.py
         return activities
-        
-    # Simplified sleep time methods that just return fixed times
-    def _generate_sleep_end_time(self, age):
-        return "06:00"
-        
-    def _generate_sleep_start_time(self, age):
-        return "22:00" 

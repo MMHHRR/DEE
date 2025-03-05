@@ -67,7 +67,7 @@ class Memory:
         Record an activity and its location to memory.
         
         Args:
-            activity: Activity dictionary
+            activity: Activity dictionary containing activity details
             location: Location coordinates (latitude, longitude)
             timestamp: Time of activity
         """
@@ -90,57 +90,21 @@ class Memory:
             'location': location
         }
         
-        # Add location name (if available)
-        if 'location_name' in activity:
-            activity_record['location_name'] = activity['location_name']
+        # Add optional fields if available
+        optional_fields = ['location_name', 'location_type']
+        for field in optional_fields:
+            if field in activity:
+                activity_record[field] = activity[field]
         
-        # Add location type (if available)
-        if 'location_type' in activity:
-            activity_record['location_type'] = activity['location_type']
-        
-        # Add price level (if available)
-        if 'price_level' in activity:
-            activity_record['price_level'] = activity['price_level']
-        
-        # Add location rating (if available)
-        if 'location_rating' in activity:
-            activity_record['location_rating'] = activity['location_rating']
-        
-        # Add transportation mode (regardless of activity type)
-        if 'transport_mode' in activity:
-            transport_mode = normalize_transport_mode(activity['transport_mode'])
-            activity_record['transport_mode'] = transport_mode
-        
-        # Only add route when start coordinates are available
-        if 'start_location' in activity and 'end_location' in activity:
-            # Determine transportation mode
-            transport_mode = activity.get('transport_mode', 'walking')  # Default walking
-            transport_mode = normalize_transport_mode(transport_mode)
-            
-            # Ensure transportation mode is in record
-            activity_record['transport_mode'] = transport_mode
-            
-            # Optional: Add route coordinates
-            # route_coords = get_route_coordinates(
-            #     activity['start_location'],
-            #     activity['end_location'],
-            #     transport_mode
-            # )
-            # if route_coords:
-            #     activity_record['route_coordinates'] = route_coords
-        
-        # Add environment exposure information (if available)
-        if 'environment' in activity:
-            activity_record['environment'] = activity['environment']
-        
-        # Add equipment information (if available)
-        if 'equipment' in activity:
-            activity_record['equipment'] = activity['equipment']
+        # Process transport mode
+        if 'transport_mode' in activity or ('start_location' in activity and 'end_location' in activity):
+            transport_mode = activity.get('transport_mode', 'walking')
+            activity_record['transport_mode'] = normalize_transport_mode(transport_mode)
         
         # Add to current day record
         self.current_day['activities'].append(activity_record)
         
-        # Record simplified trajectory point
+        # Create and record trajectory point
         trajectory_point = {
             'location': location,
             'timestamp': timestamp,
@@ -148,27 +112,25 @@ class Memory:
             'description': activity['description']
         }
         
-        # Ensure trajectory point contains all important information
-        if 'transport_mode' in activity_record:
-            trajectory_point['transport_mode'] = activity_record['transport_mode']
-        
-        if 'location_name' in activity_record:
-            trajectory_point['location_name'] = activity_record['location_name']
-        
-        if 'location_type' in activity_record:
-            trajectory_point['location_type'] = activity_record['location_type']
-            
-        if 'price_level' in activity_record:
-            trajectory_point['price_level'] = activity_record['price_level']
-            
-        if 'location_rating' in activity_record:
-            trajectory_point['location_rating'] = activity_record['location_rating']
-        
-        if 'route_coordinates' in activity_record:
-            trajectory_point['route_coordinates'] = activity_record['route_coordinates']
+        # Copy relevant fields from activity_record to trajectory_point
+        for field in ['transport_mode', 'location_name', 'location_type', 'route_coordinates']:
+            if field in activity_record:
+                trajectory_point[field] = activity_record[field]
         
         self.current_day['trajectory'].append(trajectory_point)
         
+        # Update statistics
+        self._update_statistics(activity, location, timestamp)
+    
+    def _update_statistics(self, activity, location, timestamp):
+        """
+        Update frequency statistics for location and activity.
+        
+        Args:
+            activity: Activity dictionary
+            location: Location coordinates
+            timestamp: Time of activity
+        """
         # Update location frequency statistics
         location_key = f"{location[0]:.5f},{location[1]:.5f}"
         if 'location_name' in activity:
@@ -181,7 +143,8 @@ class Memory:
         self.activity_type_frequency[activity_type] = self.activity_type_frequency.get(activity_type, 0) + 1
         
         # Record time preference
-        time_key = f"{activity_type}_{timestamp.split(':')[0]}"
+        hour = timestamp.split(':')[0]
+        time_key = f"{activity_type}_{hour}"
         self.time_preference[time_key] = self.time_preference.get(time_key, 0) + 1
     
     def record_travel(self, start_location, end_location, start_time, end_time, transport_mode):
@@ -203,66 +166,9 @@ class Memory:
             print(f"Invalid location format: start {start_location}, end {end_location}")
             return
         
-        # Get location name (if available)
-        start_location_name = "Starting point"
-        end_location_name = None 
-        
-        # Try to get start location name from previous trajectory points
-        if self.current_day['trajectory']:
-            last_point = self.current_day['trajectory'][-1]
-            if 'location_name' in last_point:
-                start_location_name = last_point['location_name']
-        
-        # Try to get destination name from activity records
-        # First check the immediately following activity (by time and location match)
-        next_activity = None
-        min_time_diff = float('inf')
-        matching_activity = None
-
-        for activity in self.current_day['activities']:
-            # Check if the activity is in this journey
-            if activity.get('start_time', '') >= end_time:
-                # Check if the location matches
-                if self._is_same_location(activity.get('location'), end_location):
-                    # Calculate time difference (minutes)
-                    time_diff = self._calculate_time_diff(end_time, activity.get('start_time', ''))
-                    # If this activity is closer to the end of the journey
-                    if time_diff < min_time_diff:
-                        min_time_diff = time_diff
-                        matching_activity = activity
-
-        # If a matching next activity is found
-        if matching_activity and 'location_name' in matching_activity:
-            end_location_name = matching_activity['location_name']
-        else:
-            # If no next activity is found, check previous activity records
-            for activity in reversed(self.current_day['activities']):
-                if self._is_same_location(activity.get('location'), end_location) and 'location_name' in activity:
-                    end_location_name = activity['location_name']
-                    break
-        
-        # If still no name is found, check if it's home or workplace
-        if end_location_name is None:
-            if self.persona_info and 'home' in self.persona_info and self._is_same_location(end_location, self.persona_info['home']):
-                end_location_name = "Home"
-            elif self.persona_info and 'work' in self.persona_info and self._is_same_location(end_location, self.persona_info['work']):
-                end_location_name = "Workplace"
-            else:
-                # If still no name is found, try to infer from the type of the next activity
-                if matching_activity:
-                    activity_type = matching_activity.get('activity_type', '').lower()
-                    location_type = matching_activity.get('location_type', '').lower()
-                    
-                    if activity_type == 'dining' or 'restaurant' in location_type:
-                        end_location_name = "Restaurant"
-                    elif activity_type == 'shopping' or 'shop' in location_type or 'mall' in location_type:
-                        end_location_name = "Shopping Center"
-                    elif activity_type == 'recreation' or 'gym' in location_type:
-                        end_location_name = "Fitness Center"
-                    elif activity_type == 'leisure' or 'park' in location_type:
-                        end_location_name = "Park"
-                    else:
-                        end_location_name = "Destination"  # Use more generic term
+        # Get location names
+        start_location_name = self._get_start_location_name()
+        end_location_name = self._get_end_location_name(end_location, end_time)
         
         # Normalize transport mode
         normalized_transport_mode = normalize_transport_mode(transport_mode)
@@ -274,7 +180,7 @@ class Memory:
             normalized_transport_mode
         )
         
-        # Create travel record
+        # Create and record travel activity
         travel_record = {
             'activity_type': 'travel',
             'start_time': start_time,
@@ -285,36 +191,135 @@ class Memory:
             'end_location_name': end_location_name,
             'transport_mode': normalized_transport_mode,
             'description': f"Travel from {start_location_name} to {end_location_name} by {normalized_transport_mode}"
-            # Remove route coordinates from activities to avoid duplicate storage
         }
         
         self.current_day['activities'].append(travel_record)
         
-        # Create intermediate trajectory points for visualization
-        # First point - departure
+        # Create and add trajectory points
+        self._add_travel_trajectory_points(
+            start_location, end_location, 
+            start_time, end_time, 
+            start_location_name, end_location_name,
+            normalized_transport_mode, route_coords
+        )
+    
+    def _get_start_location_name(self):
+        """Get the name of the starting location from the last trajectory point."""
+        if not self.current_day['trajectory']:
+            return "Starting point"
+            
+        last_point = self.current_day['trajectory'][-1]
+        return last_point.get('location_name', "Starting point")
+    
+    def _get_end_location_name(self, end_location, end_time):
+        """
+        Determine the name of the end location based on various sources.
+        
+        Args:
+            end_location: The coordinates of the end location
+            end_time: The arrival time
+            
+        Returns:
+            str: Name of the end location
+        """
+        # Find next activity matching end location and time
+        matching_activity = self._find_matching_activity(end_location, end_time)
+        
+        # If a matching activity with location name is found
+        if matching_activity and 'location_name' in matching_activity:
+            return matching_activity['location_name']
+            
+        # Check previous activities for the same location
+        for activity in reversed(self.current_day['activities']):
+            if self._is_same_location(activity.get('location'), end_location) and 'location_name' in activity:
+                return activity['location_name']
+        
+        # Try to match with known locations like home or work
+        if self.persona_info:
+            if 'home' in self.persona_info and self._is_same_location(end_location, self.persona_info['home']):
+                return "Home"
+            if 'work' in self.persona_info and self._is_same_location(end_location, self.persona_info['work']):
+                return "Workplace"
+        
+        # Infer from activity type if available
+        if matching_activity:
+            activity_type = matching_activity.get('activity_type', '').lower()
+            location_type = matching_activity.get('location_type', '').lower()
+            
+            location_name_map = {
+                'dining': "Restaurant",
+                'shopping': "Shopping Center",
+                'recreation': "Fitness Center",
+                'leisure': "Park"
+            }
+            
+            # Check activity type
+            if activity_type in location_name_map:
+                return location_name_map[activity_type]
+                
+            # Check location type keywords
+            for keyword, name in [
+                ('restaurant', "Restaurant"),
+                (('shop', 'mall'), "Shopping Center"),
+                ('gym', "Fitness Center"),
+                ('park', "Park")
+            ]:
+                if isinstance(keyword, tuple):
+                    if any(k in location_type for k in keyword):
+                        return name
+                elif keyword in location_type:
+                    return name
+        
+        return "Destination"
+    
+    def _find_matching_activity(self, location, time):
+        """Find activity matching the given location and time."""
+        min_time_diff = float('inf')
+        matching_activity = None
+
+        for activity in self.current_day['activities']:
+            # Check if the activity is after this time
+            if activity.get('start_time', '') >= time:
+                # Check if the location matches
+                if self._is_same_location(activity.get('location'), location):
+                    # Calculate time difference
+                    time_diff = self._calculate_time_diff(time, activity.get('start_time', ''))
+                    # If this activity is closer
+                    if time_diff < min_time_diff:
+                        min_time_diff = time_diff
+                        matching_activity = activity
+        
+        return matching_activity
+    
+    def _add_travel_trajectory_points(self, start_location, end_location, 
+                                      start_time, end_time, 
+                                      start_location_name, end_location_name,
+                                      transport_mode, route_coords):
+        """Add departure and arrival trajectory points for travel."""
+        # Create departure point
         departure_point = {
             'location': start_location,
             'timestamp': start_time,
             'activity_type': 'travel',
-            'transport_mode': normalized_transport_mode,
-            'description': f"Starting {normalized_transport_mode} journey",
+            'transport_mode': transport_mode,
+            'description': f"Starting {transport_mode} journey",
             'location_name': start_location_name,
-            'route_coordinates': route_coords if route_coords else []  # Add route coordinates
+            'route_coordinates': route_coords if route_coords else []
         }
         self.current_day['trajectory'].append(departure_point)
         
-        # Last point - arrival
+        # Create arrival point
         arrival_point = {
             'location': end_location,
             'timestamp': end_time,
             'activity_type': 'travel',
-            'transport_mode': normalized_transport_mode,
-            'description': f"Ending {normalized_transport_mode} journey",
+            'transport_mode': transport_mode,
+            'description': f"Ending {transport_mode} journey",
             'location_name': end_location_name,
-            'route_coordinates': route_coords if route_coords else []  # Add route coordinates
+            'route_coordinates': route_coords if route_coords else []
         }
         self.current_day['trajectory'].append(arrival_point)
-
+    
     def _calculate_time_diff(self, time1, time2):
         """
         Calculate the time difference in minutes between two time strings in HH:MM format.
@@ -412,26 +417,6 @@ class Memory:
                 times_int = [int(t.split(':')[0]) for t in self.patterns['time_preferences'][activity_type]]
                 std_dev = np.std(times_int)
                 self.patterns['pattern_strength'][f'{activity_type}_time'] = 1 / (1 + std_dev)
-    
-    def get_pattern_strength(self, pattern_type):
-        """
-        Get the strength of a specific pattern type.
-        
-        Args:
-            pattern_type: Pattern type (e.g., 'location', 'time', 'sequence', 'environmental')
-            
-        Returns:
-            float: Pattern strength (0-1)
-        """
-        if not hasattr(self, 'patterns') or 'pattern_strength' not in self.patterns:
-            return 0.0
-            
-        relevant_strengths = []
-        for key, value in self.patterns['pattern_strength'].items():
-            if key.startswith(pattern_type):
-                relevant_strengths.append(value)
-                
-        return np.mean(relevant_strengths) if relevant_strengths else 0.0
     
     def save_memory(self):
         """

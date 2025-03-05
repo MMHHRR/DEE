@@ -423,109 +423,54 @@ def generate_random_location_near(center, max_distance_km=5.0):
 
 def normalize_transport_mode(mode):
     """
-    Standardize transportation mode, converting any transportation string to the system supported standard format.
+    Normalize transportation mode string to standard format
     
     Args:
-        mode: Original transportation string
+        mode: Transportation mode string
         
     Returns:
-        str: Standardized transportation mode
+        str: Normalized transportation mode
     """
-    # Default transportation mode
-    DEFAULT_MODE = 'walking'
+    if not mode:
+        return 'walking'
+        
+    mode = str(mode).lower().strip()
     
-    # Check for null or special cases
-    if not mode or not isinstance(mode, str):
-        return DEFAULT_MODE
-        
-    mode = mode.lower().strip()
-    
-    # Handle special values
-    invalid_values = ['n/a', 'none', 'null', 'nan', '']
-    if mode in invalid_values:
-        return DEFAULT_MODE
-        
-    # If already standardized transportation mode, return directly
-    if mode in TRANSPORT_MODES:
-        return mode
-        
-    # Simple mapping table, map common non-standard transportation modes to standard modes
+    # Map various transportation mode strings to standard modes
     mode_mapping = {
-        # Walking related
-        'foot': 'walking',
-        'pedestrian': 'walking',
-        'stroll': 'walking',
+        # Walking variants
         'walk': 'walking',
+        'foot': 'walking',
         'on foot': 'walking',
-        'by foot': 'walking',
-        'strolling': 'walking',
-        'hiking': 'walking',
         
-        # Driving related
-        'car': 'driving',
-        'automobile': 'driving',
-        'vehicle': 'driving',
-        'drive': 'driving',
-        'by car': 'driving',
-        'personal car': 'driving',
-        'private car': 'driving',
-        'own car': 'driving',
-        
-        # Public transit related
-        'bus': 'public_transit',
-        'train': 'public_transit',
-        'subway': 'public_transit',
-        'metro': 'public_transit',
-        'tram': 'public_transit',
-        'public transport': 'public_transit',
-        'public transportation': 'public_transit',
-        'transit': 'public_transit',
-        'rail': 'public_transit',
-        'light rail': 'public_transit',
-        'commuter rail': 'public_transit',
-        'ferry': 'public_transit',
-        
-        # Cycling related
+        # Cycling variants
         'bike': 'cycling',
         'bicycle': 'cycling',
         'cycle': 'cycling',
-        'biking': 'cycling',
-        'by bike': 'cycling',
-        'by bicycle': 'cycling',
         
-        # Rideshare related
-        'cab': 'rideshare',
-        'taxi': 'rideshare',
-        'uber': 'rideshare',
-        'lyft': 'rideshare',
-        'didi': 'rideshare',
-        'ride-sharing': 'rideshare',
-        'ridesharing': 'rideshare',
-        'ride sharing': 'rideshare',
-        'ride hailing': 'rideshare',
-        'ride-hailing': 'rideshare',
-        'shared ride': 'rideshare'
+        # Public transit variants
+        'bus': 'public_transit',
+        'subway': 'public_transit',
+        'metro': 'public_transit',
+        'train': 'public_transit',
+        'transit': 'public_transit',
+        'public transport': 'public_transit',
+        'public transportation': 'public_transit',
+        
+        # Driving variants
+        'car': 'driving',
+        'auto': 'driving',
+        'automobile': 'driving',
+        'vehicle': 'driving'
     }
     
-    # Quickly match using mapping table
+    # Return mapped mode if exists, otherwise return original if valid or default to walking
     if mode in mode_mapping:
         return mode_mapping[mode]
-    
-    # If direct match failed, try fuzzy matching by checking if mode contains key words
-    mode_keywords = {
-        'walking': ['walk', 'foot', 'pedestrian', 'stroll', 'hike'],
-        'driving': ['drive', 'car', 'auto', 'vehicle'],
-        'public_transit': ['bus', 'train', 'subway', 'metro', 'transit', 'public', 'tram', 'rail'],
-        'cycling': ['bike', 'cycle', 'bicycle'],
-        'rideshare': ['taxi', 'cab', 'uber', 'lyft', 'ride', 'sharing', 'hail']
-    }
-    
-    for std_mode, keywords in mode_keywords.items():
-        if any(keyword in mode for keyword in keywords):
-            return std_mode
-    
-    # If no match, return default transportation mode
-    return DEFAULT_MODE
+    elif mode in TRANSPORT_MODES:
+        return mode
+    else:
+        return 'walking'
 
 def get_route_coordinates(start_location, end_location, transport_mode='driving'):
     """
@@ -571,17 +516,16 @@ def get_route_coordinates(start_location, end_location, transport_mode='driving'
 @cached
 def estimate_travel_time(start_location, end_location, transport_mode, persona=None):
     """
-    Estimate travel time between two locations based on distance and transport mode.
-    Added caching to avoid redundant calculations.
+    Estimate travel time between two locations using specified transportation mode
     
     Args:
-        start_location: (latitude, longitude)
-        end_location: (latitude, longitude)
-        transport_mode: Mode of transportation
-        persona: Person object containing transportation preferences
-    
+        start_location: Starting coordinates (latitude, longitude)
+        end_location: Ending coordinates (latitude, longitude)
+        transport_mode: Transportation mode to use
+        persona: Optional persona object for personalized estimates
+        
     Returns:
-        tuple: (travel_time_minutes, selected_transport_mode)
+        tuple: (estimated_time_minutes, actual_transport_mode)
     """
     distance_km = calculate_distance(start_location, end_location)
     

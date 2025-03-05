@@ -41,73 +41,6 @@ from utils import (
     time_to_minutes
 )
 
-# def simulate_environmental_exposure(location, activity_type):
-#     """
-#     Simulate environmental exposure for a given location and activity type.
-#     This is a placeholder that would be replaced by actual environmental data.
-    
-#     Args:
-#         location: (latitude, longitude)
-#         activity_type: Type of activity
-    
-#     Returns:
-#         dict: Dictionary of environmental exposures
-#     """
-#     # Safety check for location parameter
-#     if not location or not isinstance(location, (list, tuple)) or len(location) < 2:
-#         print(f"Invalid location format: {location}. Using default values.")
-#         # Return default values if location is invalid
-#         return {
-#             'air_quality': 50.0,
-#             'noise_level': 50.0,
-#             'green_space': 50.0,
-#             'urban_density': 50.0,
-#             'traffic_density': 50.0
-#         }
-    
-#     # In a real application, this would query environmental data APIs
-#     # For now, we'll generate random values with some correlation to the activity type
-    
-#     exposures = {}
-    
-#     # Safety check for activity_type
-#     if not isinstance(activity_type, str):
-#         activity_type = str(activity_type)
-    
-#     activity_type = activity_type.lower()
-    
-#     # Air quality (lower is better, 0-100)
-#     if activity_type in ['work', 'shopping', 'dining']:
-#         # Urban activities tend to have worse air quality
-#         exposures['air_quality'] = random.uniform(40, 80)
-#     else:
-#         exposures['air_quality'] = random.uniform(20, 60)
-    
-#     # Noise level (lower is better, 0-100)
-#     if activity_type in ['work', 'shopping', 'social']:
-#         exposures['noise_level'] = random.uniform(40, 80)
-#     else:
-#         exposures['noise_level'] = random.uniform(20, 50)
-    
-#     # Green space availability (higher is better, 0-100)
-#     if activity_type in ['recreation', 'leisure']:
-#         exposures['green_space'] = random.uniform(40, 90)
-#     else:
-#         exposures['green_space'] = random.uniform(10, 50)
-    
-#     # Urban density (lower for suburban/rural areas, 0-100)
-#     if activity_type in ['work', 'shopping']:
-#         exposures['urban_density'] = random.uniform(60, 90)
-#     else:
-#         exposures['urban_density'] = random.uniform(30, 70)
-    
-#     # Traffic density (lower is better, 0-100)
-#     if activity_type in ['work', 'shopping']:
-#         exposures['traffic_density'] = random.uniform(50, 90)
-#     else:
-#         exposures['traffic_density'] = random.uniform(20, 60)
-    
-#     return exposures
 
 @cached
 def format_time_after_minutes(start_time, minutes):
@@ -133,61 +66,67 @@ def format_time_after_minutes(start_time, minutes):
     return f"{new_h:02d}:{new_m:02d}"
 
 def simulate_single_day(persona, date, activity_generator, destination_selector, memory):
-    """模拟单日活动，确保使用活动中指定的交通方式"""
+    """
+    Simulate daily activities, ensuring the use of specified transportation modes
+    
+    Args:
+        persona: Persona object
+        date: Date string (YYYY-MM-DD)
+        activity_generator: Activity generator instance
+        destination_selector: Destination selector instance
+        memory: Memory instance for recording activities
+        
+    Returns:
+        bool: Whether the simulation was successful
+    """
     try:
-        # 更新到内存
+        # Update memory
         print(f"Simulating activities for {persona.name} on {date}...")
         memory.start_new_day(date)
         
-        # 1. 生成日程表（包括交通方式）
+        # 1. Generate schedule (including transportation modes)
         daily_activities = activity_generator.generate_daily_schedule(persona, date)
         
-        # 确保一天的活动数据有效
+        # Ensure daily activities data is valid
         if not daily_activities:
             print(f"Warning: No activities generated for {persona.name} on {date}")
             return False
             
-        # 确保活动按时间排序
+        # Ensure activities are sorted by time
         daily_activities.sort(key=lambda x: x['start_time'])
         
-        # 去除重复的活动（基于开始时间和活动类型）
-        unique_activities = []
+        # Remove duplicate activities (based on start time and activity type)
         activity_keys = set()
+        unique_activities = []
         for activity in daily_activities:
             activity_key = f"{activity['start_time']}_{activity['activity_type']}"
             if activity_key not in activity_keys:
                 activity_keys.add(activity_key)
                 unique_activities.append(activity)
         
-        # 更新日程表为去重后的活动
+        # Update schedule with deduplicated activities
         daily_activities = unique_activities
         
-        # 2. 细化每项活动
-        refined_activities = []
-        for activity in daily_activities:
-            refined_activity = activity_generator.refine_activity(persona, activity, date)
-            refined_activities.append(refined_activity)
-        
-        # 3. 为每项活动选择具体目的地并处理移动
-        for i, activity in enumerate(refined_activities):
-            # 获取活动信息
+        # 2. Select specific destinations for each activity and handle movement
+        for i, activity in enumerate(daily_activities):
+            # Get activity information
             activity_type = activity.get('activity_type')
             start_time = activity.get('start_time')
             end_time = activity.get('end_time')
             description = activity.get('description', '')
             location_type = activity.get('location_type', '')
             
-            # 计算可用时间（分钟）
+            # Calculate available time (minutes)
             available_minutes = time_difference_minutes(start_time, end_time)
             
-            # 获取活动指定的交通方式
+            # Get activity specified transportation mode
             transport_mode = activity.get('transport_mode', 'walking')
             transport_mode = normalize_transport_mode(transport_mode)
             
             try:
                 print(f"  - {start_time}: {activity_type} - {description}")
                 
-                # 检查是否是固定位置（家或工作地点）
+                # Check if it's a fixed location (home or work place)
                 if location_type.lower() == 'home' and hasattr(persona, 'home'):
                     destination = persona.home
                     details = {'name': 'Home', 'address': 'Home location'}
@@ -195,28 +134,26 @@ def simulate_single_day(persona, date, activity_generator, destination_selector,
                     destination = persona.work
                     details = {'name': 'Work', 'address': 'Work location'}
                 else:
-                    # 选择目的地地点 - 传递交通方式和时间窗口
+                    # Select destination location - pass transportation mode and time window
                     destination, details = destination_selector.select_destination(
                         persona, 
-                        persona.current_location,  # 当前位置
-                        activity_type,  # 活动类型
-                        start_time,  # 开始时间
-                        get_day_of_week(date),  # 星期几
-                        available_minutes,  # 可用时间
-                        transport_mode  # 活动指定的交通方式
+                        persona.current_location,  # Current location
+                        activity_type,  # Activity type
+                        start_time,  # Start time
+                        get_day_of_week(date),  # Day of week
+                        available_minutes,  # Available time
+                        transport_mode  # Activity specified transportation mode
                     )
                 
-                # 存储目的地详情到活动中
+                # Store destination details in activity
                 activity['location_name'] = details.get('name', 'Unknown location')
-                activity['price_level'] = details.get('price_level', 0)
-                activity['location_rating'] = details.get('rating', 0)
                 
-                # 4. 处理移动并记录到内存
+                # 3. Handle movement and record to memory
                 if i > 0 and not are_locations_same(persona.current_location, destination):
-                    prev_activity = refined_activities[i-1]
+                    prev_activity = daily_activities[i-1]
                     prev_end_time = prev_activity['end_time']
                     
-                    # 使用活动中指定的交通方式计算旅行时间
+                    # Use activity specified transportation mode to calculate travel time
                     travel_time, actual_transport_mode = estimate_travel_time(
                         persona.current_location, 
                         destination, 
@@ -224,18 +161,18 @@ def simulate_single_day(persona, date, activity_generator, destination_selector,
                         persona
                     )
                     
-                    # 计算旅行后的到达时间
+                    # Calculate travel arrival time
                     arrival_time = format_time_after_minutes(prev_end_time, travel_time)
                     
-                    # 只打印一次交通信息，目的地使用活动地点名称，不使用Home
+                    # Print transportation information only once, use activity location name, not Home
                     location_name = activity['location_name']
                     if location_type.lower() in ['work', 'home']:
                         location_name = location_type.capitalize()
                     
-                    print(f"    (Traveling to {location_name} by {actual_transport_mode}, " +
+                    print(f"(Traveling to {location_name} by {actual_transport_mode}, " +
                           f"estimated travel time: {travel_time} min)")
                     
-                    # 记录旅行到内存
+                    # Record travel to memory
                     memory.record_travel(
                         persona.current_location,
                         destination,
@@ -254,7 +191,7 @@ def simulate_single_day(persona, date, activity_generator, destination_selector,
                 # Record activity to memory
                 memory.record_activity(activity, destination, start_time)
                 
-                # 更新当前位置和活动
+                # Update current location and activity
                 persona.current_location = destination
                 persona.update_current_activity(activity)
                 
@@ -262,14 +199,14 @@ def simulate_single_day(persona, date, activity_generator, destination_selector,
                 print(f"Error processing activity: {activity_error}")
                 continue
         
-        # 完成日模拟
+        # Complete day simulation
         memory.end_day()
         return True
         
     except Exception as e:
         print(f"Error simulating day: {e}")
         if memory.current_day:
-            memory.end_day()  # 确保结束日期记录
+            memory.end_day()  # Ensure end date recorded
         return False
 
 def simulate_persona(persona_data, num_days=7, start_date=None):
@@ -309,11 +246,13 @@ def simulate_persona(persona_data, num_days=7, start_date=None):
         dates = [date_obj + datetime.timedelta(days=i) for i in range(num_days)]
         dates_str = [d.strftime("%Y-%m-%d") for d in dates]
         
-        # 判断是否使用并行处理，通常超过3天模拟时开启并行
+        # Check if using parallel processing, usually start parallel processing when simulating more than 3 days
         if num_days > 3 and not BATCH_PROCESSING:
-            # 并行处理多个日期
-            with concurrent.futures.ProcessPoolExecutor(max_workers=min(multiprocessing.cpu_count(), num_days)) as executor:
-                # 创建日期处理任务
+            # Parallel processing multiple dates
+            max_workers = min(multiprocessing.cpu_count(), num_days)  # 使用最小的合理进程数
+            
+            with concurrent.futures.ProcessPoolExecutor(max_workers=max_workers) as executor:
+                # Create date processing tasks
                 future_to_date = {
                     executor.submit(
                         simulate_single_day, 
@@ -325,18 +264,18 @@ def simulate_persona(persona_data, num_days=7, start_date=None):
                     ): date for date in dates_str
                 }
                 
-                # 处理结果
+                # Process results
                 for future in concurrent.futures.as_completed(future_to_date):
                     date = future_to_date[future]
                     try:
                         day_result = future.result()
                         if day_result:
-                            # 合并结果到内存中
+                            # Merge results into memory
                             memory.days.append(day_result)
                     except Exception as e:
                         print(f"Error processing {date}: {e}")
         else:
-            # 对于少量日期或启用批处理时，顺序处理
+            # Sequential processing for small number of dates or when using batch processing
             for date in tqdm(dates_str, desc=f"Simulating days for {persona.id}"):
                 simulate_single_day(persona, date, activity_generator, destination_selector, memory)
         
@@ -366,13 +305,13 @@ def main():
     # Load personas data
     personas_data = load_json(PERSONA_DATA_PATH)
     
-    # 根据CPU核心数并行处理多个人
-    max_workers = max(1, multiprocessing.cpu_count() - 1)  # 保留一个核心给系统
+    # Parallel processing multiple people based on CPU core count
+    max_workers = max(1, multiprocessing.cpu_count() - 1)  # Reserve one core for system
     
     if len(personas_data) > 1 and not BATCH_PROCESSING:
-        # 并行处理多个人物
+        # Parallel processing multiple people
         with concurrent.futures.ProcessPoolExecutor(max_workers=max_workers) as executor:
-            # 创建人物处理任务
+            # Create person processing tasks
             future_to_persona = {
                 executor.submit(
                     simulate_persona, 
@@ -382,7 +321,7 @@ def main():
                 ): persona for persona in personas_data
             }
             
-            # 处理结果
+            # Process results
             for future in concurrent.futures.as_completed(future_to_persona):
                 persona = future_to_persona[future]
                 try:
@@ -390,7 +329,7 @@ def main():
                 except Exception as e:
                     print(f"Error processing persona {persona['id']}: {e}")
     else:
-        # 顺序处理人物
+        # Sequential processing people
         for i, persona_data in enumerate(personas_data):
             print(f"\n\n--- Simulating Persona {i+1}/{len(personas_data)}: {persona_data['id']} ---\n")
             simulate_persona(persona_data, NUM_DAYS_TO_SIMULATE, SIMULATION_START_DATE)
@@ -399,20 +338,20 @@ def main():
 
 def are_locations_same(loc1, loc2, threshold=0.001):
     """
-    检查两个位置坐标是否足够接近可以被视为同一地点
+    Check if two location coordinates are close enough to be considered the same place
     
     Args:
-        loc1: 第一个位置坐标 (latitude, longitude)
-        loc2: 第二个位置坐标 (latitude, longitude)
-        threshold: 判断两个位置相同的最大距离差异（度）
+        loc1: First location coordinates (latitude, longitude)
+        loc2: Second location coordinates (latitude, longitude)
+        threshold: Maximum distance difference (in degrees) to consider two locations the same
         
     Returns:
-        bool: 如果两个位置足够接近，返回True
+        bool: True if the two locations are close enough
     """
     if not loc1 or not loc2:
         return False
         
-    # 检查两个坐标的纬度和经度是否足够接近
+    # Check if the latitude and longitude of the two coordinates are close enough
     return (abs(loc1[0] - loc2[0]) < threshold and 
             abs(loc1[1] - loc2[1]) < threshold)
 
