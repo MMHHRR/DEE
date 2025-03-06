@@ -18,8 +18,8 @@ USE_DEEPBRICKS_API = True  # Always use DeepBricks API
 
 # LLM Configuration
 LLM_MODEL = "gpt-4o-mini"
-LLM_TEMPERATURE = 0.7
-LLM_MAX_TOKENS = 1000
+LLM_TEMPERATURE = 0.6
+LLM_MAX_TOKENS = 800
 
 # Simulation Parameters
 NUM_DAYS_TO_SIMULATE = 3
@@ -105,8 +105,8 @@ IMPORTANT RULES FOR ACTIVITY TYPES:
 
 For each activity, specify:
 1. Activity type (MUST be one from the list above)
-2. Start time (MAKE SURE the time is continuous and there is no blank window.)
-3. End time (MAKE SURE the time is continuous and there is no blank window.)
+2. Start time (MUST be the same as the previous activity's end time)
+3. End time (Next activity MUST start at this time)
 4. Detailed description of the activity (limited to 20 words)
 5. Location type (e.g., "home", "work", "restaurant", "gym", "park", etc.)
 
@@ -119,13 +119,13 @@ Format your response as a JSON array of activities:
     "description": "...",
     "location_type": "..."
   }},
-  ...
+  ...// ... more activities with continuous times ...
 ]
 """
 
 # Add new prompt for refining activities
 ACTIVITY_REFINEMENT_PROMPT = """
-You are helping to refine a person's activity schedule. For complex activities, break them down into sub-activities with specific times.
+You are helping to refine a person's activity schedule limited to 3 activities. For complex activities, break them down into sub-activities with specific times. 
 
 Person Information:
 - Gender: {gender}
@@ -133,6 +133,8 @@ Person Information:
 - Income level: ${income} annually
 - Consumption habits: {consumption}
 - Education: {education}
+- Home location: {home_location}
+- Work location: {work_location}
 
 Activity Information:
 - Date: {date}
@@ -154,20 +156,17 @@ ACTIVITY TYPES:
 "leisure",
 "errands",
 "travel",
-"commuting",
-"warm_up",
-"main_exercise",
-"cool_down",
+"exercise",
 "meeting",
 "break",
-"meal",
-"preparation",
-"relaxation"
+"meal"
+
+GEOGRAPHIC RULES: considering the geographical distance (such as from home to workplace) between activities with time required for travel, and select the transportation mode accordingly.
 
 TRANSPORTATION MODES:
 For activities that require travel to a new location, specify a transportation mode from this list:
 - "walking": on foot (suitable for trips under 15 minutes, or for exercise)
-- "cycling": using a bicycle (suitable for trips under 30 minutes, or for exercise)
+- "cycling": using a bicycle (suitable for trips under 15-30 minutes, or for exercise)
 - "public_transit": using bus, subway, train (common for 30-60 minute trips in urban areas)
 - "driving": using a private car (suitable for trips over 30 minutes or when convenience is needed)
 - "rideshare": using taxi, Uber, Lyft, etc. (for special occasions or when other options aren't available)

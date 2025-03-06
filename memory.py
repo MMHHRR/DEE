@@ -7,6 +7,7 @@ import os
 import json
 import datetime
 import numpy as np
+import csv
 from config import RESULTS_DIR
 from utils import (
     visualize_trajectory, 
@@ -438,6 +439,9 @@ class Memory:
         # Create visualizations
         self.create_visualizations()
         
+        # Export to CSV
+        self.export_to_csv()
+        
         return memory_file
     
     def create_visualizations(self):
@@ -460,6 +464,41 @@ class Memory:
         plot_file = os.path.join(RESULTS_DIR, f"persona_{self.persona_id}_activity_distribution.png")
         plot_activity_distribution(memory_data, plot_file)
         
+    def export_to_csv(self):
+        """
+        Export trajectory data to CSV format.
+        
+        The CSV will contain: person id, day, time, activity type, transport mode,
+        location name, location type, location coordinates, and route coordinates.
+        """
+        csv_file = os.path.join(RESULTS_DIR, f"persona_{self.persona_id}_trajectory.csv")
+        
+        with open(csv_file, 'w', newline='', encoding='utf-8') as f:
+            writer = csv.writer(f)
+            # Write header
+            writer.writerow([
+                'person_id', 'date', 'time', 'activity_type', 'transport_mode',
+                'location_name', 'location_type', 'location_coordinates', 'route_coordinates'
+            ])
+            
+            # Write data for each day
+            for day in self.days:
+                date = day['date']
+                for point in day['trajectory']:
+                    # Prepare row data
+                    row = [
+                        self.persona_id,
+                        date,
+                        point['timestamp'],
+                        point['activity_type'],
+                        point.get('transport_mode', ''),  # May not exist for non-travel activities
+                        point.get('location_name', ''),
+                        point.get('location_type', ''),
+                        str(point['location']),  # Convert coordinates to string
+                        str(point.get('route_coordinates', []))  # Convert route coordinates to string
+                    ]
+                    writer.writerow(row)
+    
     def to_dict(self):
         """
         Convert memory to dictionary representation.
@@ -471,4 +510,119 @@ class Memory:
             'persona_id': self.persona_id,
             'persona_info': self.persona_info,
             'days': self.days
-        } 
+        }
+
+    def _validate_activities(self, activities):
+        """
+        验证和清理活动数据。
+        处理分解的子活动，确保时间连续性和正确的活动类型。
+        
+        Args:
+            activities: 活动字典列表（包括普通活动和分解的子活动）
+                
+        Returns:
+            list: 验证后的活动
+        """
+        if not activities:
+            return []
+        
+        # 首先按开始时间排序
+        sorted_activities = sorted(activities, key=lambda x: self._format_time(x.get('start_time', '00:00')))
+        
+        # 合并相似的活动（例如 travel 和 commuting）
+        merged_activities = []
+        i = 0
+        while i < len(sorted_activities):
+            current = sorted_activities[i]
+            
+            # 确保基本字段存在
+            if not all(key in current for key in ['activity_type', 'start_time', 'end_time']):
+                i += 1
+                continue
+            
+            # 格式化时间
+            current['start_time'] = self._format_time(current['start_time'])
+            current['end_time'] = self._format_time(current['end_time'])
+            
+            # 检查下一个活动是否与当前活动可以合并
+            if i + 1 < len(sorted_activities):
+                next_activity = sorted_activities[i + 1]
+                if all(key in next_activity for key in ['activity_type', 'start_time', 'end_time']):
+                    next_start = self._format_time(next_activity['start_time'])
+                    next_end = self._format_time(next_activity['end_time'])
+                    
+                    # 如果是相关的交通活动（travel 和 commuting）
+                    if (current['activity_type'] in ['travel', 'commuting'] and 
+                        next_activity['activity_type'] in ['travel', 'commuting']):
+                        # 合并这两个活动
+                        current['end_time'] = max(current['end_time'], next_end)
+                        current['activity_type'] = 'travel'  # 统一使用 travel 类型
+                        if 'description' in next_activity:
+                            current['description'] = f"{current.get('description', '')}; {next_activity['description']}"
+                        i += 2
+                        merged_activities.append(current)
+                        continue
+            
+            merged_activities.append(current)
+            i += 1
+        
+        # 处理时间重叠和间隙
+        final_activities = []
+        last_end_time = "00:00"
+        
+        for activity in merged_activities:
+            start_time = activity['start_time']
+            end_time = activity['end_time']
+            
+            # 如果当前活动开始时间早于上一个活动结束时间
+            if start_time < last_end_time:
+                # 调整当前活动的开始时间
+                activity['start_time'] = last_end_time
+                
+                # 如果调整后开始时间大于等于结束时间，跳过此活动
+                if activity['start_time'] >= activity['end_time']:
+                    continue
+            
+            # 如果存在时间间隙（超过1分钟）
+            elif self._calculate_time_diff(last_end_time, start_time) > 1:
+                # 添加过渡活动（如果间隙超过5分钟）
+                if self._calculate_time_diff(last_end_time, start_time) > 5:
+                    transition_activity = {
+                        'activity_type': 'transition',
+                        'start_time': last_end_time,
+                        'end_time': start_time,
+                        'description': 'Transition period',
+                        'location': activity.get('location', final_activities[-1].get('location') if final_activities else None),
+                        'location_type': activity.get('location_type', final_activities[-1].get('location_type') if final_activities else None)
+                    }
+                    final_activities.append(transition_activity)
+            
+            final_activities.append(activity)
+            last_end_time = end_time
+        
+        # 确保一天24小时都有覆盖
+        if final_activities:
+            # 处理午夜前的时间
+            if final_activities[-1]['end_time'] < "23:59":
+                final_activities.append({
+                    'activity_type': 'sleep',
+                    'start_time': final_activities[-1]['end_time'],
+                    'end_time': "23:59",
+                    'description': "Sleeping at home",
+                    'location': final_activities[0].get('location'),  # 使用第一个活动的位置（通常是家）
+                    'location_type': 'home'
+                })
+            
+            # 处理午夜后的时间
+            if final_activities[0]['start_time'] > "00:00":
+                final_activities.insert(0, {
+                    'activity_type': 'sleep',
+                    'start_time': "00:00",
+                    'end_time': final_activities[0]['start_time'],
+                    'description': "Sleeping at home",
+                    'location': final_activities[0].get('location'),  # 使用第一个活动的位置
+                    'location_type': 'home'
+                })
+        
+        # 最后按开始时间重新排序
+        return sorted(final_activities, key=lambda x: x['start_time']) 

@@ -539,34 +539,36 @@ def estimate_travel_time(start_location, end_location, transport_mode, persona=N
                 transport_mode = 'walking'
             elif distance_km < 3:
                 # Short distance, decide based on bike availability and preferences
-                if persona.has_bike and (persona.preferred_transport == 'cycling' or random.random() < 0.7):
+                if hasattr(persona, 'has_bike') and persona.has_bike and (
+                    hasattr(persona, 'preferred_transport') and 
+                    persona.preferred_transport == 'cycling' or random.random() < 0.7):
                     transport_mode = 'cycling'
                 else:
                     transport_mode = 'walking'
             elif distance_km < 10:
                 # Medium distance
-                if persona.has_bike and persona.preferred_transport == 'cycling':
+                if hasattr(persona, 'has_bike') and persona.has_bike and hasattr(persona, 'preferred_transport') and persona.preferred_transport == 'cycling':
                     transport_mode = 'cycling'
-                elif persona.has_car and persona.preferred_transport == 'driving':
+                elif hasattr(persona, 'has_car') and persona.has_car and hasattr(persona, 'preferred_transport') and persona.preferred_transport == 'driving':
                     transport_mode = 'driving'
-                elif persona.preferred_transport == 'public_transit':
+                elif hasattr(persona, 'preferred_transport') and persona.preferred_transport == 'public_transit':
                     transport_mode = 'public_transit'
                 else:
                     # Choose based on availability
-                    if persona.has_car:
+                    if hasattr(persona, 'has_car') and persona.has_car:
                         transport_mode = 'driving'
-                    elif persona.has_bike:
+                    elif hasattr(persona, 'has_bike') and persona.has_bike:
                         transport_mode = 'cycling'
                     else:
                         transport_mode = 'public_transit'
             else:
                 # Long distance
-                if persona.has_car:
+                if hasattr(persona, 'has_car') and persona.has_car:
                     transport_mode = 'driving'
-                elif persona.preferred_transport == 'public_transit':
+                elif hasattr(persona, 'preferred_transport') and persona.preferred_transport == 'public_transit':
                     transport_mode = 'public_transit'
                 else:
-                    transport_mode = 'rideshare'
+                    transport_mode = 'public_transit'  # 默认使用公共交通而不是rideshare
         else:
             # If no persona information, use simple distance-based logic
             if distance_km < 1:
@@ -581,13 +583,13 @@ def estimate_travel_time(start_location, end_location, transport_mode, persona=N
     # Normalize transport mode
     transport_mode = normalize_transport_mode(transport_mode)
     
-    # Average speeds in km/h
+    # Average speeds in km/h (adjusted to be more realistic)
     speeds = {
-        'walking': 5,
-        'cycling': 15,
-        'driving': 30,
-        'public_transit': 20,
-        'rideshare': 25
+        'walking': 4,  # 降低步行速度
+        'cycling': 12,  # 降低自行车速度
+        'driving': 25,  # 考虑城市交通状况
+        'public_transit': 18,  # 考虑等待和换乘时间
+        'rideshare': 20
     }
     
     # Get speed for the transport mode, default to walking if not found
@@ -599,6 +601,17 @@ def estimate_travel_time(start_location, end_location, transport_mode, persona=N
     
     # Add some randomness to account for traffic, waiting times, etc.
     time_minutes = int(time_minutes * random.uniform(0.8, 1.2))
+    
+    # Add fixed time overhead based on transport mode
+    overhead_minutes = {
+        'walking': 0,
+        'cycling': 2,  # 准备自行车时间
+        'driving': 5,  # 找车位时间
+        'public_transit': 10,  # 等车和换乘时间
+        'rideshare': 8  # 等待接驾时间
+    }
+    
+    time_minutes += overhead_minutes.get(transport_mode, 0)
     
     # Minimum travel time
     return max(5, time_minutes), transport_mode

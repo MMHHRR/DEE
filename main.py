@@ -120,8 +120,9 @@ def simulate_single_day(persona, date, activity_generator, destination_selector,
             available_minutes = time_difference_minutes(start_time, end_time)
             
             # Get activity specified transportation mode
-            transport_mode = activity.get('transport_mode', 'walking')
-            transport_mode = normalize_transport_mode(transport_mode)
+            transport_mode = activity.get('transport_mode')
+            if transport_mode:
+                transport_mode = normalize_transport_mode(transport_mode)
             
             try:
                 print(f"  - {start_time}: {activity_type} - {description}")

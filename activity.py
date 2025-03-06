@@ -45,7 +45,7 @@ class Activity:
     def analyze_memory_patterns(self, memory):
         """
         Analyze the activity patterns in the historical memory.
-        Added caching to avoid repeated analysis
+        Try to use LLM summary first, fallback to basic statistics if LLM fails.
         
         Args:
             memory: Memory object, containing historical activity records
@@ -54,21 +54,29 @@ class Activity:
             dict: Dictionary containing activity pattern analysis results
         """
         patterns = {
-            'frequent_locations': {},  # Frequent locations
-            'time_preferences': {}     # Time preferences
+            'summaries': [],  # LLM generated summaries
+            'frequent_locations': {},  # Frequent locations (fallback)
+            'time_preferences': {}     # Time preferences (fallback)
         }
         
-        # Analyze the data of historical days
+        # Try LLM summary for each day
         for day in memory.days:
-            # Analyze location frequency
+            try:
+                summary = self.generate_activities_summary(day['activities'])
+                if summary and not summary.startswith("Unable to generate"):
+                    patterns['summaries'].append(summary)
+                    continue
+            except Exception as e:
+                print(f"LLM summary generation failed: {e}")
+            
+            # If LLM failed, collect statistics
             for activity in day['activities']:
-                location = tuple(activity.get('location', [0, 0]))
+                location = activity.get('location_type', 'unknown')
                 if location in patterns['frequent_locations']:
                     patterns['frequent_locations'][location] += 1
                 else:
                     patterns['frequent_locations'][location] = 1
                     
-                # Analyze time preferences
                 activity_type = activity.get('activity_type')
                 start_time = activity.get('start_time')
                 if activity_type not in patterns['time_preferences']:
@@ -155,7 +163,7 @@ class Activity:
                         average_time = sum([int(t.split(':')[0]) for t in times]) / len(times)
                         prompt += f"\n- Start {activity_type} activities around {int(average_time)}:00"
         
-        max_retries = 2
+        max_retries = 2  # 增加重试次数
         for attempt in range(max_retries + 1):
             try:
                 # Generate activities using LLM
@@ -169,17 +177,20 @@ class Activity:
                 # Extract activities from the response
                 activities = self._extract_activities_from_text(response.choices[0].message.content)
                 
-                # If activities were extracted, return the results
-                if activities:
+                # 验证时间连续性
+                if activities and self._validate_time_continuity(activities):
                     return activities
                     
-                # If no activities were extracted, but there are still retry attempts, continue trying
+                # 如果时间不连续，但还有重试机会
                 if attempt < max_retries:
-                    print(f"Failed to extract activities, retrying... (attempt {attempt + 1}/{max_retries + 1})")
+                    # 添加更明确的错误提示到提示中
+                    error_details = self._get_time_continuity_errors(activities)
+                    prompt += f"\n\nPrevious attempt had time continuity issues: {error_details}\n"
+                    prompt += "Please ensure EXACT time continuity between activities.\n"
                     continue
                     
-                # Last retry failed, return default activities
-                print("Failed to generate activities with LLM, using default activities")
+                # 最后一次尝试失败，返回默认活动
+                print("Failed to generate time-continuous activities, using default activities")
                 return self._generate_default_activities(persona)
                 
             except Exception as e:
@@ -191,6 +202,83 @@ class Activity:
                 # Last retry failed, return default activities
                 print("Error with LLM API, using default activities")
                 return self._generate_default_activities(persona)
+    
+    def _validate_time_continuity(self, activities):
+        """
+        验证活动列表的时间连续性
+        
+        Args:
+            activities: 活动列表
+            
+        Returns:
+            bool: 是否时间连续
+        """
+        if not activities:
+            return False
+            
+        # 按开始时间排序
+        sorted_activities = sorted(activities, key=lambda x: self._format_time(x.get('start_time', '00:00')))
+        
+        # 检查第一个活动是否从00:00开始
+        first_start = self._format_time(sorted_activities[0].get('start_time', ''))
+        if first_start != "00:00":
+            return False
+            
+        # 检查最后一个活动是否在23:59结束
+        last_end = self._format_time(sorted_activities[-1].get('end_time', ''))
+        if last_end != "23:59":
+            return False
+            
+        # 检查每个活动的结束时间是否等于下一个活动的开始时间
+        for i in range(len(sorted_activities) - 1):
+            current_end = self._format_time(sorted_activities[i].get('end_time', ''))
+            next_start = self._format_time(sorted_activities[i + 1].get('start_time', ''))
+            
+            if current_end != next_start:
+                return False
+                
+        return True
+    
+    def _get_time_continuity_errors(self, activities):
+        """
+        获取时间连续性错误的详细信息
+        
+        Args:
+            activities: 活动列表
+            
+        Returns:
+            str: 错误描述
+        """
+        if not activities:
+            return "No activities generated"
+            
+        errors = []
+        sorted_activities = sorted(activities, key=lambda x: self._format_time(x.get('start_time', '00:00')))
+        
+        # 检查第一个活动
+        first_start = self._format_time(sorted_activities[0].get('start_time', ''))
+        if first_start != "00:00":
+            errors.append(f"First activity should start at 00:00, not {first_start}")
+            
+        # 检查最后一个活动
+        last_end = self._format_time(sorted_activities[-1].get('end_time', ''))
+        if last_end != "23:59":
+            errors.append(f"Last activity should end at 23:59, not {last_end}")
+            
+        # 检查活动之间的连续性
+        for i in range(len(sorted_activities) - 1):
+            current = sorted_activities[i]
+            next_act = sorted_activities[i + 1]
+            current_end = self._format_time(current.get('end_time', ''))
+            next_start = self._format_time(next_act.get('start_time', ''))
+            
+            if current_end != next_start:
+                errors.append(
+                    f"Time gap between activities: {current.get('activity_type')} ends at {current_end} " +
+                    f"but {next_act.get('activity_type')} starts at {next_start}"
+                )
+                
+        return "; ".join(errors)
     
     def refine_activity(self, persona, activity, date, day_of_week):
         """
@@ -208,9 +296,6 @@ class Activity:
         # Skip refinement for sleep activities (they don't need much detail)
         if activity.get('activity_type') == 'sleep':
             return activity
-        
-        # if activity.get('activity_type') == 'work':
-        #     return activity
             
         # Build the prompt
         prompt = ACTIVITY_REFINEMENT_PROMPT.format(
@@ -219,9 +304,10 @@ class Activity:
             income=persona.income,
             consumption=persona.consumption,
             education=persona.education,
+            home_location=persona.home,
+            work_location=persona.work,
             date=date,
             day_of_week=day_of_week,
-            # activity_type=activity.get('activity_type', ''),
             activity_description=activity.get('description', ''),
             location_type=activity.get('location_type', ''),
             start_time=activity.get('start_time', ''),
@@ -234,12 +320,11 @@ class Activity:
                 model=self.model,
                 messages=[{"role": "user", "content": prompt}],
                 temperature=self.temperature,
-                max_tokens=self.max_tokens
+                max_tokens=500
             )
             
             # Extract the refined activity or sub-activities
             content = response.choices[0].message.content
-            # print(f"Refining activity: {activity.get('activity_type')} ({activity.get('start_time')} - {activity.get('end_time')})")
             
             # Try to parse the JSON response
             try:
@@ -247,114 +332,121 @@ class Activity:
                 start_idx = content.find('{')
                 end_idx = content.rfind('}') + 1
                 
-                if start_idx != -1 and end_idx != -1:
-                    json_str = content[start_idx:end_idx]
-                    # Fix common JSON formatting issues
-                    fixed_json = self._fix_json_array(json_str)
+                if start_idx == -1 or end_idx <= start_idx:
+                    return activity
                     
-                    try:
-                        refined_data = json.loads(fixed_json)
-                        
-                        # 检查返回的数据是否为数组（多个活动）
-                        if isinstance(refined_data, list):
-                            # 处理多个活动的情况
-                            sub_activities = []
-                            
-                            for sub in refined_data:
-                                # 创建正确的子活动，包含父活动的必要字段
-                                sub_activity = {
-                                    'activity_type': sub.get('activity_type', activity.get('activity_type')),
-                                    'start_time': self._format_time(sub.get('start_time', '')),
-                                    'end_time': self._format_time(sub.get('end_time', '')),
-                                    'description': sub.get('description', ''),
-                                    'location_type': sub.get('location_type', activity.get('location_type', ''))
-                                }
-                                
-                                # 检查必须的交通方式字段
-                                if 'transport_mode' in sub:
-                                    sub_activity['transport_mode'] = sub.get('transport_mode', '')
-                                
-                                # 验证活动类型
-                                if sub_activity['activity_type'] not in ACTIVITY_TYPES:
-                                    sub_activity['activity_type'] = activity.get('activity_type', 'leisure')
-                                
-                                sub_activities.append(sub_activity)
-                            
-                            if sub_activities:
-                                #print(f"  Decomposed into {len(sub_activities)} sub-activities")
-                                return sub_activities
-                        
-                        # Check if the response contains sub-activities
-                        if 'sub_activities' in refined_data and isinstance(refined_data['sub_activities'], list):
-                            # Handle decomposed activities
-                            sub_activities = []
-                            
-                            # Copy location from parent to all sub-activities if present
-                            parent_location = activity.get('location', None)
-                            parent_location_name = activity.get('location_name', None)
-                            
-                            for sub in refined_data['sub_activities']:
-                                # Create proper sub-activity with essential fields from parent activity
-                                sub_activity = {
-                                    'activity_type': sub.get('activity_type', activity.get('activity_type')),
-                                    'start_time': self._format_time(sub.get('start_time', '')),
-                                    'end_time': self._format_time(sub.get('end_time', '')),
-                                    'description': sub.get('description', ''),
-                                    'location_type': sub.get('location_type', activity.get('location_type', ''))
-                                }
-                                
-                                # Validate activity type
-                                if sub_activity['activity_type'] not in ACTIVITY_TYPES:
-                                    sub_activity['activity_type'] = activity.get('activity_type', 'leisure')
-                                
-                                sub_activities.append(sub_activity)
-                            
-                            if sub_activities:
-                                print(f"  Decomposed into {len(sub_activities)} sub-activities")
-                                return sub_activities
-                        
-                        # Handle single refined activity
-                        refined_activity = {
-                            'activity_type': refined_data.get('activity_type', activity.get('activity_type')),
-                            'start_time': self._format_time(refined_data.get('start_time', activity.get('start_time', ''))),
-                            'end_time': self._format_time(refined_data.get('end_time', activity.get('end_time', ''))),
-                            'description': refined_data.get('description', activity.get('description', '')),
-                            'location_type': refined_data.get('location_type', activity.get('location_type', ''))
-                        }
-                        
-                        # Validate activity type
-                        if refined_activity['activity_type'] not in ACTIVITY_TYPES:
-                            refined_activity['activity_type'] = activity.get('activity_type', 'leisure')
-                        
-                        # Add any additional fields from original activity that weren't in the refinement
-                        for key, value in activity.items():
-                            if key not in refined_activity:
-                                refined_activity[key] = value
-                        
-                        return refined_activity
+                json_str = content[start_idx:end_idx]
+                # Fix common JSON formatting issues
+                fixed_json = self._fix_json_array(json_str)
+                
+                try:
+                    refined_data = json.loads(fixed_json)
                     
-                    except json.JSONDecodeError as e:
-                        print(f"Failed to parse refined activity JSON: {e}")
-                        print(f"Content: {fixed_json}")
+                    # 检查返回的数据是否为数组（多个活动）
+                    if isinstance(refined_data, list):
+                        # 处理多个活动的情况
+                        sub_activities = []
+                        original_start = activity.get('start_time', '')
+                        original_end = activity.get('end_time', '')
                         
-                        # 尝试使用_extract_activities_from_text函数提取活动
-                        extracted_activities = self._extract_activities_from_text(content)
-                        if extracted_activities:
-                            print(f"  Extracted {len(extracted_activities)} activities using text extraction")
-                            if len(extracted_activities) > 1:
-                                return extracted_activities
+                        # 验证和调整子活动的时间
+                        current_time = original_start
+                        for i, sub in enumerate(refined_data):
+                            # 创建子活动
+                            sub_activity = {
+                                'activity_type': sub.get('activity_type', activity.get('activity_type')),
+                                'start_time': current_time,
+                                'description': sub.get('description', ''),
+                                'location_type': sub.get('location_type', activity.get('location_type', ''))
+                            }
+                            
+                            # 计算子活动的持续时间
+                            if i == len(refined_data) - 1:
+                                # 最后一个子活动使用原活动的结束时间
+                                sub_activity['end_time'] = original_end
                             else:
-                                return extracted_activities[0]
-            
+                                # 计算这个子活动的结束时间（也是下一个子活动的开始时间）
+                                duration = self._calculate_duration_minutes(original_start, original_end)
+                                sub_duration = duration // len(refined_data)
+                                sub_activity['end_time'] = self._format_time_after_minutes(
+                                    current_time, 
+                                    sub_duration
+                                )
+                            
+                            # 更新下一个活动的开始时间
+                            current_time = sub_activity['end_time']
+                            
+                            # 验证活动类型
+                            if sub_activity['activity_type'] not in ACTIVITY_TYPES:
+                                sub_activity['activity_type'] = activity.get('activity_type', 'leisure')
+                            
+                            # 复制原活动的其他字段
+                            for key, value in activity.items():
+                                if key not in sub_activity and key not in ['start_time', 'end_time', 'description']:
+                                    sub_activity[key] = value
+                            
+                            sub_activities.append(sub_activity)
+                        
+                        if sub_activities:
+                            return sub_activities
+                    
+                    # Handle single refined activity
+                    refined_activity = {
+                        'activity_type': refined_data.get('activity_type', activity.get('activity_type')),
+                        'start_time': activity.get('start_time', ''),  # 保持原始开始时间
+                        'end_time': activity.get('end_time', ''),      # 保持原始结束时间
+                        'description': refined_data.get('description', activity.get('description', '')),
+                        'location_type': refined_data.get('location_type', activity.get('location_type', ''))
+                    }
+                    
+                    # Validate activity type
+                    if refined_activity['activity_type'] not in ACTIVITY_TYPES:
+                        refined_activity['activity_type'] = activity.get('activity_type', 'leisure')
+                    
+                    # Add any additional fields from original activity that weren't in the refinement
+                    for key, value in activity.items():
+                        if key not in refined_activity:
+                            refined_activity[key] = value
+                    
+                    return refined_activity
+                    
+                except json.JSONDecodeError as e:
+                    print(f"Failed to parse refined activity JSON: {e}")
+                    return activity
+                    
             except Exception as e:
                 print(f"Error processing LLM refinement response: {e}")
-            
-            # If parsing fails, return the original activity
-            return activity
+                return activity
             
         except Exception as e:
             print(f"Error refining activity: {e}")
             return activity
+    
+    def _format_time_after_minutes(self, start_time, minutes):
+        """
+        计算给定开始时间后指定分钟数的时间
+        
+        Args:
+            start_time: 开始时间 (HH:MM)
+            minutes: 分钟数
+            
+        Returns:
+            str: 计算后的时间 (HH:MM)
+        """
+        try:
+            start_hour, start_minute = map(int, start_time.split(':'))
+            total_minutes = start_hour * 60 + start_minute + minutes
+            
+            # 确保不超过23:59
+            if total_minutes >= 24 * 60:
+                total_minutes = 23 * 60 + 59
+                
+            new_hour = total_minutes // 60
+            new_minute = total_minutes % 60
+            
+            return f"{new_hour:02d}:{new_minute:02d}"
+        except:
+            return start_time
     
     def _validate_activities(self, activities):
         """
@@ -907,3 +999,35 @@ class Activity:
                 'location_type': 'home'
             }
         ]
+    
+    @cached
+    def generate_activities_summary(self, activities, persona=None):
+        """
+        Generate a summary of activities using LLM.
+        
+        Args:
+            activities: List of activities
+            persona: Optional Persona object for additional context
+            
+        Returns:
+            str: Summary text in English
+        """
+        # Convert activities to JSON string
+        activities_json = json.dumps(activities, ensure_ascii=False)
+        
+        try:
+            response = client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {"role": "system", "content": "You are a helpful assistant."},
+                    {"role": "user", "content": f"Please summarize the following activities for the day in a concise, coherent paragraph: {activities_json}"}
+                ],
+                max_tokens=150,
+                temperature=self.temperature
+            )
+            
+            return response.choices[0].message.content.strip()
+            
+        except Exception as e:
+            print(f"Error generating LLM summary: {e}")
+            return "Unable to generate activity summary."
