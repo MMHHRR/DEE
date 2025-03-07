@@ -67,6 +67,19 @@ class Destination:
             tuple: ((latitude, longitude), location_details)
         """
         try:
+            # 特殊处理工作活动，直接返回工作地点，不添加任何交通信息
+            if activity_type == 'work':
+                return persona.work, {'name': 'Workplace', 'is_work': True}
+                
+            # 特殊处理通勤活动
+            if activity_type == 'commuting':
+                # 如果是从家到工作地点的通勤
+                if current_location == persona.home:
+                    return persona.work, {'name': 'Workplace', 'is_commuting': True}
+                # 如果是从工作地点回家的通勤
+                elif current_location == persona.work:
+                    return persona.home, {'name': 'Home', 'is_commuting': True}
+                
             # Generate cache key
             cache_key = f"dest_{persona.id}_{activity_type}_{time}_{day_of_week}_{available_minutes}_{transport_mode}"
             cache_key = cache_key.replace(" ", "_")

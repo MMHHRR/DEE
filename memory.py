@@ -65,63 +65,98 @@ class Memory:
     
     def record_activity(self, activity, location, timestamp):
         """
-        Record an activity and its location to memory.
+        Record activity to memory
         
         Args:
-            activity: Activity dictionary containing activity details
+            activity: Activity dictionary
             location: Location coordinates (latitude, longitude)
-            timestamp: Time of activity
+            timestamp: Current timestamp string
         """
-        # Ensure current date is initialized
-        if not self.current_day:
-            print("Warning: No current day initialized in memory")
+        if self.current_day is None:
+            print("No current day to record activity")
             return
+            
+        # Make a copy of the activity to avoid modifying the original
+        activity_record = activity.copy()
         
-        # Validate location is valid
-        if not self._is_valid_location(location):
-            print(f"Warning: Invalid location {location} for activity {activity['activity_type']}")
-            return
+        # Add location and timestamp
+        activity_record['location'] = location
+        activity_record['timestamp'] = timestamp
         
-        # Create activity record with only essential fields
-        activity_record = {
-            'activity_type': activity['activity_type'],
-            'start_time': activity['start_time'],
-            'end_time': activity['end_time'],
-            'description': activity['description'],
-            'location': location
-        }
-        
-        # Add optional fields if available
-        optional_fields = ['location_name', 'location_type']
-        for field in optional_fields:
-            if field in activity:
-                activity_record[field] = activity[field]
-        
-        # Process transport mode
-        if 'transport_mode' in activity or ('start_location' in activity and 'end_location' in activity):
-            transport_mode = activity.get('transport_mode', 'walking')
-            activity_record['transport_mode'] = normalize_transport_mode(transport_mode)
-        
-        # Add to current day record
+        # Process location name if not present
+        if 'location_name' not in activity_record:
+            activity_record['location_name'] = self._get_location_name_from_activity(activity_record)
+            
+        # Add to activities list
         self.current_day['activities'].append(activity_record)
         
-        # Create and record trajectory point
-        trajectory_point = {
-            'location': location,
-            'timestamp': timestamp,
-            'activity_type': activity['activity_type'],
-            'description': activity['description']
-        }
-        
-        # Copy relevant fields from activity_record to trajectory_point
-        for field in ['transport_mode', 'location_name', 'location_type', 'route_coordinates']:
-            if field in activity_record:
-                trajectory_point[field] = activity_record[field]
-        
-        self.current_day['trajectory'].append(trajectory_point)
+        # Create trajectory point
+        self._add_trajectory_point(activity_record, location, timestamp)
         
         # Update statistics
-        self._update_statistics(activity, location, timestamp)
+        self._update_statistics(activity_record, location, timestamp)
+    
+    def _get_location_name_from_activity(self, activity):
+        """
+        Extract a meaningful location name from an activity
+        
+        Args:
+            activity: Activity dictionary
+            
+        Returns:
+            str: Location name
+        """
+        # If activity already has a location name, use it
+        if 'location_name' in activity and activity['location_name']:
+            return activity['location_name']
+            
+        # For dining activities, try to extract restaurant name
+        if activity.get('activity_type') == 'dining' and 'description' in activity:
+            description = activity['description']
+            # Look for phrases like "at [Restaurant]" or "eating at [Restaurant]"
+            if 'at ' in description:
+                restaurant_name = description.split('at ')[-1].strip()
+                # Remove trailing punctuation and extra text
+                for suffix in ['.', ',', ' with', ' for']:
+                    if restaurant_name.endswith(suffix):
+                        restaurant_name = restaurant_name[:-len(suffix)]
+                # If name looks good, use it
+                if restaurant_name and len(restaurant_name) > 2:
+                    return restaurant_name.strip()
+        
+        # Try to get a name from location type
+        location_type = activity.get('location_type', '')
+        if location_type:
+            # Common places map
+            if location_type == 'home':
+                return 'Home'
+            elif location_type == 'workplace':
+                return 'Work'
+            elif location_type == 'restaurant':
+                # Try to get specific restaurant name from description
+                if 'description' in activity:
+                    # Look for restaurant name patterns
+                    description = activity['description'].lower()
+                    for pattern in ['at ', 'visiting ', 'dining at ', 'lunch at ', 'dinner at ']:
+                        if pattern in description:
+                            parts = description.split(pattern)
+                            if len(parts) > 1:
+                                name_part = parts[1].strip()
+                                # Clean up the extracted name
+                                for ending in ['.', ',', ' with', ' and', ' for']:
+                                    if name_part.endswith(ending):
+                                        name_part = name_part[:-len(ending)]
+                                # If it's a reasonable name length, return it
+                                if len(name_part) > 2 and len(name_part) < 30:
+                                    return name_part.strip().title()
+                return 'Restaurant'
+            else:
+                # Try to make a nicer name from the location type
+                location_name = location_type.replace('_', ' ').title()
+                return location_name
+        
+        # If no other options, use activity type
+        return activity.get('activity_type', 'Location').title()
     
     def _update_statistics(self, activity, location, timestamp):
         """
@@ -169,7 +204,35 @@ class Memory:
         
         # Get location names
         start_location_name = self._get_start_location_name()
-        end_location_name = self._get_end_location_name(end_location, end_time)
+        
+        # 直接在活动列表中查找下一个在此位置的非旅行活动
+        end_location_name = None
+        for activity in self.current_day['activities']:
+            # 找到在end_location发生的、不是旅行类型的活动
+            if (activity.get('activity_type') not in ['travel', 'commuting'] and 
+                self._is_same_location(activity.get('location'), end_location)):
+                
+                # 优先使用已设置的location_name
+                if 'location_name' in activity and activity['location_name']:
+                    end_location_name = activity['location_name']
+                    break
+                
+                # 其次查找描述中"at [PLACE]"格式的地点名称
+                if 'description' in activity:
+                    description = activity['description']
+                    if ' at ' in description:
+                        place_name = description.split(' at ')[1].strip()
+                        # 清理名称
+                        for suffix in ['.', ',', ' with', ' for']:
+                            if place_name.endswith(suffix):
+                                place_name = place_name[:-len(suffix)]
+                        if place_name and len(place_name) > 2:
+                            end_location_name = place_name
+                            break
+        
+        # 如果没有找到明确的地点名称，再使用辅助方法
+        if not end_location_name:
+            end_location_name = self._get_end_location_name(end_location, end_time)
         
         # Normalize transport mode
         normalized_transport_mode = normalize_transport_mode(transport_mode)
@@ -191,7 +254,7 @@ class Memory:
             'start_location_name': start_location_name,
             'end_location_name': end_location_name,
             'transport_mode': normalized_transport_mode,
-            'description': f"Travel from {start_location_name} to {end_location_name} by {normalized_transport_mode}"
+            'description': f"从 {start_location_name} 到 {end_location_name} ({normalized_transport_mode})"
         }
         
         self.current_day['activities'].append(travel_record)
@@ -214,63 +277,48 @@ class Memory:
     
     def _get_end_location_name(self, end_location, end_time):
         """
-        Determine the name of the end location based on various sources.
+        确定终点位置的名称，直接使用时间上下一个活动的location_name
         
         Args:
-            end_location: The coordinates of the end location
-            end_time: The arrival time
+            end_location: 终点位置坐标
+            end_time: 到达时间
             
         Returns:
-            str: Name of the end location
+            str: 终点位置名称
         """
-        # Find next activity matching end location and time
-        matching_activity = self._find_matching_activity(end_location, end_time)
-        
-        # If a matching activity with location name is found
-        if matching_activity and 'location_name' in matching_activity:
-            return matching_activity['location_name']
-            
-        # Check previous activities for the same location
-        for activity in reversed(self.current_day['activities']):
-            if self._is_same_location(activity.get('location'), end_location) and 'location_name' in activity:
-                return activity['location_name']
-        
-        # Try to match with known locations like home or work
+        # 1. 匹配已知位置（家、工作地点）
         if self.persona_info:
             if 'home' in self.persona_info and self._is_same_location(end_location, self.persona_info['home']):
                 return "Home"
             if 'work' in self.persona_info and self._is_same_location(end_location, self.persona_info['work']):
-                return "Workplace"
+                return "Work"
         
-        # Infer from activity type if available
-        if matching_activity:
-            activity_type = matching_activity.get('activity_type', '').lower()
-            location_type = matching_activity.get('location_type', '').lower()
-            
-            location_name_map = {
-                'dining': "Restaurant",
-                'shopping': "Shopping Center",
-                'recreation': "Fitness Center",
-                'leisure': "Park"
-            }
-            
-            # Check activity type
-            if activity_type in location_name_map:
-                return location_name_map[activity_type]
-                
-            # Check location type keywords
-            for keyword, name in [
-                ('restaurant', "Restaurant"),
-                (('shop', 'mall'), "Shopping Center"),
-                ('gym', "Fitness Center"),
-                ('park', "Park")
-            ]:
-                if isinstance(keyword, tuple):
-                    if any(k in location_type for k in keyword):
-                        return name
-                elif keyword in location_type:
-                    return name
+        # 2. 简单查找时间上紧接着的下一个活动
+        all_activities = sorted(self.current_day['activities'], 
+                               key=lambda x: (x.get('start_time', ''), x.get('end_time', '')))
         
+        # 找到所有开始时间等于end_time的非旅行活动
+        next_activities = [act for act in all_activities 
+                          if act.get('start_time', '') == end_time and 
+                             act.get('activity_type') not in ['travel', 'commuting']]
+        
+        # 如果找到了直接使用时间相同的活动
+        if next_activities:
+            next_act = next_activities[0]
+            if 'location_name' in next_act and next_act['location_name']:
+                return next_act['location_name']
+        
+        # 3. 如果没有找到开始时间相同的活动，找时间上最近的下一个活动
+        next_activities = [act for act in all_activities 
+                          if act.get('start_time', '') > end_time and 
+                             act.get('activity_type') not in ['travel', 'commuting']]
+        
+        if next_activities:
+            next_act = next_activities[0]  # 时间上最近的下一个活动
+            if 'location_name' in next_act and next_act['location_name']:
+                return next_act['location_name']
+        
+        # 4. 如果所有尝试都失败，返回默认名称
         return "Destination"
     
     def _find_matching_activity(self, location, time):
@@ -625,4 +673,36 @@ class Memory:
                 })
         
         # 最后按开始时间重新排序
-        return sorted(final_activities, key=lambda x: x['start_time']) 
+        return sorted(final_activities, key=lambda x: x['start_time'])
+
+    def _add_trajectory_point(self, activity, location, timestamp):
+        """
+        Create and add a trajectory point for an activity
+        
+        Args:
+            activity: Activity dictionary
+            location: Location coordinates (latitude, longitude)
+            timestamp: Timestamp string
+        """
+        # Create trajectory point
+        trajectory_point = {
+            'location': location,
+            'timestamp': timestamp,
+            'activity_type': activity.get('activity_type', ''),
+            'description': activity.get('description', '')
+        }
+        
+        # Copy location name if available
+        if 'location_name' in activity:
+            trajectory_point['location_name'] = activity['location_name']
+        else:
+            # Use activity type as fallback
+            trajectory_point['location_name'] = activity.get('activity_type', 'Location').title()
+        
+        # Copy other relevant fields
+        for field in ['transport_mode', 'location_type', 'route_coordinates']:
+            if field in activity:
+                trajectory_point[field] = activity[field]
+        
+        # Add to trajectory list
+        self.current_day['trajectory'].append(trajectory_point) 

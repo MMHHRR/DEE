@@ -18,10 +18,7 @@ from config import (
     RESULTS_DIR,
     NUM_DAYS_TO_SIMULATE,
     SIMULATION_START_DATE,
-    ENVIRONMENTAL_FACTORS,
-    TRANSPORT_MODES,
     BATCH_PROCESSING,
-    BATCH_SIZE
 )
 from persona import Persona
 from activity import Activity

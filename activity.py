@@ -4,10 +4,10 @@ Uses LLM to generate and manage daily activity plans.
 """
 
 import json
-import datetime
 import re
 import openai
 import random
+import datetime
 from config import (
     LLM_MODEL, 
     LLM_TEMPERATURE, 
@@ -114,15 +114,18 @@ class Activity:
 
         # Refine and potentially decompose activities
         refined_activities = []
+        previous_activity = None
         for activity in activities:
-            result = self.refine_activity(persona, activity, date, day_of_week)
+            result = self.refine_activity(persona, activity, date, day_of_week, previous_activity)
             
             # Check if result is a list (decomposed activities) or dict (single refined activity)
             if isinstance(result, list):
                 refined_activities.extend(result)  # Add all sub-activities
+                previous_activity = result[-1]  # Use the last sub-activity as previous
             else:
                 refined_activities.append(result)  # Add single refined activity
-        
+                previous_activity = result
+
         # Validate and correct activities
         validated_activities = self._validate_activities(refined_activities)
         
@@ -280,21 +283,34 @@ class Activity:
                 
         return "; ".join(errors)
     
-    def refine_activity(self, persona, activity, date, day_of_week):
+    def refine_activity(self, persona, activity, date, day_of_week, previous_activity=None):
         """
-        Refine activity, adding more details and potentially breaking it into sub-activities
+        Refine activity, adding more details and potentially adding transportation mode
         
         Args:
             persona: Persona object
             activity: Activity dictionary
             date: Date string (YYYY-MM-DD)
             day_of_week: Day of week
+            previous_activity: Previous activity dictionary (optional)
         
         Returns:
-            list or dict: List of sub-activities or a single refined activity
+            dict: Refined activity with transport_mode if needed
         """
+
         # Skip refinement for sleep activities (they don't need much detail)
-        if activity.get('activity_type') == 'sleep':
+        if activity.get('activity_type') in ['sleep', 'commuting', 'travel', 'work']:
+            return activity
+            
+        # Check if the activity requires transportation based on previous and current locations
+        requires_transport = False
+        if previous_activity:
+            prev_location = previous_activity.get('location_type', '')
+            current_location = activity.get('location_type', '')
+            requires_transport = self._needs_transportation(prev_location, current_location, activity.get('activity_type', ''))
+        
+        # If transport isn't required, just return the original activity
+        if not requires_transport:
             return activity
             
         # Build the prompt
@@ -304,14 +320,16 @@ class Activity:
             income=persona.income,
             consumption=persona.consumption,
             education=persona.education,
-            home_location=persona.home,
-            work_location=persona.work,
             date=date,
             day_of_week=day_of_week,
             activity_description=activity.get('description', ''),
             location_type=activity.get('location_type', ''),
             start_time=activity.get('start_time', ''),
-            end_time=activity.get('end_time', '')
+            end_time=activity.get('end_time', ''),
+            previous_activity_type=previous_activity.get('activity_type', '') if previous_activity else '',
+            previous_location=previous_activity.get('location_type', '') if previous_activity else '',
+            previous_end_time=previous_activity.get('end_time', '') if previous_activity else '',
+            requires_transportation=str(requires_transport).lower()
         )
         
         try:
@@ -320,10 +338,10 @@ class Activity:
                 model=self.model,
                 messages=[{"role": "user", "content": prompt}],
                 temperature=self.temperature,
-                max_tokens=500
+                max_tokens=200
             )
             
-            # Extract the refined activity or sub-activities
+            # Extract the refined activity
             content = response.choices[0].message.content
             
             # Try to parse the JSON response
@@ -342,72 +360,8 @@ class Activity:
                 try:
                     refined_data = json.loads(fixed_json)
                     
-                    # 检查返回的数据是否为数组（多个活动）
-                    if isinstance(refined_data, list):
-                        # 处理多个活动的情况
-                        sub_activities = []
-                        original_start = activity.get('start_time', '')
-                        original_end = activity.get('end_time', '')
-                        
-                        # 验证和调整子活动的时间
-                        current_time = original_start
-                        for i, sub in enumerate(refined_data):
-                            # 创建子活动
-                            sub_activity = {
-                                'activity_type': sub.get('activity_type', activity.get('activity_type')),
-                                'start_time': current_time,
-                                'description': sub.get('description', ''),
-                                'location_type': sub.get('location_type', activity.get('location_type', ''))
-                            }
-                            
-                            # 计算子活动的持续时间
-                            if i == len(refined_data) - 1:
-                                # 最后一个子活动使用原活动的结束时间
-                                sub_activity['end_time'] = original_end
-                            else:
-                                # 计算这个子活动的结束时间（也是下一个子活动的开始时间）
-                                duration = self._calculate_duration_minutes(original_start, original_end)
-                                sub_duration = duration // len(refined_data)
-                                sub_activity['end_time'] = self._format_time_after_minutes(
-                                    current_time, 
-                                    sub_duration
-                                )
-                            
-                            # 更新下一个活动的开始时间
-                            current_time = sub_activity['end_time']
-                            
-                            # 验证活动类型
-                            if sub_activity['activity_type'] not in ACTIVITY_TYPES:
-                                sub_activity['activity_type'] = activity.get('activity_type', 'leisure')
-                            
-                            # 复制原活动的其他字段
-                            for key, value in activity.items():
-                                if key not in sub_activity and key not in ['start_time', 'end_time', 'description']:
-                                    sub_activity[key] = value
-                            
-                            sub_activities.append(sub_activity)
-                        
-                        if sub_activities:
-                            return sub_activities
-                    
                     # Handle single refined activity
-                    refined_activity = {
-                        'activity_type': refined_data.get('activity_type', activity.get('activity_type')),
-                        'start_time': activity.get('start_time', ''),  # 保持原始开始时间
-                        'end_time': activity.get('end_time', ''),      # 保持原始结束时间
-                        'description': refined_data.get('description', activity.get('description', '')),
-                        'location_type': refined_data.get('location_type', activity.get('location_type', ''))
-                    }
-                    
-                    # Validate activity type
-                    if refined_activity['activity_type'] not in ACTIVITY_TYPES:
-                        refined_activity['activity_type'] = activity.get('activity_type', 'leisure')
-                    
-                    # Add any additional fields from original activity that weren't in the refinement
-                    for key, value in activity.items():
-                        if key not in refined_activity:
-                            refined_activity[key] = value
-                    
+                    refined_activity = self._create_refined_activity(refined_data, activity)
                     return refined_activity
                     
                 except json.JSONDecodeError as e:
@@ -422,6 +376,35 @@ class Activity:
             print(f"Error refining activity: {e}")
             return activity
     
+    def _create_refined_activity(self, refined_data, original_activity):
+        """
+        Create a refined activity from LLM response data and original activity
+        
+        Args:
+            refined_data: Dict containing refined activity data
+            original_activity: Original activity dict
+            
+        Returns:
+            dict: Refined activity
+        """
+        # Start with a copy of the original activity
+        refined_activity = original_activity.copy()
+        
+        # Update activity description if provided
+        if 'description' in refined_data and refined_data['description']:
+            refined_activity['description'] = refined_data.get('description')
+        
+        # Add transport mode if specified
+        if 'transport_mode' in refined_data and refined_data['transport_mode']:
+            # Normalize transport mode to ensure consistency
+            refined_activity['transport_mode'] = normalize_transport_mode(refined_data.get('transport_mode'))
+        
+        # Optionally update activity type if the refinement changes it
+        if 'activity_type' in refined_data and refined_data['activity_type'] in ACTIVITY_TYPES:
+            refined_activity['activity_type'] = refined_data.get('activity_type')
+        
+        return refined_activity
+            
     def _format_time_after_minutes(self, start_time, minutes):
         """
         计算给定开始时间后指定分钟数的时间
@@ -688,6 +671,10 @@ class Activity:
         Returns:
             bool: Whether transportation is required
         """
+        # 工作活动永远不需要显示交通信息
+        if activity_type == 'work':
+            return False
+            
         # If the activity is sleep or home, it usually doesn't require transportation
         if activity_type in ['sleep', 'home']:
             return False

@@ -18,7 +18,7 @@ USE_DEEPBRICKS_API = True  # Always use DeepBricks API
 
 # LLM Configuration
 LLM_MODEL = "gpt-4o-mini"
-LLM_TEMPERATURE = 0.6
+LLM_TEMPERATURE = 0.7
 LLM_MAX_TOKENS = 800
 
 # Simulation Parameters
@@ -64,14 +64,43 @@ TRANSPORT_MODES = [
     "rideshare"
 ]
 
-# Environmental Exposure Factors
-ENVIRONMENTAL_FACTORS = [
-    "air_quality",
-    "noise_level",
-    "green_space",
-    "urban_density",
-    "traffic_density"
+# Location Types
+LOCATION_TYPES = [
+    "home",
+    "workplace",
+    "restaurant",
+    "cafe",
+    "grocery_store",
+    "shopping_mall",
+    "retail_store",
+    "gym",
+    "park",
+    "hospital",
+    "clinic",
+    "school",
+    "university",
+    "library",
+    "theater",
+    "cinema",
+    "museum",
+    "bar",
+    "friend_home",
+    "family_home",
+    "bank",
+    "post_office",
+    "transit_station",
+    "hotel",
+    "religious_place"
 ]
+
+# # Environmental Exposure Factors
+# ENVIRONMENTAL_FACTORS = [
+#     "air_quality",
+#     "noise_level",
+#     "green_space",
+#     "urban_density",
+#     "traffic_density"
+# ]
 
 # Prompt Templates
 ACTIVITY_GENERATION_PROMPT = """
@@ -95,6 +124,7 @@ IMPORTANT RULES FOR ACTIVITY TYPES:
 - "sleep": ONLY for sleeping activities (night sleep, naps)
 - "work": work-related activities (office work, meetings, etc.)
 - "shopping": purchasing goods (groceries, clothes, etc.)
+- "commuting": travel between home and work
 - "dining": eating meals outside or at home (restaurants, cafes, home cooking)
 - "recreation": leisure activities (sports, exercise, etc.)
 - "healthcare": medical appointments, therapy, etc.)
@@ -103,12 +133,39 @@ IMPORTANT RULES FOR ACTIVITY TYPES:
 - "leisure": relaxing activities (reading, watching TV, etc.)
 - "errands": short tasks (bank, post office, etc.)
 
+IMPORTANT RULES FOR LOCATION TYPES:
+- "home": person's residence
+- "workplace": office, work site, or primary work location
+- "restaurant": places primarily for dining
+- "cafe": coffee shops, tea houses
+- "grocery_store": supermarkets, food stores
+- "shopping_mall": large shopping centers
+- "retail_store": individual shops, boutiques
+- "gym": fitness centers, sports facilities
+- "park": public parks, gardens, outdoor recreational spaces
+- "hospital": large medical facilities
+- "clinic": small medical offices, dental offices
+- "school": K-12 educational institutions
+- "university": higher education institutions
+- "library": public or private libraries
+- "theater": performing arts venues
+- "cinema": movie theaters
+- "museum": art galleries, museums, exhibitions
+- "bar": pubs, nightclubs, drinking establishments
+- "friend_home": another person's residence (not family)
+- "family_home": residence of family members
+- "bank": financial institutions
+- "post_office": mail services
+- "transit_station": bus stops, train stations
+- "hotel": accommodation facilities
+- "religious_place": churches, temples, mosques, etc.
+
 For each activity, specify:
 1. Activity type (MUST be one from the list above)
 2. Start time (MUST be the same as the previous activity's end time)
 3. End time (Next activity MUST start at this time)
 4. Detailed description of the activity (limited to 20 words)
-5. Location type (e.g., "home", "work", "restaurant", "gym", "park", etc.)
+5. Location type (MUST be one from the location types list above)
 
 Format your response as a JSON array of activities:
 [
@@ -125,7 +182,7 @@ Format your response as a JSON array of activities:
 
 # Add new prompt for refining activities
 ACTIVITY_REFINEMENT_PROMPT = """
-You are helping to refine a person's activity schedule limited to 3 activities. For complex activities, break them down into sub-activities with specific times. 
+You are helping to refine a person's activity schedule. Break them down into sub-activities with specific times, when activity need location change based on the previous and current location, you need to add a travel activity.
 
 Person Information:
 - Gender: {gender}
@@ -133,16 +190,18 @@ Person Information:
 - Income level: ${income} annually
 - Consumption habits: {consumption}
 - Education: {education}
-- Home location: {home_location}
-- Work location: {work_location}
 
 Activity Information:
 - Date: {date}
 - Day of week: {day_of_week}
 - Activity description: {activity_description}
-- Location type: {location_type}
+- Location type: {location_type} (MUST be one from the defined location types list)
 - Start time: {start_time}
 - End time: {end_time}
+- Previous activity type: {previous_activity_type}
+- Previous location: {previous_location}
+- Previous end time: {previous_end_time}
+- Requires transportation: {requires_transportation}
 
 ACTIVITY TYPES:
 "sleep",
@@ -161,10 +220,13 @@ ACTIVITY TYPES:
 "break",
 "meal"
 
-GEOGRAPHIC RULES: considering the geographical distance (such as from home to workplace) between activities with time required for travel, and select the transportation mode accordingly.
+LOCATION TYPES:
+"home", "workplace", "restaurant", "cafe", "grocery_store", "shopping_mall", "retail_store", 
+"gym", "park", "hospital", "clinic", "school", "university", "library", "theater", "cinema", 
+"museum", "bar", "friend_home", "family_home", "bank", "post_office", "transit_station", "hotel", "religious_place"
 
 TRANSPORTATION MODES:
-For activities that require travel to a new location, specify a transportation mode from this list:
+If the activity requires travel to a new location (i.e., requires_transportation is true), select a transportation mode from this list:
 - "walking": on foot (suitable for trips under 15 minutes, or for exercise)
 - "cycling": using a bicycle (suitable for trips under 15-30 minutes, or for exercise)
 - "public_transit": using bus, subway, train (common for 30-60 minute trips in urban areas)
@@ -182,7 +244,7 @@ Return in JSON format:
   "start_time": "More precise start time (HH:MM)",
   "end_time": "More precise end time (HH:MM)",
   "description": "More detailed activity description (limited to 20 words)",
-  "transport_mode": "MUST be one from the list above (ONLY include this for activities requiring travel to a new location, using one of the transportation modes from the list above)"
+  "transport_mode": "ONLY include this IF requires_transportation is true, and it MUST be one from the list above"
 }}
 """
 
@@ -204,9 +266,14 @@ Their current location is at coordinates: {current_location}
 Given these parameters, what specific type of place would this person likely visit for this activity?
 Consider their demographic profile and consumption habits.
 
+LOCATION TYPES:
+"home", "workplace", "restaurant", "cafe", "grocery_store", "shopping_mall", "retail_store", 
+"gym", "park", "hospital", "clinic", "school", "university", "library", "theater", "cinema", 
+"museum", "bar", "friend_home", "family_home", "bank", "post_office", "transit_station", "hotel", "religious_place"
+
 Format your response as a single JSON object:
 {{
-  "place_type": "type of place (e.g., 'restaurant'). Google Places API supported types",
+  "place_type": "type of place (MUST be one from the location types list above)",
   "search_query": "keyword for place (e.g., 'Chinese restaurant')",
   "distance_preference": "preferred travel distance in kilometers (1-10, where 10 means can be very far)",
   "price_level": "price level preference (1-4, where 4 is most expensive)"
