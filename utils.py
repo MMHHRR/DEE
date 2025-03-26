@@ -17,7 +17,7 @@ import hashlib
 import time
 import functools
 
-# Add caching system
+# Caching system implementation
 class Cache:
     def __init__(self):
         self.cache = {}
@@ -112,7 +112,15 @@ class Cache:
 cache = Cache()
 
 def cached(func):
-    """Cache decorator, used to cache function call results"""
+    """
+    Cache decorator to cache function call results
+    
+    Args:
+        func: Function to cache
+        
+    Returns:
+        Wrapped function that uses caching
+    """
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
         if not cache.enabled:
@@ -137,31 +145,80 @@ def cached(func):
     return wrapper
 
 def load_json(file_path):
-    """Load data from a JSON file."""
+    """
+    Load data from a JSON file
+    
+    Args:
+        file_path: Path to JSON file
+        
+    Returns:
+        Loaded JSON data
+    """
     with open(file_path, 'r', encoding='utf-8') as f:
         return json.load(f)
 
 def save_json(data, file_path):
-    """Save data to a JSON file."""
+    """
+    Save data to a JSON file
+    
+    Args:
+        data: Data to save
+        file_path: Path to save file
+    """
     os.makedirs(os.path.dirname(file_path), exist_ok=True)
     with open(file_path, 'w', encoding='utf-8') as f:
         json.dump(data, f, indent=2)
 
 def calculate_distance(point1, point2):
-    """Calculate distance between two points in kilometers."""
+    """
+    Calculate distance between two points in kilometers
+    
+    Args:
+        point1: First point (lat, lon)
+        point2: Second point (lat, lon)
+        
+    Returns:
+        float: Distance in kilometers
+    """
     return geodesic(point1, point2).kilometers
 
 def format_time(hour, minute=0):
-    """Format time as HH:MM."""
+    """
+    Format time as HH:MM
+    
+    Args:
+        hour: Hour (0-23)
+        minute: Minute (0-59)
+        
+    Returns:
+        str: Formatted time string HH:MM
+    """
     return f"{hour:02d}:{minute:02d}"
 
 def parse_time(time_str):
-    """Parse time string (HH:MM) to hours and minutes."""
+    """
+    Parse time string (HH:MM) to hours and minutes
+    
+    Args:
+        time_str: Time string in HH:MM format
+        
+    Returns:
+        tuple: (hours, minutes)
+    """
     hours, minutes = map(int, time_str.split(':'))
     return hours, minutes
 
 def time_difference_minutes(start_time, end_time):
-    """Calculate the difference between two times in minutes."""
+    """
+    Calculate the difference between two times in minutes
+    
+    Args:
+        start_time: Start time (HH:MM)
+        end_time: End time (HH:MM)
+        
+    Returns:
+        int: Minutes difference
+    """
     start_h, start_m = parse_time(start_time)
     end_h, end_m = parse_time(end_time)
     
@@ -172,18 +229,35 @@ def time_difference_minutes(start_time, end_time):
     return (end_h - start_h) * 60 + (end_m - start_m)
 
 def generate_date_range(start_date, num_days):
-    """Generate a list of dates starting from start_date."""
+    """
+    Generate a list of dates starting from start_date
+    
+    Args:
+        start_date: Starting date string (YYYY-MM-DD)
+        num_days: Number of days to generate
+        
+    Returns:
+        list: List of date strings
+    """
     start = datetime.datetime.strptime(start_date, "%Y-%m-%d")
     return [(start + datetime.timedelta(days=i)).strftime("%Y-%m-%d") for i in range(num_days)]
 
 def get_day_of_week(date_str):
-    """Get the day of week from a date string."""
+    """
+    Get the day of week from a date string
+    
+    Args:
+        date_str: Date string (YYYY-MM-DD)
+        
+    Returns:
+        str: Day of week (Monday, Tuesday, etc.)
+    """
     date_obj = datetime.datetime.strptime(date_str, "%Y-%m-%d")
     return date_obj.strftime("%A")
 
 def visualize_trajectory(trajectory_data, output_file):
     """
-    Visualize a day's trajectory on a map.
+    Visualize a day's trajectory on a map
     
     Args:
         trajectory_data: List of trajectory points
@@ -193,438 +267,307 @@ def visualize_trajectory(trajectory_data, output_file):
         return
     
     # Calculate center point
-    lats = [point['location'][0] for point in trajectory_data]
-    lons = [point['location'][1] for point in trajectory_data]
+    lats = [point['location'][0] for point in trajectory_data if 'location' in point and point['location']]
+    lons = [point['location'][1] for point in trajectory_data if 'location' in point and point['location']]
+    
+    if not lats or not lons:
+        print("No valid location data for visualization")
+        return
+        
     center_lat = sum(lats) / len(lats)
     center_lon = sum(lons) / len(lons)
     
     # Create map
     m = folium.Map(location=[center_lat, center_lon], zoom_start=13)
     
-    # Create location dictionary to track repeated locations
-    location_counts = {}
-    
-    # Add time line connection points
-    coordinates = []
-    
-    # Define different activity type icons
-    icons = {
-        'travel': 'car',
-        'work': 'briefcase',
-        'leisure': 'leaf',
-        'shopping': 'shopping-cart',
-        'dining': 'cutlery',
-        'home': 'home',
-        'sleep': 'bed'
-    }
-    
     # Add markers for each point
-    for point in trajectory_data:
+    for i, point in enumerate(trajectory_data):
+        if 'location' not in point or not point['location']:
+            continue
+            
         lat, lon = point['location']
-        loc_key = f"{lat:.5f},{lon:.5f}"  # Use 5 decimal precision as location key
+        time = point.get('time', '')
+        activity = point.get('activity_type', 'Unknown')
+        description = point.get('description', '')
+        transport = point.get('transport_mode', '')
         
-        # Check if there are repeated locations, if so, offset
-        if loc_key in location_counts:
-            location_counts[loc_key] += 1
-            # Calculate offset based on repeated times (approximately 20 meters each time)
-            offset = location_counts[loc_key] * 0.0002
-            lat += offset
-            lon += offset
-        else:
-            location_counts[loc_key] = 0
-            
-        # Record coordinates for drawing time line
-        coordinates.append([lat, lon])
-        
-        # Set marker color and icon based on activity type
-        if point['activity_type'] == 'travel':
-            color = 'gray'
-        elif point['activity_type'] == 'work':
-            color = 'red'
-        elif point['activity_type'] == 'leisure':
-            color = 'blue'
-        elif point['activity_type'] == 'shopping':
-            color = 'green'
-        elif point['activity_type'] == 'dining':
-            color = 'orange'
-        elif point['activity_type'] == 'home':
-            color = 'purple'
-        elif point['activity_type'] == 'sleep':
-            color = 'darkblue'
-        else:
-            color = 'purple'
-            
-        # Get activity type corresponding icon
-        icon_name = icons.get(point['activity_type'].lower(), 'info-sign')
-            
         # Create popup content
-        popup_content = f"Activity: {point['activity_type']}<br>"
-        popup_content += f"Time: {point['timestamp']}<br>"
-        popup_content += f"Description: {point['description']}"
+        popup_content = f"""
+        <b>Time:</b> {time}<br>
+        <b>Activity:</b> {activity}<br>
+        <b>Description:</b> {description}<br>
+        """
+        if transport:
+            popup_content += f"<b>Transport:</b> {transport}<br>"
         
-        # Add marker with custom icon
+        # Use different colors based on activity type
+        icon_color = get_activity_color(activity)
+        
+        # Add marker
         folium.Marker(
-            location=[lat, lon],
-            popup=popup_content,
-            icon=folium.Icon(color=color, icon=icon_name, prefix='fa')
+            [lat, lon],
+            popup=folium.Popup(popup_content, max_width=300),
+            icon=folium.Icon(color=icon_color, icon='info-sign')
         ).add_to(m)
         
-        # If there are route coordinates, add route
-        if 'route_coordinates' in point and point['route_coordinates']:
-            route_coords = point['route_coordinates']
-            # Select route style based on transportation mode
-            if 'transport_mode' in point:
-                if point['transport_mode'] == 'walking':
-                    color = 'green'
-                    weight = 2
-                    dash_array = '5,10'
-                elif point['transport_mode'] == 'cycling':
-                    color = 'blue'
-                    weight = 2
-                    dash_array = '5,5'
-                elif point['transport_mode'] == 'driving':
-                    color = 'red'
-                    weight = 3
-                    dash_array = None
-                else:  # public transit or other
-                    color = 'purple'
-                    weight = 3
-                    dash_array = '10,10'
-            else:
-                color = 'gray'
-                weight = 2
-                dash_array = None
-                
+        # Add lines connecting points in sequence
+        if i > 0 and 'location' in trajectory_data[i-1] and trajectory_data[i-1]['location']:
+            prev_lat, prev_lon = trajectory_data[i-1]['location']
+            
+            # Use transport mode color if available
+            line_color = get_transport_color(transport) if transport else 'gray'
+            
             folium.PolyLine(
-                route_coords,
-                weight=weight,
-                color=color,
-                opacity=0.8,
-                dash_array=dash_array
+                [[prev_lat, prev_lon], [lat, lon]],
+                color=line_color,
+                weight=3,
+                opacity=0.7
             ).add_to(m)
     
-    # Add time line connection all points
-    folium.PolyLine(
-        coordinates,
-        weight=1,
-        color='black',
-        opacity=0.5,
-        dash_array='3,6'
-    ).add_to(m)
-    
-    # Save map
-    m.save(output_file)
-
-def plot_activity_distribution(memory_data, output_file=None):
-    """
-    Plot the distribution of activities based on duration.
-    
-    Args:
-        memory_data: Memory data containing activities
-        output_file: File path to save the plot
-    """
-    activity_durations = {}
-    
-    for day_data in memory_data.get('days', []):
-        for activity in day_data.get('activities', []):
-            activity_type = activity.get('activity_type', 'unknown')
-            start_time = activity.get('start_time', '00:00')
-            end_time = activity.get('end_time', '23:59')
-            
-            # Calculate activity duration (minutes)
-            start_minutes = time_to_minutes(start_time)
-            end_minutes = time_to_minutes(end_time)
-            
-            # Special handling for activities that cross midnight
-            if end_minutes < start_minutes:
-                # For activities crossing midnight, calculate time until midnight plus time after midnight
-                duration = (24 * 60 - start_minutes) + end_minutes
-                
-                # For sleep activities, ensure no duplicate counting
-                if activity_type == 'sleep' and end_time == '08:00' and start_time == '22:30':
-                    # Typical night sleep pattern, calculate normally
-                    duration = (24 * 60 - start_minutes) + end_minutes
-                elif activity_type == 'sleep' and end_time == '08:00' and start_time == '22:00':
-                    # Another sleep pattern
-                    duration = (24 * 60 - start_minutes) + end_minutes
-                else:
-                    # Other activities crossing midnight
-                    duration = (24 * 60 - start_minutes) + end_minutes
-            else:
-                # Activities within the same day
-                duration = end_minutes - start_minutes
-            
-            # Add to the appropriate activity type
-            activity_durations[activity_type] = activity_durations.get(activity_type, 0) + duration
-    
-    # Sort by duration
-    sorted_activities = sorted(activity_durations.items(), key=lambda x: x[1], reverse=True)
-    labels = [item[0] for item in sorted_activities]
-    durations = [item[1] for item in sorted_activities]
-    
-    # Convert minutes to hours for display
-    durations_hours = [duration/60 for duration in durations]
-    
-    plt.figure(figsize=(12, 6))
-    bars = plt.bar(labels, durations_hours, color='skyblue')
-    plt.xlabel('Activity Type')
-    plt.ylabel('Total Duration (hours)')
-    plt.title('Activity Distribution by Time Spent')
-    plt.xticks(rotation=45, ha='right')
-    
-    # Add specific values on top of the bars
-    for bar in bars:
-        height = bar.get_height()
-        hours = int(height)
-        minutes = int((height - hours) * 60)
-        plt.text(bar.get_x() + bar.get_width()/2., height,
-                f'{hours}h {minutes}m',
-                ha='center', va='bottom')
-    
-    plt.tight_layout()
-    
-    if output_file:
+    # Save the map
+    try:
         os.makedirs(os.path.dirname(output_file), exist_ok=True)
-        plt.savefig(output_file)
-        plt.close()
-    else:
-        plt.show()
+        m.save(output_file)
+        print(f"Map saved to {output_file}")
+    except Exception as e:
+        print(f"Error saving map: {e}")
 
-def generate_random_location_near(center, max_distance_km=5.0):
+def get_activity_color(activity_type):
     """
-    Generate a random location within max_distance_km of center.
+    Get color for activity type
     
     Args:
-        center: [lat, lon]
-        max_distance_km: Maximum distance in kilometers
-    
+        activity_type: Type of activity
+        
     Returns:
-        [lat, lon]
+        str: Color name
     """
-    # Earth's radius in kilometers
-    R = 6371.0
+    colors = {
+        'home': 'green',
+        'work': 'blue',
+        'shopping': 'purple',
+        'dining': 'orange',
+        'recreation': 'cadetblue',
+        'education': 'darkblue',
+        'healthcare': 'red',
+        'social': 'pink',
+        'leisure': 'darkgreen',
+        'errands': 'gray',
+        'travel': 'black'
+    }
+    return colors.get(activity_type.lower(), 'darkpurple')
+
+def get_transport_color(transport_mode):
+    """
+    Get color for transport mode
     
-    # Random distance within max_distance_km
-    distance = random.uniform(0, max_distance_km)
-    
-    # Random angle
-    angle = random.uniform(0, 2 * np.pi)
-    
-    # Calculate new coordinates
-    lat1 = np.radians(center[0])
-    lon1 = np.radians(center[1])
-    
-    lat2 = np.arcsin(np.sin(lat1) * np.cos(distance/R) +
-                     np.cos(lat1) * np.sin(distance/R) * np.cos(angle))
-    lon2 = lon1 + np.arctan2(np.sin(angle) * np.sin(distance/R) * np.cos(lat1),
-                            np.cos(distance/R) - np.sin(lat1) * np.sin(lat2))
-    
-    return [np.degrees(lat2), np.degrees(lon2)]
+    Args:
+        transport_mode: Mode of transport
+        
+    Returns:
+        str: Color code
+    """
+    colors = {
+        'walking': '#66c2a5',
+        'cycling': '#fc8d62',
+        'driving': '#8da0cb',
+        'public_transit': '#e78ac3',
+        'rideshare': '#a6d854'
+    }
+    return colors.get(transport_mode.lower(), '#999999')
 
 def normalize_transport_mode(mode):
     """
-    Normalize transportation mode string to standard format
+    Normalize transportation mode string to standard values
     
     Args:
-        mode: Transportation mode string
+        mode: Transport mode string
         
     Returns:
-        str: Normalized transportation mode
+        str: Normalized transport mode
     """
     if not mode:
-        return 'walking'
+        return 'driving'
         
     mode = str(mode).lower().strip()
     
-    # Map various transportation mode strings to standard modes
-    mode_mapping = {
-        # Walking variants
-        'walk': 'walking',
-        'foot': 'walking',
-        'on foot': 'walking',
-        
-        # Cycling variants
-        'bike': 'cycling',
-        'bicycle': 'cycling',
-        'cycle': 'cycling',
-        
-        # Public transit variants
-        'bus': 'public_transit',
-        'subway': 'public_transit',
-        'metro': 'public_transit',
-        'train': 'public_transit',
-        'transit': 'public_transit',
-        'public transport': 'public_transit',
-        'public transportation': 'public_transit',
-        
-        # Driving variants
-        'car': 'driving',
-        'auto': 'driving',
-        'automobile': 'driving',
-        'vehicle': 'driving'
-    }
-    
-    # Return mapped mode if exists, otherwise return original if valid or default to walking
-    if mode in mode_mapping:
-        return mode_mapping[mode]
-    elif mode in TRANSPORT_MODES:
+    # Direct matches
+    if mode in TRANSPORT_MODES:
         return mode
-    else:
+        
+    # Walking variations
+    if mode in ['walk', 'walking', 'on foot', 'foot', 'pedestrian']:
         return 'walking'
+        
+    # Cycling variations
+    if mode in ['cycle', 'cycling', 'bicycle', 'bike', 'biking']:
+        return 'cycling'
+        
+    # Driving variations
+    if mode in ['drive', 'driving', 'car', 'auto', 'automobile']:
+        return 'driving'
+        
+    # Public transit variations
+    if mode in ['transit', 'public transit', 'bus', 'subway', 'train', 'metro', 'public_transport', 'public transport']:
+        return 'public_transit'
+        
+    # Rideshare variations
+    if mode in ['taxi', 'uber', 'lyft', 'rideshare', 'ride_share', 'ride share', 'ride-share']:
+        return 'rideshare'
+        
+    # Default to driving if not recognized
+    return 'driving'
 
-def get_route_coordinates(start_location, end_location, transport_mode='driving'):
+@cached
+def format_time_after_minutes(start_time, minutes):
     """
-    Get coordinates for a route between two locations using OSRM API.
+    Calculate a new time after adding minutes to a start time
     
     Args:
-        start_location: (latitude, longitude)
-        end_location: (latitude, longitude)
-        transport_mode: Mode of transportation
+        start_time: Time string (HH:MM)
+        minutes: Minutes to add
     
     Returns:
-        list: List of coordinates along the route [(lat1, lon1), (lat2, lon2), ...]
+        str: New time string (HH:MM)
     """
-    # OSRM service base URL (using demo server)
-    base_url = "http://router.project-osrm.org"
+    start_h, start_m = parse_time(start_time)
     
-    # Build API request URL
-    url = f"{base_url}/route/v1/{transport_mode}/{start_location[1]},{start_location[0]};{end_location[1]},{end_location[0]}"
-    params = {
-        "overview": "full",
-        "geometries": "geojson",
-        "steps": "true"
-    }
+    # Add minutes
+    total_minutes = start_h * 60 + start_m + minutes
     
-    try:
-        response = requests.get(url, params=params)
-        response.raise_for_status()
-        data = response.json()
-        
-        if "routes" in data and len(data["routes"]) > 0:
-            # Extract route coordinates
-            coordinates = data["routes"][0]["geometry"]["coordinates"]
-            # OSRM returns coordinates as [lon, lat], we need to convert to [lat, lon]
-            return [(coord[1], coord[0]) for coord in coordinates]
-        else:
-            print(f"Could not find route from {start_location} to {end_location}")
-            return []
-            
-    except Exception as e:
-        print(f"Error getting route: {str(e)}")
-        return []
+    # Convert back to hours and minutes
+    new_h = (total_minutes // 60) % 24
+    new_m = total_minutes % 60
+    
+    return f"{new_h:02d}:{new_m:02d}"
 
 @cached
 def estimate_travel_time(start_location, end_location, transport_mode, persona=None):
     """
-    Estimate travel time between two locations using specified transportation mode
+    Estimate travel time between two locations
     
     Args:
-        start_location: Starting coordinates (latitude, longitude)
-        end_location: Ending coordinates (latitude, longitude)
-        transport_mode: Transportation mode to use
-        persona: Optional persona object for personalized estimates
+        start_location: Starting coordinates (lat, lon)
+        end_location: Ending coordinates (lat, lon)
+        transport_mode: Transportation mode
+        persona: Persona object (optional)
         
     Returns:
-        tuple: (estimated_time_minutes, actual_transport_mode)
+        tuple: (travel_time_minutes, transport_mode)
     """
-    distance_km = calculate_distance(start_location, end_location)
-    
-    # If no transport mode specified, select appropriate mode based on distance and person characteristics
-    if not transport_mode:
-        # Default transport mode selection logic
-        if persona:
-            # Consider person characteristics and preferences
-            if distance_km < 0.5:
-                # Very short distance, typically walking
-                transport_mode = 'walking'
-            elif distance_km < 3:
-                # Short distance, decide based on bike availability and preferences
-                if hasattr(persona, 'has_bike') and persona.has_bike and (
-                    hasattr(persona, 'preferred_transport') and 
-                    persona.preferred_transport == 'cycling' or random.random() < 0.7):
-                    transport_mode = 'cycling'
-                else:
-                    transport_mode = 'walking'
-            elif distance_km < 10:
-                # Medium distance
-                if hasattr(persona, 'has_bike') and persona.has_bike and hasattr(persona, 'preferred_transport') and persona.preferred_transport == 'cycling':
-                    transport_mode = 'cycling'
-                elif hasattr(persona, 'has_car') and persona.has_car and hasattr(persona, 'preferred_transport') and persona.preferred_transport == 'driving':
-                    transport_mode = 'driving'
-                elif hasattr(persona, 'preferred_transport') and persona.preferred_transport == 'public_transit':
-                    transport_mode = 'public_transit'
-                else:
-                    # Choose based on availability
-                    if hasattr(persona, 'has_car') and persona.has_car:
-                        transport_mode = 'driving'
-                    elif hasattr(persona, 'has_bike') and persona.has_bike:
-                        transport_mode = 'cycling'
-                    else:
-                        transport_mode = 'public_transit'
-            else:
-                # Long distance
-                if hasattr(persona, 'has_car') and persona.has_car:
-                    transport_mode = 'driving'
-                elif hasattr(persona, 'preferred_transport') and persona.preferred_transport == 'public_transit':
-                    transport_mode = 'public_transit'
-                else:
-                    transport_mode = 'public_transit'  # 默认使用公共交通而不是rideshare
-        else:
-            # If no persona information, use simple distance-based logic
-            if distance_km < 1:
-                transport_mode = 'walking'
-            elif distance_km < 5:
-                transport_mode = 'cycling'
-            elif distance_km < 15:
-                transport_mode = 'public_transit'
-            else:
-                transport_mode = 'driving'
-    
     # Normalize transport mode
-    transport_mode = normalize_transport_mode(transport_mode)
+    if transport_mode:
+        transport_mode = normalize_transport_mode(transport_mode)
+    else:
+        # Use persona's preferred transport if available
+        if persona and hasattr(persona, 'preferred_transport'):
+            transport_mode = normalize_transport_mode(persona.preferred_transport)
+        else:
+            transport_mode = 'driving'  # Default
     
-    # Average speeds in km/h (adjusted to be more realistic)
+    # Calculate direct distance in kilometers
+    try:
+        distance_km = calculate_distance(start_location, end_location)
+    except:
+        # Default to a reasonable distance if calculation fails
+        distance_km = 1.0
+        
+    # Adjust distance for real-world routes (not straight lines)
+    # Streets are rarely straight, so multiply by a factor
+    route_factor = {
+        'walking': 1.4,
+        'cycling': 1.3,
+        'driving': 1.2,
+        'public_transit': 1.5,
+        'rideshare': 1.2
+    }
+    
+    adjusted_distance = distance_km * route_factor.get(transport_mode, 1.3)
+    
+    # Calculate travel time based on transport mode and distance
+    # Average speeds (km/h) for different transport modes
     speeds = {
-        'walking': 4,  # 降低步行速度
-        'cycling': 12,  # 降低自行车速度
-        'driving': 25,  # 考虑城市交通状况
-        'public_transit': 18,  # 考虑等待和换乘时间
-        'rideshare': 20
+        'walking': 5.0,     # 5 km/h walking speed
+        'cycling': 15.0,    # 15 km/h cycling speed
+        'driving': 40.0,    # 40 km/h urban driving
+        'public_transit': 20.0,  # 20 km/h public transit with stops
+        'rideshare': 35.0   # 35 km/h rideshare/taxi
     }
     
-    # Get speed for the transport mode, default to walking if not found
-    speed_kmh = speeds.get(transport_mode, speeds['walking'])
+    # Get speed for selected transport mode
+    speed = speeds.get(transport_mode, 30.0)
     
-    # Calculate time in minutes
-    time_hours = distance_km / speed_kmh
-    time_minutes = int(time_hours * 60)
+    # Calculate travel time in minutes
+    travel_time_minutes = (adjusted_distance / speed) * 60
     
-    # Add some randomness to account for traffic, waiting times, etc.
-    time_minutes = int(time_minutes * random.uniform(0.8, 1.2))
+    # Add traffic delay for driving modes (random factor)
+    if transport_mode in ['driving', 'rideshare']:
+        traffic_factor = random.uniform(1.0, 1.3)  # 0-30% delay
+        travel_time_minutes *= traffic_factor
     
-    # Add fixed time overhead based on transport mode
-    overhead_minutes = {
-        'walking': 0,
-        'cycling': 2,  # 准备自行车时间
-        'driving': 5,  # 找车位时间
-        'public_transit': 10,  # 等车和换乘时间
-        'rideshare': 8  # 等待接驾时间
-    }
+    # Add waiting time for public transit and rideshare
+    if transport_mode == 'public_transit':
+        wait_time = random.randint(5, 15)  # 5-15 minutes waiting
+        travel_time_minutes += wait_time
+    elif transport_mode == 'rideshare':
+        wait_time = random.randint(3, 10)  # 3-10 minutes waiting
+        travel_time_minutes += wait_time
     
-    time_minutes += overhead_minutes.get(transport_mode, 0)
+    # Ensure minimum travel time
+    travel_time_minutes = max(1, int(round(travel_time_minutes)))
     
-    # Minimum travel time
-    return max(5, time_minutes), transport_mode
+    return travel_time_minutes, transport_mode
 
 def time_to_minutes(time_str):
     """
-    Convert time string (HH:MM) to minutes
+    Convert time string to minutes since midnight
     
     Args:
-        time_str: Time string in HH:MM format
+        time_str: Time string (HH:MM)
         
     Returns:
-        int: Total minutes
+        int: Minutes since midnight
     """
-    hours, minutes = parse_time(time_str)
-    return hours * 60 + minutes 
+    try:
+        hours, minutes = parse_time(time_str)
+        return hours * 60 + minutes
+    except:
+        return 0
+
+def generate_random_location_near(center, max_distance_km=5.0):
+    """
+    Generate a random location within a specified distance from a center point
+    
+    Args:
+        center: Center point (lat, lon)
+        max_distance_km: Maximum distance in kilometers
+        
+    Returns:
+        tuple: (lat, lon) of random location
+    """
+    # Earth's radius in kilometers
+    earth_radius = 6371.0
+    
+    # Convert max distance to radians
+    max_distance_radians = max_distance_km / earth_radius
+    
+    # Generate random distance and angle
+    random_distance = max_distance_radians * math.sqrt(random.random())
+    random_angle = random.random() * 2 * math.pi
+    
+    # Current point in radians
+    lat1 = math.radians(center[0])
+    lon1 = math.radians(center[1])
+    
+    # Calculate new point
+    lat2 = math.asin(math.sin(lat1) * math.cos(random_distance) + 
+                    math.cos(lat1) * math.sin(random_distance) * math.cos(random_angle))
+    
+    lon2 = lon1 + math.atan2(math.sin(random_angle) * math.sin(random_distance) * math.cos(lat1),
+                           math.cos(random_distance) - math.sin(lat1) * math.sin(lat2))
+    
+    # Convert back to degrees
+    lat2 = math.degrees(lat2)
+    lon2 = math.degrees(lon2)
+    
+    return (lat2, lon2) 

@@ -5,12 +5,9 @@ Coordinates all components to simulate human daily mobility.
 
 import os
 import json
-import random
 import datetime
-import numpy as np
 from tqdm import tqdm
 import traceback
-import multiprocessing
 import concurrent.futures
 
 from config import (
@@ -34,7 +31,7 @@ from utils import (
     normalize_transport_mode,
     estimate_travel_time,
     cached,
-    cache,
+    format_time_after_minutes,
     time_to_minutes
 )
 
@@ -61,6 +58,28 @@ def format_time_after_minutes(start_time, minutes):
     new_m = total_minutes % 60
     
     return f"{new_h:02d}:{new_m:02d}"
+
+
+def are_locations_same(loc1, loc2, threshold=0.001):
+    """
+    Check if two locations are close enough to be considered the same.
+    
+    Args:
+        loc1: First location coordinates (lat, lon)
+        loc2: Second location coordinates (lat, lon)
+        threshold: Distance threshold in degrees (default: 0.001 ~= 100m)
+        
+    Returns:
+        bool: True if locations are close enough
+    """
+    if not loc1 or not loc2:
+        return False
+        
+    lat_diff = abs(loc1[0] - loc2[0])
+    lon_diff = abs(loc1[1] - loc2[1])
+    
+    return lat_diff < threshold and lon_diff < threshold
+
 
 def simulate_single_day(persona, date, activity_generator, destination_selector, memory):
     """
@@ -162,7 +181,7 @@ def simulate_single_day(persona, date, activity_generator, destination_selector,
                     # Calculate travel arrival time
                     arrival_time = format_time_after_minutes(prev_end_time, travel_time)
                     
-                    # Print transportation information only once, use activity location name, not Home
+                    # Print transportation information once
                     location_name = activity['location_name']
                     if location_type.lower() in ['work', 'home']:
                         location_name = location_type.capitalize()
@@ -181,10 +200,8 @@ def simulate_single_day(persona, date, activity_generator, destination_selector,
                     
                     # Check for time conflicts
                     if time_to_minutes(arrival_time) > time_to_minutes(start_time):
-                        # print(f"Schedule conflict: Arrival time {arrival_time}, Original activity start time {start_time}")
                         # Automatically adjust activity start time
                         start_time = arrival_time
-                        # print(f"Auto-adjusted: New activity start time is {start_time}")
                 
                 # Record activity to memory
                 memory.record_activity(activity, destination, start_time)
@@ -206,6 +223,7 @@ def simulate_single_day(persona, date, activity_generator, destination_selector,
         if memory.current_day:
             memory.end_day()  # Ensure end date recorded
         return False
+
 
 def simulate_persona(persona_data, num_days=7, start_date=None):
     """
@@ -235,123 +253,114 @@ def simulate_persona(persona_data, num_days=7, start_date=None):
         
         # Initialize memory
         memory = Memory(persona.id)
-        memory.initialize_persona(persona)
+        # memory.initialize_persona(persona)
         
-        # Add memory object to persona for use in generating activities
-        persona.memory = memory
+        # Try to load historical data if CSV files exist
+        try:
+            if os.path.exists("data/person.csv") and os.path.exists("data/location.csv") and os.path.exists("data/gps_place.csv"):
+                print(f"Attempting to load historical data for {persona.name}...")
+                # Try using persona ID as household ID
+                loaded = persona.load_historical_data(household_id=persona.id)
+
+                if not loaded and isinstance(persona.id, int):
+                    # If loading fails, try a few different household IDs
+                    sample_household_ids = [20000228, 20001882, 20002935]
+                    for sample_id in sample_household_ids:
+                        if persona.load_historical_data(household_id=sample_id):
+                            print(f"Successfully loaded historical data using household ID {sample_id}")
+                            break
+        except Exception as load_error:
+            print(f"Error loading historical data: {load_error}")
         
-        # Generate dates
-        dates = [date_obj + datetime.timedelta(days=i) for i in range(num_days)]
-        dates_str = [d.strftime("%Y-%m-%d") for d in dates]
+        # Generate date range for simulation
+        date_range = generate_date_range(start_date, num_days)
         
-        # Check if using parallel processing, usually start parallel processing when simulating more than 3 days
-        if num_days > 3 and not BATCH_PROCESSING:
-            # Parallel processing multiple dates
-            max_workers = min(multiprocessing.cpu_count(), num_days)  # 使用最小的合理进程数
-            
-            with concurrent.futures.ProcessPoolExecutor(max_workers=max_workers) as executor:
-                # Create date processing tasks
-                future_to_date = {
-                    executor.submit(
-                        simulate_single_day, 
-                        persona, 
-                        date, 
-                        activity_generator, 
-                        destination_selector, 
-                        memory
-                    ): date for date in dates_str
-                }
-                
-                # Process results
-                for future in concurrent.futures.as_completed(future_to_date):
-                    date = future_to_date[future]
-                    try:
-                        day_result = future.result()
-                        if day_result:
-                            # Merge results into memory
-                            memory.days.append(day_result)
-                    except Exception as e:
-                        print(f"Error processing {date}: {e}")
-        else:
-            # Sequential processing for small number of dates or when using batch processing
-            for date in tqdm(dates_str, desc=f"Simulating days for {persona.id}"):
-                simulate_single_day(persona, date, activity_generator, destination_selector, memory)
-        
-        # Save memory to file
-        memory.save_memory()
-        
-        # Generate visualizations
-        memory.create_visualizations()
-        
-        # Print cache statistics
-        if hasattr(cache, 'stats'):
-            cache_stats = cache.stats()
-            print(f"\nCache statistics: {cache_stats}")
-            print(f"Cache hit ratio: {cache_stats['hit_ratio']:.2f}")
+        # Simulate each day
+        for date in date_range:
+            simulate_single_day(persona, date, activity_generator, destination_selector, memory)
         
         return memory
+    
     except Exception as e:
-        print(f"Error simulating persona {persona_data.get('id')}: {e}")
+        print(f"Error in persona simulation: {e}")
         traceback.print_exc()
         return None
 
-def main():
-    """Main function to run the simulation."""
-    # Create results directory if it doesn't exist
-    os.makedirs(RESULTS_DIR, exist_ok=True)
-    
-    # Load personas data
-    personas_data = load_json(PERSONA_DATA_PATH)
-    
-    # Parallel processing multiple people based on CPU core count
-    max_workers = max(1, multiprocessing.cpu_count() - 1)  # Reserve one core for system
-    
-    if len(personas_data) > 1 and not BATCH_PROCESSING:
-        # Parallel processing multiple people
-        with concurrent.futures.ProcessPoolExecutor(max_workers=max_workers) as executor:
-            # Create person processing tasks
-            future_to_persona = {
-                executor.submit(
-                    simulate_persona, 
-                    persona, 
-                    NUM_DAYS_TO_SIMULATE, 
-                    SIMULATION_START_DATE
-                ): persona for persona in personas_data
-            }
-            
-            # Process results
-            for future in concurrent.futures.as_completed(future_to_persona):
-                persona = future_to_persona[future]
-                try:
-                    memory = future.result()
-                except Exception as e:
-                    print(f"Error processing persona {persona['id']}: {e}")
-    else:
-        # Sequential processing people
-        for i, persona_data in enumerate(personas_data):
-            print(f"\n\n--- Simulating Persona {i+1}/{len(personas_data)}: {persona_data['id']} ---\n")
-            simulate_persona(persona_data, NUM_DAYS_TO_SIMULATE, SIMULATION_START_DATE)
-    
-    print("\nSimulation completed.")
 
-def are_locations_same(loc1, loc2, threshold=0.001):
+def simulate_parallel(persona_list, num_days=7, start_date=None, max_workers=4):
     """
-    Check if two location coordinates are close enough to be considered the same place
+    Simulate multiple personas in parallel using multiprocessing.
     
     Args:
-        loc1: First location coordinates (latitude, longitude)
-        loc2: Second location coordinates (latitude, longitude)
-        threshold: Maximum distance difference (in degrees) to consider two locations the same
+        persona_list: List of persona data dictionaries
+        num_days: Number of days to simulate
+        start_date: Starting date
+        max_workers: Maximum number of parallel workers
         
     Returns:
-        bool: True if the two locations are close enough
+        dict: Dictionary mapping persona IDs to Memory objects
     """
-    if not loc1 or not loc2:
-        return False
+    results = {}
+    
+    with concurrent.futures.ProcessPoolExecutor(max_workers=max_workers) as executor:
+        # Create a mapping of futures to persona IDs
+        future_to_persona = {
+            executor.submit(simulate_persona, persona, num_days, start_date): persona['id']
+            for persona in persona_list
+        }
         
-    # Check if the latitude and longitude of the two coordinates are close enough
-    return (abs(loc1[0] - loc2[0]) < threshold and 
-            abs(loc1[1] - loc2[1]) < threshold)
+        # Process results as they complete
+        for future in concurrent.futures.as_completed(future_to_persona):
+            persona_id = future_to_persona[future]
+            try:
+                memory = future.result()
+                if memory:
+                    results[persona_id] = memory
+                    print(f"Completed simulation for persona {persona_id}")
+                else:
+                    print(f"Failed to simulate persona {persona_id}")
+            except Exception as e:
+                print(f"Simulation for persona {persona_id} generated an exception: {e}")
+    
+    return results
+
+
+def main():
+    """Main entry point for the simulation."""
+    try:
+        # Create results directory if it doesn't exist
+        os.makedirs(RESULTS_DIR, exist_ok=True)
+        
+        # Load persona data
+        personas = load_json(PERSONA_DATA_PATH)
+        print(f"Loaded {len(personas)} personas")
+        
+        # Simulate each persona
+        results = {}
+        
+        if BATCH_PROCESSING:
+            # Use multiprocessing for batch processing
+            results = simulate_parallel(personas, NUM_DAYS_TO_SIMULATE)
+        else:
+            # Sequential processing
+            for persona_data in tqdm(personas, desc="Simulating personas"):
+                memory = simulate_persona(persona_data, NUM_DAYS_TO_SIMULATE)
+                if memory:
+                    results[persona_data['id']] = memory
+                    
+                    # Save result for this persona
+                    output_file = os.path.join(RESULTS_DIR, f"persona_{persona_data['id']}.json")
+                    memory.save_to_file(output_file)
+                    print(f"Saved results for persona {persona_data['id']} to {output_file}")
+        
+        print(f"Completed simulation for {len(results)} personas")
+        return results
+        
+    except Exception as e:
+        print(f"Error in main function: {e}")
+        traceback.print_exc()
+        return None
+
 
 if __name__ == "__main__":
     main() 

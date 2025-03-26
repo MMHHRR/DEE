@@ -1,0 +1,1326 @@
+{
+  "persona_id": 1,
+  "persona_info": null,
+  "days": [
+    {
+      "date": "2025-02-03",
+      "day_of_week": "Monday",
+      "activities": [
+        {
+          "activity_type": "sleep",
+          "start_time": "03:00",
+          "end_time": "05:26",
+          "description": "Sleeping at home",
+          "location_type": "home",
+          "location_name": "Home",
+          "location": [
+            40.850054,
+            -73.903656
+          ],
+          "timestamp": "03:00"
+        },
+        {
+          "activity_type": "travel",
+          "start_time": "05:26",
+          "end_time": "05:34",
+          "location": [
+            40.812993,
+            -73.907788
+          ],
+          "description": "Traveling from Home to Unknown Location",
+          "transport_mode": "driving",
+          "from_location": [
+            40.850054,
+            -73.903656
+          ],
+          "to_location": [
+            40.812993,
+            -73.907788
+          ],
+          "from_name": "Home",
+          "to_name": "Unknown Location"
+        },
+        {
+          "activity_type": "commuting",
+          "start_time": "05:26",
+          "end_time": "05:46",
+          "description": "Commute from home to work using public transportation.",
+          "location_type": "transit_station",
+          "location_name": "Workplace",
+          "location": [
+            40.812993,
+            -73.907788
+          ],
+          "timestamp": "05:34"
+        },
+        {
+          "activity_type": "work",
+          "start_time": "05:46",
+          "end_time": "12:06",
+          "description": "Work on financial reports and attend meetings at the office.",
+          "location_type": "workplace",
+          "location_name": "Workplace",
+          "location": [
+            40.812993,
+            -73.907788
+          ],
+          "timestamp": "05:46"
+        },
+        {
+          "activity_type": "travel",
+          "start_time": "12:06",
+          "end_time": "12:07",
+          "location": [
+            40.8119099,
+            -73.90969969999999
+          ],
+          "description": "Traveling from Workplace to Unknown Location",
+          "transport_mode": "driving",
+          "from_location": [
+            40.812993,
+            -73.907788
+          ],
+          "to_location": [
+            40.8119099,
+            -73.90969969999999
+          ],
+          "from_name": "Workplace",
+          "to_name": "Unknown Location"
+        },
+        {
+          "activity_type": "dining",
+          "start_time": "12:40",
+          "end_time": "13:23",
+          "description": "Lunch at a nearby restaurant during work break.",
+          "location_type": "restaurant",
+          "location_name": "Mexicocina Mezcaleria",
+          "location": [
+            40.8119099,
+            -73.90969969999999
+          ],
+          "timestamp": "12:40"
+        },
+        {
+          "activity_type": "travel",
+          "start_time": "13:23",
+          "end_time": "13:24",
+          "location": [
+            40.81071572705551,
+            -73.9123445370512
+          ],
+          "description": "Traveling from Mexicocina Mezcaleria to Unknown Location",
+          "transport_mode": "driving",
+          "from_location": [
+            40.8119099,
+            -73.90969969999999
+          ],
+          "to_location": [
+            40.81071572705551,
+            -73.9123445370512
+          ],
+          "from_name": "Mexicocina Mezcaleria",
+          "to_name": "Unknown Location"
+        },
+        {
+          "activity_type": "commuting",
+          "start_time": "13:23",
+          "end_time": "13:29",
+          "description": "Travel back to the office for a quick return.",
+          "location_type": "transit_station",
+          "location_name": "Nearby location",
+          "location": [
+            40.81071572705551,
+            -73.9123445370512
+          ],
+          "timestamp": "13:24"
+        },
+        {
+          "activity_type": "travel",
+          "start_time": "13:29",
+          "end_time": "13:30",
+          "location": [
+            40.812993,
+            -73.907788
+          ],
+          "description": "Traveling from Nearby location to Workplace",
+          "transport_mode": "driving",
+          "from_location": [
+            40.81071572705551,
+            -73.9123445370512
+          ],
+          "to_location": [
+            40.812993,
+            -73.907788
+          ],
+          "from_name": "Nearby location",
+          "to_name": "Workplace"
+        },
+        {
+          "activity_type": "work",
+          "start_time": "13:29",
+          "end_time": "15:32",
+          "description": "Meet clients and finish remaining office tasks.",
+          "location_type": "workplace",
+          "location_name": "Workplace",
+          "location": [
+            40.812993,
+            -73.907788
+          ],
+          "timestamp": "13:30"
+        },
+        {
+          "activity_type": "travel",
+          "start_time": "15:32",
+          "end_time": "15:40",
+          "location": [
+            40.850054,
+            -73.903656
+          ],
+          "description": "Traveling from Workplace to Home",
+          "transport_mode": "driving",
+          "from_location": [
+            40.812993,
+            -73.907788
+          ],
+          "to_location": [
+            40.850054,
+            -73.903656
+          ],
+          "from_name": "Workplace",
+          "to_name": "Home"
+        },
+        {
+          "activity_type": "commuting",
+          "start_time": "15:32",
+          "end_time": "16:02",
+          "description": "Travel back home from work.",
+          "location_type": "transit_station",
+          "location_name": "Home",
+          "location": [
+            40.850054,
+            -73.903656
+          ],
+          "timestamp": "15:40"
+        },
+        {
+          "activity_type": "home",
+          "start_time": "16:02",
+          "end_time": "23:00",
+          "description": "Relaxing at home, preparing dinner, and personal time.",
+          "location_type": "home",
+          "location_name": "Home",
+          "location": [
+            40.850054,
+            -73.903656
+          ],
+          "timestamp": "16:02"
+        },
+        {
+          "activity_type": "sleep",
+          "start_time": "23:00",
+          "end_time": "27:00",
+          "description": "Sleeping at home",
+          "location_type": "home",
+          "location_name": "Home",
+          "location": [
+            40.850054,
+            -73.903656
+          ],
+          "timestamp": "23:00"
+        }
+      ],
+      "trajectory": [
+        {
+          "activity_type": "sleep",
+          "time": "03:00",
+          "location": [
+            40.850054,
+            -73.903656
+          ],
+          "description": "Sleeping at home",
+          "location_name": "Home"
+        },
+        {
+          "activity_type": "travel",
+          "time": "05:26",
+          "location": [
+            40.850054,
+            -73.903656
+          ],
+          "description": "Traveling from Home to Unknown Location",
+          "transport_mode": "driving",
+          "is_travel": true,
+          "travel_position": "start",
+          "location_name": "Home"
+        },
+        {
+          "activity_type": "travel",
+          "time": "05:34",
+          "location": [
+            40.812993,
+            -73.907788
+          ],
+          "description": "Traveling from Home to Unknown Location",
+          "transport_mode": "driving",
+          "is_travel": true,
+          "travel_position": "end",
+          "location_name": "Unknown Location"
+        },
+        {
+          "activity_type": "commuting",
+          "time": "05:34",
+          "location": [
+            40.812993,
+            -73.907788
+          ],
+          "description": "Commute from home to work using public transportation.",
+          "location_name": "Workplace"
+        },
+        {
+          "activity_type": "work",
+          "time": "05:46",
+          "location": [
+            40.812993,
+            -73.907788
+          ],
+          "description": "Work on financial reports and attend meetings at the office.",
+          "location_name": "Workplace"
+        },
+        {
+          "activity_type": "travel",
+          "time": "12:06",
+          "location": [
+            40.812993,
+            -73.907788
+          ],
+          "description": "Traveling from Workplace to Unknown Location",
+          "transport_mode": "driving",
+          "is_travel": true,
+          "travel_position": "start",
+          "location_name": "Workplace"
+        },
+        {
+          "activity_type": "travel",
+          "time": "12:07",
+          "location": [
+            40.8119099,
+            -73.90969969999999
+          ],
+          "description": "Traveling from Workplace to Unknown Location",
+          "transport_mode": "driving",
+          "is_travel": true,
+          "travel_position": "end",
+          "location_name": "Unknown Location"
+        },
+        {
+          "activity_type": "dining",
+          "time": "12:40",
+          "location": [
+            40.8119099,
+            -73.90969969999999
+          ],
+          "description": "Lunch at a nearby restaurant during work break.",
+          "location_name": "Mexicocina Mezcaleria"
+        },
+        {
+          "activity_type": "travel",
+          "time": "13:23",
+          "location": [
+            40.8119099,
+            -73.90969969999999
+          ],
+          "description": "Traveling from Mexicocina Mezcaleria to Unknown Location",
+          "transport_mode": "driving",
+          "is_travel": true,
+          "travel_position": "start",
+          "location_name": "Mexicocina Mezcaleria"
+        },
+        {
+          "activity_type": "travel",
+          "time": "13:24",
+          "location": [
+            40.81071572705551,
+            -73.9123445370512
+          ],
+          "description": "Traveling from Mexicocina Mezcaleria to Unknown Location",
+          "transport_mode": "driving",
+          "is_travel": true,
+          "travel_position": "end",
+          "location_name": "Unknown Location"
+        },
+        {
+          "activity_type": "commuting",
+          "time": "13:24",
+          "location": [
+            40.81071572705551,
+            -73.9123445370512
+          ],
+          "description": "Travel back to the office for a quick return.",
+          "location_name": "Nearby location"
+        },
+        {
+          "activity_type": "travel",
+          "time": "13:29",
+          "location": [
+            40.81071572705551,
+            -73.9123445370512
+          ],
+          "description": "Traveling from Nearby location to Workplace",
+          "transport_mode": "driving",
+          "is_travel": true,
+          "travel_position": "start",
+          "location_name": "Nearby location"
+        },
+        {
+          "activity_type": "travel",
+          "time": "13:30",
+          "location": [
+            40.812993,
+            -73.907788
+          ],
+          "description": "Traveling from Nearby location to Workplace",
+          "transport_mode": "driving",
+          "is_travel": true,
+          "travel_position": "end",
+          "location_name": "Workplace"
+        },
+        {
+          "activity_type": "work",
+          "time": "13:30",
+          "location": [
+            40.812993,
+            -73.907788
+          ],
+          "description": "Meet clients and finish remaining office tasks.",
+          "location_name": "Workplace"
+        },
+        {
+          "activity_type": "travel",
+          "time": "15:32",
+          "location": [
+            40.812993,
+            -73.907788
+          ],
+          "description": "Traveling from Workplace to Home",
+          "transport_mode": "driving",
+          "is_travel": true,
+          "travel_position": "start",
+          "location_name": "Workplace"
+        },
+        {
+          "activity_type": "travel",
+          "time": "15:40",
+          "location": [
+            40.850054,
+            -73.903656
+          ],
+          "description": "Traveling from Workplace to Home",
+          "transport_mode": "driving",
+          "is_travel": true,
+          "travel_position": "end",
+          "location_name": "Home"
+        },
+        {
+          "activity_type": "commuting",
+          "time": "15:40",
+          "location": [
+            40.850054,
+            -73.903656
+          ],
+          "description": "Travel back home from work.",
+          "location_name": "Home"
+        },
+        {
+          "activity_type": "home",
+          "time": "16:02",
+          "location": [
+            40.850054,
+            -73.903656
+          ],
+          "description": "Relaxing at home, preparing dinner, and personal time.",
+          "location_name": "Home"
+        },
+        {
+          "activity_type": "sleep",
+          "time": "23:00",
+          "location": [
+            40.850054,
+            -73.903656
+          ],
+          "description": "Sleeping at home",
+          "location_name": "Home"
+        }
+      ]
+    },
+    {
+      "date": "2025-02-04",
+      "day_of_week": "Tuesday",
+      "activities": [
+        {
+          "activity_type": "work",
+          "start_time": "01:23",
+          "end_time": "03:00",
+          "description": "Attend a client meeting discussing financial strategy and planning.",
+          "location_type": "workplace",
+          "location_name": "Workplace",
+          "location": [
+            40.812993,
+            -73.907788
+          ],
+          "timestamp": "01:23"
+        },
+        {
+          "activity_type": "travel",
+          "start_time": "03:00",
+          "end_time": "03:08",
+          "location": [
+            40.850054,
+            -73.903656
+          ],
+          "description": "Traveling from Workplace to Unknown Location",
+          "transport_mode": "driving",
+          "from_location": [
+            40.812993,
+            -73.907788
+          ],
+          "to_location": [
+            40.850054,
+            -73.903656
+          ],
+          "from_name": "Workplace",
+          "to_name": "Unknown Location"
+        },
+        {
+          "activity_type": "sleep",
+          "start_time": "01:23",
+          "end_time": "27:00",
+          "description": "Sleeping at home",
+          "location_type": "home",
+          "location_name": "Home",
+          "location": [
+            40.850054,
+            -73.903656
+          ],
+          "timestamp": "03:08"
+        },
+        {
+          "activity_type": "sleep",
+          "start_time": "03:00",
+          "end_time": "01:23",
+          "description": "Sleeping at home",
+          "location_type": "home",
+          "location_name": "Home",
+          "location": [
+            40.850054,
+            -73.903656
+          ],
+          "timestamp": "03:00"
+        },
+        {
+          "activity_type": "travel",
+          "start_time": "01:23",
+          "end_time": "01:31",
+          "location": [
+            40.812993,
+            -73.907788
+          ],
+          "description": "Traveling from Home to Workplace",
+          "transport_mode": "driving",
+          "from_location": [
+            40.850054,
+            -73.903656
+          ],
+          "to_location": [
+            40.812993,
+            -73.907788
+          ],
+          "from_name": "Home",
+          "to_name": "Workplace"
+        },
+        {
+          "activity_type": "commuting",
+          "start_time": "03:00",
+          "end_time": "03:54",
+          "description": "Commute back home, covering a distance of 5.86 km.",
+          "location_type": "transit_station",
+          "location_name": "Workplace",
+          "location": [
+            40.812993,
+            -73.907788
+          ],
+          "timestamp": "03:00"
+        },
+        {
+          "activity_type": "travel",
+          "start_time": "03:54",
+          "end_time": "04:02",
+          "location": [
+            40.850054,
+            -73.903656
+          ],
+          "description": "Traveling from Workplace to Home",
+          "transport_mode": "driving",
+          "from_location": [
+            40.812993,
+            -73.907788
+          ],
+          "to_location": [
+            40.850054,
+            -73.903656
+          ],
+          "from_name": "Workplace",
+          "to_name": "Home"
+        },
+        {
+          "activity_type": "leisure",
+          "start_time": "03:54",
+          "end_time": "11:00",
+          "description": "Relax at home, watching TV and reading.",
+          "location_type": "home",
+          "location_name": "Home",
+          "location": [
+            40.850054,
+            -73.903656
+          ],
+          "timestamp": "04:02"
+        },
+        {
+          "activity_type": "travel",
+          "start_time": "11:00",
+          "end_time": "11:08",
+          "location": [
+            40.812993,
+            -73.907788
+          ],
+          "description": "Traveling from Home to Workplace",
+          "transport_mode": "driving",
+          "from_location": [
+            40.850054,
+            -73.903656
+          ],
+          "to_location": [
+            40.812993,
+            -73.907788
+          ],
+          "from_name": "Home",
+          "to_name": "Workplace"
+        },
+        {
+          "activity_type": "work",
+          "start_time": "11:00",
+          "end_time": "12:06",
+          "description": "Engage in work activities including financial analysis and meetings at the office.",
+          "location_type": "workplace",
+          "location_name": "Workplace",
+          "location": [
+            40.812993,
+            -73.907788
+          ],
+          "timestamp": "11:08"
+        },
+        {
+          "activity_type": "travel",
+          "start_time": "12:06",
+          "end_time": "12:07",
+          "location": [
+            40.8119099,
+            -73.90969969999999
+          ],
+          "description": "Traveling from Workplace to Unknown Location",
+          "transport_mode": "driving",
+          "from_location": [
+            40.812993,
+            -73.907788
+          ],
+          "to_location": [
+            40.8119099,
+            -73.90969969999999
+          ],
+          "from_name": "Workplace",
+          "to_name": "Unknown Location"
+        },
+        {
+          "activity_type": "dining",
+          "start_time": "12:06",
+          "end_time": "12:40",
+          "description": "Lunch break at a nearby restaurant.",
+          "location_type": "restaurant",
+          "location_name": "Mexicocina Mezcaleria",
+          "location": [
+            40.8119099,
+            -73.90969969999999
+          ],
+          "timestamp": "12:07"
+        },
+        {
+          "activity_type": "travel",
+          "start_time": "12:40",
+          "end_time": "12:44",
+          "location": [
+            40.8008114367193,
+            -73.89630136475748
+          ],
+          "description": "Traveling from Mexicocina Mezcaleria to Unknown Location",
+          "transport_mode": "driving",
+          "from_location": [
+            40.8119099,
+            -73.90969969999999
+          ],
+          "to_location": [
+            40.8008114367193,
+            -73.89630136475748
+          ],
+          "from_name": "Mexicocina Mezcaleria",
+          "to_name": "Unknown Location"
+        },
+        {
+          "activity_type": "commuting",
+          "start_time": "12:40",
+          "end_time": "01:23",
+          "description": "Commute to a client meeting, traveling for 34 minutes.",
+          "location_type": "transit_station",
+          "location_name": "Nearby location",
+          "location": [
+            40.8008114367193,
+            -73.89630136475748
+          ],
+          "timestamp": "12:44"
+        }
+      ],
+      "trajectory": [
+        {
+          "activity_type": "work",
+          "time": "01:23",
+          "location": [
+            40.812993,
+            -73.907788
+          ],
+          "description": "Attend a client meeting discussing financial strategy and planning.",
+          "location_name": "Workplace"
+        },
+        {
+          "activity_type": "travel",
+          "time": "03:00",
+          "location": [
+            40.812993,
+            -73.907788
+          ],
+          "description": "Traveling from Workplace to Unknown Location",
+          "transport_mode": "driving",
+          "is_travel": true,
+          "travel_position": "start",
+          "location_name": "Workplace"
+        },
+        {
+          "activity_type": "travel",
+          "time": "03:08",
+          "location": [
+            40.850054,
+            -73.903656
+          ],
+          "description": "Traveling from Workplace to Unknown Location",
+          "transport_mode": "driving",
+          "is_travel": true,
+          "travel_position": "end",
+          "location_name": "Unknown Location"
+        },
+        {
+          "activity_type": "sleep",
+          "time": "03:08",
+          "location": [
+            40.850054,
+            -73.903656
+          ],
+          "description": "Sleeping at home",
+          "location_name": "Home"
+        },
+        {
+          "activity_type": "sleep",
+          "time": "03:00",
+          "location": [
+            40.850054,
+            -73.903656
+          ],
+          "description": "Sleeping at home",
+          "location_name": "Home"
+        },
+        {
+          "activity_type": "travel",
+          "time": "01:23",
+          "location": [
+            40.850054,
+            -73.903656
+          ],
+          "description": "Traveling from Home to Workplace",
+          "transport_mode": "driving",
+          "is_travel": true,
+          "travel_position": "start",
+          "location_name": "Home"
+        },
+        {
+          "activity_type": "travel",
+          "time": "01:31",
+          "location": [
+            40.812993,
+            -73.907788
+          ],
+          "description": "Traveling from Home to Workplace",
+          "transport_mode": "driving",
+          "is_travel": true,
+          "travel_position": "end",
+          "location_name": "Workplace"
+        },
+        {
+          "activity_type": "commuting",
+          "time": "03:00",
+          "location": [
+            40.812993,
+            -73.907788
+          ],
+          "description": "Commute back home, covering a distance of 5.86 km.",
+          "location_name": "Workplace"
+        },
+        {
+          "activity_type": "travel",
+          "time": "03:54",
+          "location": [
+            40.812993,
+            -73.907788
+          ],
+          "description": "Traveling from Workplace to Home",
+          "transport_mode": "driving",
+          "is_travel": true,
+          "travel_position": "start",
+          "location_name": "Workplace"
+        },
+        {
+          "activity_type": "travel",
+          "time": "04:02",
+          "location": [
+            40.850054,
+            -73.903656
+          ],
+          "description": "Traveling from Workplace to Home",
+          "transport_mode": "driving",
+          "is_travel": true,
+          "travel_position": "end",
+          "location_name": "Home"
+        },
+        {
+          "activity_type": "leisure",
+          "time": "04:02",
+          "location": [
+            40.850054,
+            -73.903656
+          ],
+          "description": "Relax at home, watching TV and reading.",
+          "location_name": "Home"
+        },
+        {
+          "activity_type": "travel",
+          "time": "11:00",
+          "location": [
+            40.850054,
+            -73.903656
+          ],
+          "description": "Traveling from Home to Workplace",
+          "transport_mode": "driving",
+          "is_travel": true,
+          "travel_position": "start",
+          "location_name": "Home"
+        },
+        {
+          "activity_type": "travel",
+          "time": "11:08",
+          "location": [
+            40.812993,
+            -73.907788
+          ],
+          "description": "Traveling from Home to Workplace",
+          "transport_mode": "driving",
+          "is_travel": true,
+          "travel_position": "end",
+          "location_name": "Workplace"
+        },
+        {
+          "activity_type": "work",
+          "time": "11:08",
+          "location": [
+            40.812993,
+            -73.907788
+          ],
+          "description": "Engage in work activities including financial analysis and meetings at the office.",
+          "location_name": "Workplace"
+        },
+        {
+          "activity_type": "travel",
+          "time": "12:06",
+          "location": [
+            40.812993,
+            -73.907788
+          ],
+          "description": "Traveling from Workplace to Unknown Location",
+          "transport_mode": "driving",
+          "is_travel": true,
+          "travel_position": "start",
+          "location_name": "Workplace"
+        },
+        {
+          "activity_type": "travel",
+          "time": "12:07",
+          "location": [
+            40.8119099,
+            -73.90969969999999
+          ],
+          "description": "Traveling from Workplace to Unknown Location",
+          "transport_mode": "driving",
+          "is_travel": true,
+          "travel_position": "end",
+          "location_name": "Unknown Location"
+        },
+        {
+          "activity_type": "dining",
+          "time": "12:07",
+          "location": [
+            40.8119099,
+            -73.90969969999999
+          ],
+          "description": "Lunch break at a nearby restaurant.",
+          "location_name": "Mexicocina Mezcaleria"
+        },
+        {
+          "activity_type": "travel",
+          "time": "12:40",
+          "location": [
+            40.8119099,
+            -73.90969969999999
+          ],
+          "description": "Traveling from Mexicocina Mezcaleria to Unknown Location",
+          "transport_mode": "driving",
+          "is_travel": true,
+          "travel_position": "start",
+          "location_name": "Mexicocina Mezcaleria"
+        },
+        {
+          "activity_type": "travel",
+          "time": "12:44",
+          "location": [
+            40.8008114367193,
+            -73.89630136475748
+          ],
+          "description": "Traveling from Mexicocina Mezcaleria to Unknown Location",
+          "transport_mode": "driving",
+          "is_travel": true,
+          "travel_position": "end",
+          "location_name": "Unknown Location"
+        },
+        {
+          "activity_type": "commuting",
+          "time": "12:44",
+          "location": [
+            40.8008114367193,
+            -73.89630136475748
+          ],
+          "description": "Commute to a client meeting, traveling for 34 minutes.",
+          "location_name": "Nearby location"
+        }
+      ]
+    },
+    {
+      "date": "2025-02-05",
+      "day_of_week": "Wednesday",
+      "activities": [
+        {
+          "activity_type": "sleep",
+          "start_time": "03:00",
+          "end_time": "05:26",
+          "description": "Sleeping at home",
+          "location_type": "home",
+          "location_name": "Home",
+          "location": [
+            40.850054,
+            -73.903656
+          ],
+          "timestamp": "03:00"
+        },
+        {
+          "activity_type": "home",
+          "start_time": "05:26",
+          "end_time": "12:06",
+          "description": "Morning routine and home activities, including light work and relaxation.",
+          "location_type": "home",
+          "location_name": "Home",
+          "location": [
+            40.850054,
+            -73.903656
+          ],
+          "timestamp": "05:26"
+        },
+        {
+          "activity_type": "travel",
+          "start_time": "12:06",
+          "end_time": "12:14",
+          "location": [
+            40.812993,
+            -73.907788
+          ],
+          "description": "Traveling from Home to Unknown Location",
+          "transport_mode": "driving",
+          "from_location": [
+            40.850054,
+            -73.903656
+          ],
+          "to_location": [
+            40.812993,
+            -73.907788
+          ],
+          "from_name": "Home",
+          "to_name": "Unknown Location"
+        },
+        {
+          "activity_type": "commuting",
+          "start_time": "12:06",
+          "end_time": "12:40",
+          "description": "Travel from home to workplace, including 34 minutes of travel.",
+          "location_type": "transit_station",
+          "location_name": "Workplace",
+          "location": [
+            40.812993,
+            -73.907788
+          ],
+          "timestamp": "12:14"
+        },
+        {
+          "activity_type": "work",
+          "start_time": "12:40",
+          "end_time": "13:52",
+          "description": "Office work and meetings at the workplace.",
+          "location_type": "workplace",
+          "location_name": "Workplace",
+          "location": [
+            40.812993,
+            -73.907788
+          ],
+          "timestamp": "12:40"
+        },
+        {
+          "activity_type": "dining",
+          "start_time": "13:52",
+          "end_time": "14:07",
+          "description": "Lunch break, dining at a nearby restaurant.",
+          "location_type": "restaurant",
+          "location_name": "The Original Venice Restaurant",
+          "location": [
+            40.8127068,
+            -73.907438
+          ],
+          "timestamp": "13:52"
+        },
+        {
+          "activity_type": "travel",
+          "start_time": "14:07",
+          "end_time": "14:08",
+          "location": [
+            40.81290696131788,
+            -73.90933754425929
+          ],
+          "description": "Traveling from The Original Venice Restaurant to Unknown Location",
+          "transport_mode": "driving",
+          "from_location": [
+            40.8127068,
+            -73.907438
+          ],
+          "to_location": [
+            40.81290696131788,
+            -73.90933754425929
+          ],
+          "from_name": "The Original Venice Restaurant",
+          "to_name": "Unknown Location"
+        },
+        {
+          "activity_type": "commuting",
+          "start_time": "14:07",
+          "end_time": "14:22",
+          "description": "Travel back home from workplace.",
+          "location_type": "transit_station",
+          "location_name": "Nearby location",
+          "location": [
+            40.81290696131788,
+            -73.90933754425929
+          ],
+          "timestamp": "14:08"
+        },
+        {
+          "activity_type": "travel",
+          "start_time": "14:22",
+          "end_time": "14:30",
+          "location": [
+            40.850054,
+            -73.903656
+          ],
+          "description": "Traveling from Nearby location to Home",
+          "transport_mode": "driving",
+          "from_location": [
+            40.81290696131788,
+            -73.90933754425929
+          ],
+          "to_location": [
+            40.850054,
+            -73.903656
+          ],
+          "from_name": "Nearby location",
+          "to_name": "Home"
+        },
+        {
+          "activity_type": "home",
+          "start_time": "14:22",
+          "end_time": "15:01",
+          "description": "Home activities, including light tasks and personal time.",
+          "location_type": "home",
+          "location_name": "Home",
+          "location": [
+            40.850054,
+            -73.903656
+          ],
+          "timestamp": "14:30"
+        },
+        {
+          "activity_type": "recreation",
+          "start_time": "15:01",
+          "end_time": "16:02",
+          "description": "Engage in recreational activities like reading or hobbies.",
+          "location_type": "home",
+          "location_name": "Home",
+          "location": [
+            40.850054,
+            -73.903656
+          ],
+          "timestamp": "15:01"
+        },
+        {
+          "activity_type": "home",
+          "start_time": "16:02",
+          "end_time": "03:00",
+          "description": "Evening home activities, preparing for bed, winding down.",
+          "location_type": "home",
+          "location_name": "Home",
+          "location": [
+            40.850054,
+            -73.903656
+          ],
+          "timestamp": "16:02"
+        }
+      ],
+      "trajectory": [
+        {
+          "activity_type": "sleep",
+          "time": "03:00",
+          "location": [
+            40.850054,
+            -73.903656
+          ],
+          "description": "Sleeping at home",
+          "location_name": "Home"
+        },
+        {
+          "activity_type": "home",
+          "time": "05:26",
+          "location": [
+            40.850054,
+            -73.903656
+          ],
+          "description": "Morning routine and home activities, including light work and relaxation.",
+          "location_name": "Home"
+        },
+        {
+          "activity_type": "travel",
+          "time": "12:06",
+          "location": [
+            40.850054,
+            -73.903656
+          ],
+          "description": "Traveling from Home to Unknown Location",
+          "transport_mode": "driving",
+          "is_travel": true,
+          "travel_position": "start",
+          "location_name": "Home"
+        },
+        {
+          "activity_type": "travel",
+          "time": "12:14",
+          "location": [
+            40.812993,
+            -73.907788
+          ],
+          "description": "Traveling from Home to Unknown Location",
+          "transport_mode": "driving",
+          "is_travel": true,
+          "travel_position": "end",
+          "location_name": "Unknown Location"
+        },
+        {
+          "activity_type": "commuting",
+          "time": "12:14",
+          "location": [
+            40.812993,
+            -73.907788
+          ],
+          "description": "Travel from home to workplace, including 34 minutes of travel.",
+          "location_name": "Workplace"
+        },
+        {
+          "activity_type": "work",
+          "time": "12:40",
+          "location": [
+            40.812993,
+            -73.907788
+          ],
+          "description": "Office work and meetings at the workplace.",
+          "location_name": "Workplace"
+        },
+        {
+          "activity_type": "dining",
+          "time": "13:52",
+          "location": [
+            40.8127068,
+            -73.907438
+          ],
+          "description": "Lunch break, dining at a nearby restaurant.",
+          "location_name": "The Original Venice Restaurant"
+        },
+        {
+          "activity_type": "travel",
+          "time": "14:07",
+          "location": [
+            40.8127068,
+            -73.907438
+          ],
+          "description": "Traveling from The Original Venice Restaurant to Unknown Location",
+          "transport_mode": "driving",
+          "is_travel": true,
+          "travel_position": "start",
+          "location_name": "The Original Venice Restaurant"
+        },
+        {
+          "activity_type": "travel",
+          "time": "14:08",
+          "location": [
+            40.81290696131788,
+            -73.90933754425929
+          ],
+          "description": "Traveling from The Original Venice Restaurant to Unknown Location",
+          "transport_mode": "driving",
+          "is_travel": true,
+          "travel_position": "end",
+          "location_name": "Unknown Location"
+        },
+        {
+          "activity_type": "commuting",
+          "time": "14:08",
+          "location": [
+            40.81290696131788,
+            -73.90933754425929
+          ],
+          "description": "Travel back home from workplace.",
+          "location_name": "Nearby location"
+        },
+        {
+          "activity_type": "travel",
+          "time": "14:22",
+          "location": [
+            40.81290696131788,
+            -73.90933754425929
+          ],
+          "description": "Traveling from Nearby location to Home",
+          "transport_mode": "driving",
+          "is_travel": true,
+          "travel_position": "start",
+          "location_name": "Nearby location"
+        },
+        {
+          "activity_type": "travel",
+          "time": "14:30",
+          "location": [
+            40.850054,
+            -73.903656
+          ],
+          "description": "Traveling from Nearby location to Home",
+          "transport_mode": "driving",
+          "is_travel": true,
+          "travel_position": "end",
+          "location_name": "Home"
+        },
+        {
+          "activity_type": "home",
+          "time": "14:30",
+          "location": [
+            40.850054,
+            -73.903656
+          ],
+          "description": "Home activities, including light tasks and personal time.",
+          "location_name": "Home"
+        },
+        {
+          "activity_type": "recreation",
+          "time": "15:01",
+          "location": [
+            40.850054,
+            -73.903656
+          ],
+          "description": "Engage in recreational activities like reading or hobbies.",
+          "location_name": "Home"
+        },
+        {
+          "activity_type": "home",
+          "time": "16:02",
+          "location": [
+            40.850054,
+            -73.903656
+          ],
+          "description": "Evening home activities, preparing for bed, winding down.",
+          "location_name": "Home"
+        }
+      ]
+    }
+  ],
+  "statistics": {
+    "location_frequency": {
+      "Home": 12,
+      "Workplace": 8,
+      "Mexicocina Mezcaleria": 2,
+      "Nearby location": 3,
+      "The Original Venice Restaurant": 1
+    },
+    "activity_type_frequency": {
+      "sleep": 5,
+      "commuting": 7,
+      "work": 5,
+      "dining": 3,
+      "home": 4,
+      "leisure": 1,
+      "recreation": 1
+    },
+    "time_preference": {
+      "sleep_03": 4,
+      "commuting_05": 1,
+      "work_05": 1,
+      "dining_12": 2,
+      "commuting_13": 1,
+      "work_13": 1,
+      "commuting_15": 1,
+      "home_16": 2,
+      "sleep_23": 1,
+      "work_01": 1,
+      "commuting_03": 1,
+      "leisure_04": 1,
+      "work_11": 1,
+      "commuting_12": 2,
+      "home_05": 1,
+      "work_12": 1,
+      "dining_13": 1,
+      "commuting_14": 1,
+      "home_14": 1,
+      "recreation_15": 1
+    }
+  }
+}

@@ -8,6 +8,7 @@ import re
 import openai
 import random
 import datetime
+import pandas as pd
 from config import (
     LLM_MODEL, 
     LLM_TEMPERATURE, 
@@ -21,7 +22,7 @@ from config import (
     BATCH_PROCESSING,
     BATCH_SIZE
 )
-from utils import get_day_of_week, normalize_transport_mode, cached
+from utils import get_day_of_week, normalize_transport_mode, cached, time_to_minutes
 
 # Create OpenAI client
 client = openai.OpenAI(
@@ -42,13 +43,14 @@ class Activity:
         self.activity_queue = []  # For batch processing of activities
     
     @cached
-    def analyze_memory_patterns(self, memory):
+    def analyze_memory_patterns(self, memory, persona=None):
         """
         Analyze the activity patterns in the historical memory.
         Try to use LLM summary first, fallback to basic statistics if LLM fails.
         
         Args:
             memory: Memory object, containing historical activity records
+            persona: Optional Persona object for additional context
             
         Returns:
             dict: Dictionary containing activity pattern analysis results
@@ -56,21 +58,28 @@ class Activity:
         patterns = {
             'summaries': [],  # LLM generated summaries
             'frequent_locations': {},  # Frequent locations (fallback)
-            'time_preferences': {}     # Time preferences (fallback)
+            'time_preferences': {},    # Time preferences (fallback)
+            'travel_times': {},        # Travel times for different activities
+            'activity_durations': {},  # Duration of different activities
+            'distances': {},           # Travel distances
+            'transport_modes': {}      # Transport mode preferences
         }
         
         # Try LLM summary for each day
         for day in memory.days:
+            # 过滤掉凌晨3点的数据
+            filtered_activities = [activity for activity in day['activities'] if activity.get('start_time') != '03:00']
+            day['activities'] = filtered_activities
             try:
-                summary = self.generate_activities_summary(day['activities'])
+                summary = self._generate_activities_summary(filtered_activities)
                 if summary and not summary.startswith("Unable to generate"):
                     patterns['summaries'].append(summary)
-                    continue
             except Exception as e:
                 print(f"LLM summary generation failed: {e}")
-            
-            # If LLM failed, collect statistics
-            for activity in day['activities']:
+
+            # 无论LLM是否成功,都收集统计信息
+            for activity in filtered_activities:
+                # 收集位置频率
                 location = activity.get('location_type', 'unknown')
                 if location in patterns['frequent_locations']:
                     patterns['frequent_locations'][location] += 1
@@ -79,11 +88,73 @@ class Activity:
                     
                 activity_type = activity.get('activity_type')
                 start_time = activity.get('start_time')
+                
+                # 收集时间偏好
                 if activity_type not in patterns['time_preferences']:
                     patterns['time_preferences'][activity_type] = []
                 patterns['time_preferences'][activity_type].append(start_time)
+                
+                # 收集行程时间
+                travel_time = activity.get('travel_time', 0)
+                if activity_type not in patterns['travel_times']:
+                    patterns['travel_times'][activity_type] = []
+                patterns['travel_times'][activity_type].append(travel_time)
+                
+                # 收集活动持续时间
+                duration = activity.get('activity_duration', 0)
+                if activity_type not in patterns['activity_durations']:
+                    patterns['activity_durations'][activity_type] = []
+                patterns['activity_durations'][activity_type].append(duration)
+                
+                # 收集距离信息
+                distance = activity.get('distance', 0)
+                if activity_type not in patterns['distances']:
+                    patterns['distances'][activity_type] = []
+                # 只添加非负的距离值
+                if distance >= 0:
+                    patterns['distances'][activity_type].append(distance)
+                
+                # 收集交通方式
+                mode = activity.get('transport_mode', 'unknown')
+                # 只记录非None的交通方式
+                if mode is not None and mode != 'unknown':
+                    if mode not in patterns['transport_modes']:
+                        patterns['transport_modes'][mode] = 1
+                    else:
+                        patterns['transport_modes'][mode] += 1
         
         return patterns
+
+    def _generate_activities_summary(self, activities, persona=None):
+        """
+        Generate a summary of activities using LLM.
+        
+        Args:
+            activities: List of activities
+            persona: Optional Persona object for additional context
+            
+        Returns:
+            str: Summary text in English
+        """
+        # Convert activities to JSON string
+        activities_json = json.dumps(activities, ensure_ascii=False)
+        
+        try:
+            response = client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {"role": "system", "content": "You are a helpful assistant."},
+                    {"role": "user", "content": f"Please summarize the following activities for the day in a concise, coherent paragraph: {activities_json}"}
+                ],
+                max_tokens=150,
+                temperature=self.temperature
+            )
+            
+            return response.choices[0].message.content.strip()
+            
+        except Exception as e:
+            print(f"Error generating LLM summary: {e}")
+            return "Unable to generate activity summary."
     
     @cached
     def generate_daily_schedule(self, persona, date):
@@ -103,14 +174,28 @@ class Activity:
         # Analyze historical memory patterns (if any)
         memory_patterns = None
         if hasattr(persona, 'memory') and persona.memory and persona.memory.days:
-            memory_patterns = self.analyze_memory_patterns(persona.memory)
+            memory_patterns = self.analyze_memory_patterns(persona.memory, persona)
         
-        # Build cache key
-        persona_key = f"{persona.id}:{persona.age}:{persona.gender}:{persona.income}"
+        # Build cache key with more demographic details
+        persona_key = f"{persona.id}:{persona.age}:{persona.gender}:{persona.education}:{persona.occupation}:{persona.race}:{persona.home}:{persona.work}"
+
         cache_key = f"daily_schedule:{persona_key}:{date}:{day_of_week}"
         
+        # Check if it's a weekend, get weekend/weekday activity preferences from history
+        is_weekend = day_of_week in ['Saturday', 'Sunday']
+        
         # Generate schedule
-        activities = self._generate_activities_with_llm(persona, date, day_of_week, memory_patterns)
+        activities = self._generate_activities_with_llm(
+            persona, 
+            date, 
+            day_of_week, 
+            memory_patterns, 
+            is_weekend=is_weekend,
+        )
+
+        print("---------------------------------------------------")
+        print(activities)
+        print("---------------------------------------------------")
 
         # Refine and potentially decompose activities
         refined_activities = []
@@ -131,108 +216,68 @@ class Activity:
         
         return validated_activities
         
-    def _generate_activities_with_llm(self, persona, date, day_of_week, memory_patterns=None):
+    def _generate_activities_with_llm(self, persona, date, day_of_week, memory_patterns=None, is_weekend=False):
         """Generate activities using LLM, with error handling and retry mechanism"""
-        # Prepare the prompt, adding memory pattern information
+                
         prompt = ACTIVITY_GENERATION_PROMPT.format(
             gender=persona.gender,
             age=persona.age,
-            income=persona.income,
-            consumption=persona.consumption,
+            race=persona.race,
             education=persona.education,
+            occupation=persona.occupation,
             day_of_week=day_of_week,
             date=date,
             home_location=persona.home,
-            work_location=persona.work
+            work_location=persona.work,
+            memory_patterns=memory_patterns
         )
-        
-        # Add historical pattern prompts
-        if memory_patterns:
-            prompt += "\nBased on historical patterns, this person tends to:"
+
+        try:
+            # Generate activities using LLM
+            response = client.chat.completions.create(
+                model=self.model,
+                messages=[{"role": "user", "content": prompt}],
+                temperature=self.temperature,
+                max_tokens=self.max_tokens
+            )
             
-            # Add frequently visited places
-            if memory_patterns['frequent_locations']:
-                top_locations = sorted(
-                    memory_patterns['frequent_locations'].items(), 
-                    key=lambda x: x[1], 
-                    reverse=True
-                )[:3]
-                prompt += "\n- Visit these locations frequently: " + ", ".join([f"{loc[0]}" for loc in top_locations])
+            # Extract activities from the response
+            activities = self._extract_activities_from_text(response.choices[0].message.content)
+
+            return activities
             
-            # Add time preferences
-            if memory_patterns['time_preferences']:
-                for activity_type, times in memory_patterns['time_preferences'].items():
-                    if len(times) >= 2:  # Only add if we have enough data
-                        average_time = sum([int(t.split(':')[0]) for t in times]) / len(times)
-                        prompt += f"\n- Start {activity_type} activities around {int(average_time)}:00"
+        except Exception as e:
+            print(f"Error generating activities: {e}")
+            return self._generate_default_activities(persona)
         
-        max_retries = 2  # 增加重试次数
-        for attempt in range(max_retries + 1):
-            try:
-                # Generate activities using LLM
-                response = client.chat.completions.create(
-                    model=self.model,
-                    messages=[{"role": "user", "content": prompt}],
-                    temperature=self.temperature,
-                    max_tokens=self.max_tokens
-                )
-                
-                # Extract activities from the response
-                activities = self._extract_activities_from_text(response.choices[0].message.content)
-                
-                # 验证时间连续性
-                if activities and self._validate_time_continuity(activities):
-                    return activities
-                    
-                # 如果时间不连续，但还有重试机会
-                if attempt < max_retries:
-                    # 添加更明确的错误提示到提示中
-                    error_details = self._get_time_continuity_errors(activities)
-                    prompt += f"\n\nPrevious attempt had time continuity issues: {error_details}\n"
-                    prompt += "Please ensure EXACT time continuity between activities.\n"
-                    continue
-                    
-                # 最后一次尝试失败，返回默认活动
-                print("Failed to generate time-continuous activities, using default activities")
-                return self._generate_default_activities(persona)
-                
-            except Exception as e:
-                print(f"Error generating activities: {e}")
-                if attempt < max_retries:
-                    print(f"Retrying... (attempt {attempt + 1}/{max_retries + 1})")
-                    continue
-                
-                # Last retry failed, return default activities
-                print("Error with LLM API, using default activities")
-                return self._generate_default_activities(persona)
     
     def _validate_time_continuity(self, activities):
         """
-        验证活动列表的时间连续性
+        Validate time continuity of activity list
         
         Args:
-            activities: 活动列表
+            activities: List of activities
             
         Returns:
-            bool: 是否时间连续
+            bool: Whether time is continuous
         """
         if not activities:
             return False
             
-        # 按开始时间排序
+        # Sort by start time
         sorted_activities = sorted(activities, key=lambda x: self._format_time(x.get('start_time', '00:00')))
         
-        # 检查第一个活动是否从00:00开始
+        # Check if first activity starts at 03:00
         first_start = self._format_time(sorted_activities[0].get('start_time', ''))
         if first_start != "00:00":
             return False
             
-        # 检查最后一个活动是否在23:59结束
+        # Check if last activity ends at 27:00 (next day 03:00)
         last_end = self._format_time(sorted_activities[-1].get('end_time', ''))
-        if last_end != "23:59":
+        if last_end != "27:00":
             return False
             
-        # 检查每个活动的结束时间是否等于下一个活动的开始时间
+        # Check if each activity's end time equals the next activity's start time
         for i in range(len(sorted_activities) - 1):
             current_end = self._format_time(sorted_activities[i].get('end_time', ''))
             next_start = self._format_time(sorted_activities[i + 1].get('start_time', ''))
@@ -244,13 +289,13 @@ class Activity:
     
     def _get_time_continuity_errors(self, activities):
         """
-        获取时间连续性错误的详细信息
+        Get detailed information about time continuity errors
         
         Args:
-            activities: 活动列表
+            activities: List of activities
             
         Returns:
-            str: 错误描述
+            str: Error description
         """
         if not activities:
             return "No activities generated"
@@ -258,17 +303,17 @@ class Activity:
         errors = []
         sorted_activities = sorted(activities, key=lambda x: self._format_time(x.get('start_time', '00:00')))
         
-        # 检查第一个活动
+        # Check first activity
         first_start = self._format_time(sorted_activities[0].get('start_time', ''))
         if first_start != "00:00":
-            errors.append(f"First activity should start at 00:00, not {first_start}")
+            errors.append(f"First activity should start at 03:00, not {first_start}")
             
-        # 检查最后一个活动
+        # Check last activity
         last_end = self._format_time(sorted_activities[-1].get('end_time', ''))
-        if last_end != "23:59":
-            errors.append(f"Last activity should end at 23:59, not {last_end}")
+        if last_end != "24:00":
+            errors.append(f"Last activity should end at 27:00 (next day 03:00), not {last_end}")
             
-        # 检查活动之间的连续性
+        # Check continuity between activities
         for i in range(len(sorted_activities) - 1):
             current = sorted_activities[i]
             next_act = sorted_activities[i + 1]
@@ -313,13 +358,18 @@ class Activity:
         if not requires_transport:
             return activity
             
+        # Safely get more demographic attributes, if not available use default values
+        education = getattr(persona, 'education', 'unknown')
+        occupation = getattr(persona, 'occupation', 'unknown')
+        race = getattr(persona, 'race', 'unknown')
+        # disability = getattr(persona, 'disability', False)
+        # disability_type = getattr(persona, 'disability_type', None)
+        
         # Build the prompt
         prompt = ACTIVITY_REFINEMENT_PROMPT.format(
             gender=persona.gender,
             age=persona.age,
-            income=persona.income,
-            consumption=persona.consumption,
-            education=persona.education,
+            education=education,
             date=date,
             day_of_week=day_of_week,
             activity_description=activity.get('description', ''),
@@ -332,13 +382,25 @@ class Activity:
             requires_transportation=str(requires_transport).lower()
         )
         
+        # Add more demographic information
+        demographic_info = f"\n\nAdditional demographic information:"
+        demographic_info += f"\n- Occupation: {occupation}"
+        demographic_info += f"\n- Race/ethnicity: {race}"
+        
+        # if disability:
+        #     demographic_info += f"\n- Has disability: Yes"
+        #     if disability_type:
+        #         demographic_info += f" (Type: {disability_type})"
+        
+        prompt += demographic_info
+        
         try:
             # Use LLM to refine the activity
             response = client.chat.completions.create(
                 model=self.model,
                 messages=[{"role": "user", "content": prompt}],
                 temperature=self.temperature,
-                max_tokens=200
+                max_tokens=150
             )
             
             # Extract the refined activity
@@ -407,20 +469,20 @@ class Activity:
             
     def _format_time_after_minutes(self, start_time, minutes):
         """
-        计算给定开始时间后指定分钟数的时间
+        Calculate time after adding specified minutes to a start time
         
         Args:
-            start_time: 开始时间 (HH:MM)
-            minutes: 分钟数
+            start_time: Start time (HH:MM)
+            minutes: Minutes to add
             
         Returns:
-            str: 计算后的时间 (HH:MM)
+            str: Calculated time (HH:MM)
         """
         try:
             start_hour, start_minute = map(int, start_time.split(':'))
             total_minutes = start_hour * 60 + start_minute + minutes
             
-            # 确保不超过23:59
+            # Ensure time doesn't exceed 23:59
             if total_minutes >= 24 * 60:
                 total_minutes = 23 * 60 + 59
                 
@@ -446,27 +508,27 @@ class Activity:
             return []
             
         # First sort by start time to ensure proper time sequence
-        sorted_activities = sorted(activities, key=lambda x: self._format_time(x.get('start_time', '00:00')))
+        sorted_activities = sorted(activities, key=lambda x: self._format_time(x.get('start_time', '03:00')))
         
-        # 添加睡眠时间并确保时间连续性
+        # Add sleep time and ensure time continuity
         final_activities = []
-        last_end_time = "00:00"
+        last_end_time = "03:00"
         
-        # 如果第一个活动不是从00:00开始，添加睡眠时间
-        if sorted_activities and self._format_time(sorted_activities[0].get('start_time')) != "00:00":
+        # If first activity doesn't start at 03:00, add sleep time
+        if sorted_activities and self._format_time(sorted_activities[0].get('start_time')) != "03:00":
             final_activities.append({
                 'activity_type': 'sleep',
-                'start_time': '00:00',
+                'start_time': '03:00',
                 'end_time': sorted_activities[0].get('start_time'),
                 'description': 'Sleeping at home',
                 'location_type': 'home'
             })
         
-        # 预处理：调整travel活动的时间
+        # Preprocessing: Adjust travel activity times
         processed_activities = []
         for i, activity in enumerate(sorted_activities):
             if activity['activity_type'].lower() == 'travel':
-                # 查找下一个非travel活动
+                # Find next non-travel activity
                 next_activity = None
                 for next_act in sorted_activities[i+1:]:
                     if next_act['activity_type'].lower() != 'travel':
@@ -474,13 +536,13 @@ class Activity:
                         break
                 
                 if next_activity:
-                    # 调整travel活动的结束时间为下一个活动的开始时间
+                    # Adjust travel activity end time to next activity's start time
                     activity = activity.copy()
                     activity['end_time'] = next_activity['start_time']
             
             processed_activities.append(activity)
         
-        # 使用处理后的活动列表
+        # Use processed activity list
         sorted_activities = processed_activities
         
         for i, activity in enumerate(sorted_activities):
@@ -496,15 +558,15 @@ class Activity:
                 start_time = self._format_time(activity['start_time'])
                 end_time = self._format_time(activity['end_time'])
                 
-                # 确保结束时间不超过23:59
-                if end_time > "23:59":
-                    end_time = "23:59"
+                # Ensure end time doesn't exceed next day 03:00
+                if end_time > "27:00":  # Convert to 24-hour format's 03:00
+                    end_time = "27:00"  # Equivalent to next day 03:00
                     
             except:
                 # Skip activities with invalid times
                 continue
             
-            # 创建更新后的活动
+            # Create updated activity
             updated_activity = {
                 **activity,
                 'activity_type': activity_type,
@@ -512,11 +574,11 @@ class Activity:
                 'end_time': end_time
             }
             
-            # 检查是否需要填补时间空隙
+            # Check if time gap needs to be filled
             if start_time > last_end_time:
-                # 添加睡眠时间（凌晨或晚上）
-                if (int(start_time.split(':')[0]) < 6 or  # 凌晨时间
-                    int(last_end_time.split(':')[0]) >= 22):  # 晚上时间
+                # Add sleep time (early morning or night)
+                if (int(start_time.split(':')[0]) < 8 or  # Morning before 8 AM
+                    int(last_end_time.split(':')[0]) >= 22):  # Night after 10 PM
                     gap_activity = {
                         'activity_type': 'sleep',
                         'start_time': last_end_time,
@@ -526,53 +588,53 @@ class Activity:
                     }
                     final_activities.append(gap_activity)
             
-            # 检查与最后一个活动的重叠
+            # Check overlap with last activity
             if final_activities:
                 last_activity = final_activities[-1]
                 if start_time < last_activity['end_time']:
-                    # 处理重叠情况
+                    # Handle overlap
                     if activity_type == last_activity['activity_type']:
-                        # 如果是相同类型的活动，合并它们
+                        # If same activity type, merge them
                         last_activity['end_time'] = max(last_activity['end_time'], end_time)
                         continue
                     elif activity_type == 'travel' or last_activity['activity_type'] == 'travel':
-                        # 如果其中一个是travel活动，调整时间
+                        # If one is a travel activity, adjust times
                         if activity_type == 'travel':
-                            # travel活动开始时间为上一个活动的结束时间
+                            # Travel activity start time becomes last activity's end time
                             updated_activity['start_time'] = last_activity['end_time']
                         else:
-                            # 非travel活动开始时间为travel活动的结束时间
+                            # Non-travel activity start time becomes travel activity's end time
                             last_activity['end_time'] = start_time
                     elif activity_type == 'sleep' or last_activity['activity_type'] == 'sleep':
-                        # 如果其中一个是睡眠活动，保留睡眠活动
+                        # If one is a sleep activity, preserve sleep activity
                         if activity_type == 'sleep':
-                            # 更新最后一个活动的结束时间
+                            # Update last activity's end time
                             last_activity['end_time'] = start_time
                             final_activities.append(updated_activity)
                         continue
                     else:
-                        # 调整当前活动的开始时间
+                        # Adjust current activity's start time
                         start_time = last_activity['end_time']
                         updated_activity['start_time'] = start_time
                         
-                        # 如果调整后开始时间晚于或等于结束时间，跳过此活动
+                        # Skip if adjusted start time is later than or equal to end time
                         if start_time >= end_time:
                             continue
             
             final_activities.append(updated_activity)
             last_end_time = end_time
         
-        # 如果最后一个活动不是在23:59结束，添加睡眠时间
-        if final_activities and final_activities[-1]['end_time'] != "23:59":
+        # If last activity doesn't end at 03:00 (next day), add sleep time
+        if final_activities and final_activities[-1]['end_time'] != "27:00":  # 27:00 represents next day 03:00
             final_activities.append({
                 'activity_type': 'sleep',
                 'start_time': final_activities[-1]['end_time'],
-                'end_time': '23:59',
+                'end_time': '27:00',  # Next day 03:00
                 'description': 'Sleeping at home',
                 'location_type': 'home'
             })
         
-        # 合并连续的相同类型活动
+        # Merge consecutive activities of the same type
         merged_activities = []
         current_activity = None
         
@@ -583,7 +645,7 @@ class Activity:
                 
             if (current_activity['activity_type'] == activity['activity_type'] and
                 current_activity['end_time'] == activity['start_time']):
-                # 合并连续的相同类型活动
+                # Merge consecutive activities of the same type
                 current_activity['end_time'] = activity['end_time']
             else:
                 merged_activities.append(current_activity)
@@ -592,24 +654,24 @@ class Activity:
         if current_activity:
             merged_activities.append(current_activity)
         
-        # 最后按开始时间重新排序
+        # Sort by start time again
         return sorted(merged_activities, key=lambda x: x['start_time'])
         
     def _calculate_duration_minutes(self, start_time, end_time):
         """
-        计算两个时间点之间的分钟差
+        Calculate minutes between two time points
         
         Args:
-            start_time: 开始时间 (HH:MM)
-            end_time: 结束时间 (HH:MM)
+            start_time: Start time (HH:MM)
+            end_time: End time (HH:MM)
             
         Returns:
-            int: 分钟差
+            int: Minute difference
         """
         start_hour, start_minute = map(int, start_time.split(':'))
         end_hour, end_minute = map(int, end_time.split(':'))
         
-        # 处理跨天的情况
+        # Handle overnight cases
         if end_hour < start_hour or (end_hour == start_hour and end_minute < start_minute):
             end_hour += 24
             
@@ -671,12 +733,8 @@ class Activity:
         Returns:
             bool: Whether transportation is required
         """
-        # 工作活动永远不需要显示交通信息
-        if activity_type == 'work':
-            return False
-            
         # If the activity is sleep or home, it usually doesn't require transportation
-        if activity_type in ['sleep', 'home']:
+        if activity_type in ['sleep', 'home', 'work']:
             return False
         
         # If the locations are the same, no transportation is needed
@@ -696,10 +754,10 @@ class Activity:
         Returns:
             str: Formatted time string (HH:MM)
         """
-        # 首先，检查是否为ISO 8601格式的日期时间字符串
+        # First, check if it's an ISO 8601 format datetime string
         iso_match = re.search(r'(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})', time_str)
         if iso_match:
-            # 提取时间部分
+            # Extract time part
             hours, minutes = iso_match.group(4), iso_match.group(5)
             return f"{hours}:{minutes}"
             
@@ -709,8 +767,8 @@ class Activity:
             '%I:%M %p',  # 2:30 PM
             '%I%p',  # 2PM
             '%I %p',  # 2 PM
-            '%Y-%m-%dT%H:%M:%S',  # ISO 8601格式: 2025-02-03T12:00:00
-            '%Y-%m-%d %H:%M:%S'   # 日期时间格式: 2025-02-03 12:00:00
+            '%Y-%m-%dT%H:%M:%S',  # ISO 8601 format: 2025-02-03T12:00:00
+            '%Y-%m-%d %H:%M:%S'   # Date time format: 2025-02-03 12:00:00
         ]
         
         # First, clean up the string
@@ -724,14 +782,14 @@ class Activity:
             except ValueError:
                 continue
             
-        # 如果无法解析，尝试从字符串中提取时间部分
+        # If parsing fails, try to extract time part from string
         time_pattern = re.search(r'(\d{1,2})[:\.](\d{2})(?:\s*([APap][Mm])?)?', time_str)
         if time_pattern:
             hour = int(time_pattern.group(1))
             minute = time_pattern.group(2)
             ampm = time_pattern.group(3)
             
-            # 处理AM/PM
+            # Handle AM/PM
             if ampm and ampm.upper() == 'PM' and hour < 12:
                 hour += 12
             elif ampm and ampm.upper() == 'AM' and hour == 12:
@@ -753,76 +811,76 @@ class Activity:
             str: Fixed JSON string
         """
         try:
-            # 首先尝试直接解析
+            # First try direct parsing
             json.loads(json_str)
             return json_str
         except json.JSONDecodeError:
             pass
         
-        # 预处理：处理可能导致问题的字符
-        # 1. 处理撇号问题
-        json_str = re.sub(r'(\w)\'s\b', r'\1s', json_str)  # 替换所有的's为s
-        json_str = re.sub(r'(\w)\'(\w)', r'\1\2', json_str)  # 移除词中的撇号
+        # Preprocessing: Handle characters that might cause problems
+        # 1. Handle apostrophe issues
+        json_str = re.sub(r'(\w)\'s\b', r'\1s', json_str)  # Replace all 's with s
+        json_str = re.sub(r'(\w)\'(\w)', r'\1\2', json_str)  # Remove apostrophes in words
         
-        # 2. 替换不规范的引号
+        # 2. Replace non-standard quotes
         json_str = json_str.replace("'", '"')
         
-        # 3. 保护JSON字符串中的内容
+        # 3. Protect JSON string content
         protected_strings = {}
         string_pattern = r'"([^"]*)"'
         
         def protect_string(match):
             content = match.group(1)
             key = f"__STRING_{len(protected_strings)}__"
-            # 清理字符串内容
-            content = content.replace('\\', '\\\\')  # 转义反斜杠
-            content = content.replace('"', '\\"')    # 转义双引号
-            content = re.sub(r'[\n\r\t]', ' ', content)  # 替换换行和制表符
+            # Clean string content
+            content = content.replace('\\', '\\\\')  # Escape backslashes
+            content = content.replace('"', '\\"')    # Escape quotes
+            content = re.sub(r'[\n\r\t]', ' ', content)  # Replace newlines and tabs
             protected_strings[key] = content
             return f'"{key}"'
         
-        # 保护字符串内容
+        # Protect string content
         json_str = re.sub(string_pattern, protect_string, json_str)
         
-        # 4. 修复常见的JSON格式问题
-        # 确保属性名有双引号
+        # 4. Fix common JSON formatting issues
+        # Ensure property names have double quotes
         json_str = re.sub(r'([{,])\s*(\w+):', r'\1"\2":', json_str)
         
-        # 修复对象之间的逗号
+        # Fix commas between objects
         json_str = re.sub(r'}\s*{', '},{', json_str)
         
-        # 修复布尔值和null
+        # Fix boolean values and null
         json_str = json_str.replace('True', 'true').replace('False', 'false').replace('None', 'null')
         
-        # 修复未加引号的字符串值
+        # Fix unquoted string values
         json_str = re.sub(r':\s*([a-zA-Z][a-zA-Z0-9_]*)\s*([,}])', r':"\1"\2', json_str)
         
-        # 修复属性之间的逗号
+        # Fix commas between properties
         json_str = re.sub(r'"\s*}\s*"', '","', json_str)
         json_str = re.sub(r'"\s*]\s*"', '","', json_str)
         
-        # 修复尾部逗号
+        # Fix trailing commas
         json_str = re.sub(r',\s*}', '}', json_str)
         json_str = re.sub(r',\s*]', ']', json_str)
         
-        # 5. 恢复被保护的字符串
+        # 5. Restore protected strings
         for key, value in protected_strings.items():
             json_str = json_str.replace(f'"{key}"', f'"{value}"')
         
-        # 6. 处理数组格式
-        # 如果看起来是多个对象但没有被数组包装
+        # 6. Handle array formatting
+        # If it looks like multiple objects but not wrapped in an array
         if json_str.strip().startswith('{') and json_str.strip().endswith('}'):
             if re.search(r'}\s*,\s*{', json_str):
                 json_str = f'[{json_str}]'
         
-        # 7. 最后的修复尝试
+        # 7. Final repair attempts
         try:
             json.loads(json_str)
             return json_str
         except json.JSONDecodeError as e:
-            # 处理特定的错误情况
+            # Handle specific error cases
             if 'Expecting \',\' delimiter' in str(e):
-                # 尝试在错误位置添加逗号
+                # Try adding comma at error position
                 match = re.search(r'line (\d+) column (\d+)', str(e))
                 if match:
                     lines = json_str.split('\n')
@@ -834,18 +892,18 @@ class Activity:
                             lines[line_num] = line[:col_num] + ',' + line[col_num:]
                             json_str = '\n'.join(lines)
             
-            # 如果仍然失败，尝试提取和修复单个对象
+            # If still failing, try extracting and fixing individual objects
             matches = list(re.finditer(r'{[^{}]*(?:{[^{}]*}[^{}]*)*}', json_str))
             if matches:
                 fixed_objects = []
                 for match in matches:
                     obj_str = match.group(0)
                     try:
-                        # 验证每个对象是否可以解析
+                        # Validate each object can be parsed
                         json.loads(obj_str)
                         fixed_objects.append(obj_str)
                     except:
-                        # 如果单个对象解析失败，尝试基本的修复
+                        # If individual object fails parsing, try basic fixes
                         fixed_obj = re.sub(r'([{,])\s*(\w+)(?=\s*:)', r'\1"\2"', obj_str)
                         try:
                             json.loads(fixed_obj)
@@ -856,7 +914,7 @@ class Activity:
                 if fixed_objects:
                     return f'[{",".join(fixed_objects)}]'
             
-            # 如果所有修复尝试都失败，返回原始字符串
+            # If all repair attempts fail, return original string
             return json_str
     
     def _extract_activities_from_text(self, text):
@@ -923,27 +981,27 @@ class Activity:
         
         return activities
     
-    def _is_valid_activity(self, activity):
-        """
-        Check if an activity dictionary is valid
+    # def _is_valid_activity(self, activity):
+    #     """
+    #     Check if an activity dictionary is valid
         
-        Args:
-            activity: Activity dictionary
+    #     Args:
+    #         activity: Activity dictionary
             
-        Returns:
-            bool: Whether the activity is valid
-        """
-        # Check required fields
-        required_fields = ['activity_type', 'start_time', 'end_time', 'description']
-        if not all(field in activity for field in required_fields):
-            return False
+    #     Returns:
+    #         bool: Whether the activity is valid
+    #     """
+    #     # Check required fields
+    #     required_fields = ['activity_type', 'start_time', 'end_time', 'description']
+    #     if not all(field in activity for field in required_fields):
+    #         return False
         
-        # Check activity type
-        activity_type = activity.get('activity_type', '').lower()
-        if activity_type not in [t.lower() for t in ACTIVITY_TYPES]:
-            return False
+    #     # Check activity type
+    #     activity_type = activity.get('activity_type', '').lower()
+    #     if activity_type not in [t.lower() for t in ACTIVITY_TYPES]:
+    #         return False
         
-        return True
+    #     return True
     
     def _generate_default_activities(self, persona):
         """
@@ -959,8 +1017,8 @@ class Activity:
         return [
             {
                 'activity_type': 'sleep',
-                'start_time': '00:00',
-                'end_time': '07:00',
+                'start_time': '03:00',
+                'end_time': '08:00',
                 'description': 'Sleeping at home',
                 'location_type': 'home'
             },
@@ -974,47 +1032,15 @@ class Activity:
             {
                 'activity_type': 'leisure',
                 'start_time': '18:00',
-                'end_time': '21:00',
+                'end_time': '22:00',
                 'description': 'Relaxing at home',
                 'location_type': 'home'
             },
             {
                 'activity_type': 'sleep',
                 'start_time': '22:00',
-                'end_time': '23:59',
+                'end_time': '27:00',
                 'description': 'Sleeping at home',
                 'location_type': 'home'
             }
         ]
-    
-    @cached
-    def generate_activities_summary(self, activities, persona=None):
-        """
-        Generate a summary of activities using LLM.
-        
-        Args:
-            activities: List of activities
-            persona: Optional Persona object for additional context
-            
-        Returns:
-            str: Summary text in English
-        """
-        # Convert activities to JSON string
-        activities_json = json.dumps(activities, ensure_ascii=False)
-        
-        try:
-            response = client.chat.completions.create(
-                model=self.model,
-                messages=[
-                    {"role": "system", "content": "You are a helpful assistant."},
-                    {"role": "user", "content": f"Please summarize the following activities for the day in a concise, coherent paragraph: {activities_json}"}
-                ],
-                max_tokens=150,
-                temperature=self.temperature
-            )
-            
-            return response.choices[0].message.content.strip()
-            
-        except Exception as e:
-            print(f"Error generating LLM summary: {e}")
-            return "Unable to generate activity summary."

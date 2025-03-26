@@ -1,0 +1,960 @@
+<!DOCTYPE html>
+<html>
+<head>
+    
+    <meta http-equiv="content-type" content="text/html; charset=UTF-8" />
+    
+        <script>
+            L_NO_TOUCH = false;
+            L_DISABLE_3D = false;
+        </script>
+    
+    <style>html, body {width: 100%;height: 100%;margin: 0;padding: 0;}</style>
+    <style>#map {position:absolute;top:0;bottom:0;right:0;left:0;}</style>
+    <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.3/dist/leaflet.js"></script>
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Leaflet.awesome-markers/2.0.2/leaflet.awesome-markers.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.3/dist/leaflet.css"/>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.2/dist/css/bootstrap.min.css"/>
+    <link rel="stylesheet" href="https://netdna.bootstrapcdn.com/bootstrap/3.0.0/css/bootstrap-glyphicons.css"/>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.2.0/css/all.min.css"/>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/Leaflet.awesome-markers/2.0.2/leaflet.awesome-markers.css"/>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/python-visualization/folium/folium/templates/leaflet.awesome.rotate.min.css"/>
+    
+            <meta name="viewport" content="width=device-width,
+                initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+            <style>
+                #map_513f70714638107e7b5c2b82b5a14a38 {
+                    position: relative;
+                    width: 100.0%;
+                    height: 100.0%;
+                    left: 0.0%;
+                    top: 0.0%;
+                }
+                .leaflet-container { font-size: 1rem; }
+            </style>
+        
+</head>
+<body>
+    
+    
+            <div class="folium-map" id="map_513f70714638107e7b5c2b82b5a14a38" ></div>
+        
+</body>
+<script>
+    
+    
+            var map_513f70714638107e7b5c2b82b5a14a38 = L.map(
+                "map_513f70714638107e7b5c2b82b5a14a38",
+                {
+                    center: [40.82458372867194, -73.90547989147572],
+                    crs: L.CRS.EPSG3857,
+                    ...{
+  "zoom": 13,
+  "zoomControl": true,
+  "preferCanvas": false,
+}
+
+                }
+            );
+
+            
+
+        
+    
+            var tile_layer_31ae295a2086ee93ba04018f282f0a0d = L.tileLayer(
+                "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+                {
+  "minZoom": 0,
+  "maxZoom": 19,
+  "maxNativeZoom": 19,
+  "noWrap": false,
+  "attribution": "\u0026copy; \u003ca href=\"https://www.openstreetmap.org/copyright\"\u003eOpenStreetMap\u003c/a\u003e contributors",
+  "subdomains": "abc",
+  "detectRetina": false,
+  "tms": false,
+  "opacity": 1,
+}
+
+            );
+        
+    
+            tile_layer_31ae295a2086ee93ba04018f282f0a0d.addTo(map_513f70714638107e7b5c2b82b5a14a38);
+        
+    
+            var marker_e34cc7e30f5e1cea61afff838e268509 = L.marker(
+                [40.812993, -73.907788],
+                {
+}
+            ).addTo(map_513f70714638107e7b5c2b82b5a14a38);
+        
+    
+            var icon_776428ef33ae69d3eba435be307f28ae = L.AwesomeMarkers.icon(
+                {
+  "markerColor": "blue",
+  "iconColor": "white",
+  "icon": "info-sign",
+  "prefix": "glyphicon",
+  "extraClasses": "fa-rotate-0",
+}
+            );
+        
+    
+        var popup_90c316364a3021f15d09e640b038ae6e = L.popup({
+  "maxWidth": 300,
+});
+
+        
+            
+                var html_7db446c459d34a0e64bec45e8b10f454 = $(`<div id="html_7db446c459d34a0e64bec45e8b10f454" style="width: 100.0%; height: 100.0%;">         <b>Time:</b> 01:23<br>         <b>Activity:</b> work<br>         <b>Description:</b> Attend a client meeting discussing financial strategy and planning.<br>         </div>`)[0];
+                popup_90c316364a3021f15d09e640b038ae6e.setContent(html_7db446c459d34a0e64bec45e8b10f454);
+            
+        
+
+        marker_e34cc7e30f5e1cea61afff838e268509.bindPopup(popup_90c316364a3021f15d09e640b038ae6e)
+        ;
+
+        
+    
+    
+                marker_e34cc7e30f5e1cea61afff838e268509.setIcon(icon_776428ef33ae69d3eba435be307f28ae);
+            
+    
+            var marker_0c886f1b905509c04a55f45e66240819 = L.marker(
+                [40.812993, -73.907788],
+                {
+}
+            ).addTo(map_513f70714638107e7b5c2b82b5a14a38);
+        
+    
+            var icon_8a2acf8fe4d745c370e11b354f3f32f8 = L.AwesomeMarkers.icon(
+                {
+  "markerColor": "black",
+  "iconColor": "white",
+  "icon": "info-sign",
+  "prefix": "glyphicon",
+  "extraClasses": "fa-rotate-0",
+}
+            );
+        
+    
+        var popup_8cea0c37e5f1e17fba68cb813fe54101 = L.popup({
+  "maxWidth": 300,
+});
+
+        
+            
+                var html_2411d9b06aa6396e52e09613c551e25c = $(`<div id="html_2411d9b06aa6396e52e09613c551e25c" style="width: 100.0%; height: 100.0%;">         <b>Time:</b> 03:00<br>         <b>Activity:</b> travel<br>         <b>Description:</b> Traveling from Workplace to Unknown Location<br>         <b>Transport:</b> driving<br></div>`)[0];
+                popup_8cea0c37e5f1e17fba68cb813fe54101.setContent(html_2411d9b06aa6396e52e09613c551e25c);
+            
+        
+
+        marker_0c886f1b905509c04a55f45e66240819.bindPopup(popup_8cea0c37e5f1e17fba68cb813fe54101)
+        ;
+
+        
+    
+    
+                marker_0c886f1b905509c04a55f45e66240819.setIcon(icon_8a2acf8fe4d745c370e11b354f3f32f8);
+            
+    
+            var poly_line_59d464d9540aa4f9dc5cb3acd6687b45 = L.polyline(
+                [[40.812993, -73.907788], [40.812993, -73.907788]],
+                {"bubblingMouseEvents": true, "color": "#8da0cb", "dashArray": null, "dashOffset": null, "fill": false, "fillColor": "#8da0cb", "fillOpacity": 0.2, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "noClip": false, "opacity": 0.7, "smoothFactor": 1.0, "stroke": true, "weight": 3}
+            ).addTo(map_513f70714638107e7b5c2b82b5a14a38);
+        
+    
+            var marker_c35914adc6d7c9c8af76d26af64b9619 = L.marker(
+                [40.850054, -73.903656],
+                {
+}
+            ).addTo(map_513f70714638107e7b5c2b82b5a14a38);
+        
+    
+            var icon_27216b12f1795bdf62f37fa736daa5f1 = L.AwesomeMarkers.icon(
+                {
+  "markerColor": "black",
+  "iconColor": "white",
+  "icon": "info-sign",
+  "prefix": "glyphicon",
+  "extraClasses": "fa-rotate-0",
+}
+            );
+        
+    
+        var popup_649fcc1283874a53b846cde7d99a486d = L.popup({
+  "maxWidth": 300,
+});
+
+        
+            
+                var html_d03843afbe0a8aca3b140524b47540f4 = $(`<div id="html_d03843afbe0a8aca3b140524b47540f4" style="width: 100.0%; height: 100.0%;">         <b>Time:</b> 03:08<br>         <b>Activity:</b> travel<br>         <b>Description:</b> Traveling from Workplace to Unknown Location<br>         <b>Transport:</b> driving<br></div>`)[0];
+                popup_649fcc1283874a53b846cde7d99a486d.setContent(html_d03843afbe0a8aca3b140524b47540f4);
+            
+        
+
+        marker_c35914adc6d7c9c8af76d26af64b9619.bindPopup(popup_649fcc1283874a53b846cde7d99a486d)
+        ;
+
+        
+    
+    
+                marker_c35914adc6d7c9c8af76d26af64b9619.setIcon(icon_27216b12f1795bdf62f37fa736daa5f1);
+            
+    
+            var poly_line_beac10182b3133037aaf3b4013a1f1ab = L.polyline(
+                [[40.812993, -73.907788], [40.850054, -73.903656]],
+                {"bubblingMouseEvents": true, "color": "#8da0cb", "dashArray": null, "dashOffset": null, "fill": false, "fillColor": "#8da0cb", "fillOpacity": 0.2, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "noClip": false, "opacity": 0.7, "smoothFactor": 1.0, "stroke": true, "weight": 3}
+            ).addTo(map_513f70714638107e7b5c2b82b5a14a38);
+        
+    
+            var marker_fd53179460ecfd70d1235848ee1bdcdc = L.marker(
+                [40.850054, -73.903656],
+                {
+}
+            ).addTo(map_513f70714638107e7b5c2b82b5a14a38);
+        
+    
+            var icon_69f79621a028149179b38997cf3a2be4 = L.AwesomeMarkers.icon(
+                {
+  "markerColor": "darkpurple",
+  "iconColor": "white",
+  "icon": "info-sign",
+  "prefix": "glyphicon",
+  "extraClasses": "fa-rotate-0",
+}
+            );
+        
+    
+        var popup_f6725d968d30e651ed122da328746b69 = L.popup({
+  "maxWidth": 300,
+});
+
+        
+            
+                var html_63208172c6186498e7ec3e156a8b65f7 = $(`<div id="html_63208172c6186498e7ec3e156a8b65f7" style="width: 100.0%; height: 100.0%;">         <b>Time:</b> 03:08<br>         <b>Activity:</b> sleep<br>         <b>Description:</b> Sleeping at home<br>         </div>`)[0];
+                popup_f6725d968d30e651ed122da328746b69.setContent(html_63208172c6186498e7ec3e156a8b65f7);
+            
+        
+
+        marker_fd53179460ecfd70d1235848ee1bdcdc.bindPopup(popup_f6725d968d30e651ed122da328746b69)
+        ;
+
+        
+    
+    
+                marker_fd53179460ecfd70d1235848ee1bdcdc.setIcon(icon_69f79621a028149179b38997cf3a2be4);
+            
+    
+            var poly_line_000a7f1bf67ea0013ed32c947d0a184e = L.polyline(
+                [[40.850054, -73.903656], [40.850054, -73.903656]],
+                {"bubblingMouseEvents": true, "color": "gray", "dashArray": null, "dashOffset": null, "fill": false, "fillColor": "gray", "fillOpacity": 0.2, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "noClip": false, "opacity": 0.7, "smoothFactor": 1.0, "stroke": true, "weight": 3}
+            ).addTo(map_513f70714638107e7b5c2b82b5a14a38);
+        
+    
+            var marker_303c8fb89c05dd9c8ccc404074416d99 = L.marker(
+                [40.850054, -73.903656],
+                {
+}
+            ).addTo(map_513f70714638107e7b5c2b82b5a14a38);
+        
+    
+            var icon_19d3b4b9ed17da6f60cbacf0e0d0b437 = L.AwesomeMarkers.icon(
+                {
+  "markerColor": "darkpurple",
+  "iconColor": "white",
+  "icon": "info-sign",
+  "prefix": "glyphicon",
+  "extraClasses": "fa-rotate-0",
+}
+            );
+        
+    
+        var popup_c9dbac1f06695cf7c76a2baa62224ea9 = L.popup({
+  "maxWidth": 300,
+});
+
+        
+            
+                var html_9087164d51ad405775921d60f43ec090 = $(`<div id="html_9087164d51ad405775921d60f43ec090" style="width: 100.0%; height: 100.0%;">         <b>Time:</b> 03:00<br>         <b>Activity:</b> sleep<br>         <b>Description:</b> Sleeping at home<br>         </div>`)[0];
+                popup_c9dbac1f06695cf7c76a2baa62224ea9.setContent(html_9087164d51ad405775921d60f43ec090);
+            
+        
+
+        marker_303c8fb89c05dd9c8ccc404074416d99.bindPopup(popup_c9dbac1f06695cf7c76a2baa62224ea9)
+        ;
+
+        
+    
+    
+                marker_303c8fb89c05dd9c8ccc404074416d99.setIcon(icon_19d3b4b9ed17da6f60cbacf0e0d0b437);
+            
+    
+            var poly_line_387b12a5747138a1d16dd5921cf18566 = L.polyline(
+                [[40.850054, -73.903656], [40.850054, -73.903656]],
+                {"bubblingMouseEvents": true, "color": "gray", "dashArray": null, "dashOffset": null, "fill": false, "fillColor": "gray", "fillOpacity": 0.2, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "noClip": false, "opacity": 0.7, "smoothFactor": 1.0, "stroke": true, "weight": 3}
+            ).addTo(map_513f70714638107e7b5c2b82b5a14a38);
+        
+    
+            var marker_e30aeb71e7cc0d1a12a511dcd9958260 = L.marker(
+                [40.850054, -73.903656],
+                {
+}
+            ).addTo(map_513f70714638107e7b5c2b82b5a14a38);
+        
+    
+            var icon_ef648676c1207168ba4cba2081f63447 = L.AwesomeMarkers.icon(
+                {
+  "markerColor": "black",
+  "iconColor": "white",
+  "icon": "info-sign",
+  "prefix": "glyphicon",
+  "extraClasses": "fa-rotate-0",
+}
+            );
+        
+    
+        var popup_3570a3ac83889260cbf908ee93c6cc59 = L.popup({
+  "maxWidth": 300,
+});
+
+        
+            
+                var html_691b8b52c879dd9ce4074b0efd322b0b = $(`<div id="html_691b8b52c879dd9ce4074b0efd322b0b" style="width: 100.0%; height: 100.0%;">         <b>Time:</b> 01:23<br>         <b>Activity:</b> travel<br>         <b>Description:</b> Traveling from Home to Workplace<br>         <b>Transport:</b> driving<br></div>`)[0];
+                popup_3570a3ac83889260cbf908ee93c6cc59.setContent(html_691b8b52c879dd9ce4074b0efd322b0b);
+            
+        
+
+        marker_e30aeb71e7cc0d1a12a511dcd9958260.bindPopup(popup_3570a3ac83889260cbf908ee93c6cc59)
+        ;
+
+        
+    
+    
+                marker_e30aeb71e7cc0d1a12a511dcd9958260.setIcon(icon_ef648676c1207168ba4cba2081f63447);
+            
+    
+            var poly_line_c86539b7e835b01e4794eba5813f553c = L.polyline(
+                [[40.850054, -73.903656], [40.850054, -73.903656]],
+                {"bubblingMouseEvents": true, "color": "#8da0cb", "dashArray": null, "dashOffset": null, "fill": false, "fillColor": "#8da0cb", "fillOpacity": 0.2, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "noClip": false, "opacity": 0.7, "smoothFactor": 1.0, "stroke": true, "weight": 3}
+            ).addTo(map_513f70714638107e7b5c2b82b5a14a38);
+        
+    
+            var marker_a3df0ae80a97365e9517ef410a2ea8dc = L.marker(
+                [40.812993, -73.907788],
+                {
+}
+            ).addTo(map_513f70714638107e7b5c2b82b5a14a38);
+        
+    
+            var icon_8aabf2d15d096d802296bc5eb1e1c2bb = L.AwesomeMarkers.icon(
+                {
+  "markerColor": "black",
+  "iconColor": "white",
+  "icon": "info-sign",
+  "prefix": "glyphicon",
+  "extraClasses": "fa-rotate-0",
+}
+            );
+        
+    
+        var popup_55204775c570fe21811455a714462dfb = L.popup({
+  "maxWidth": 300,
+});
+
+        
+            
+                var html_64d5d840e07d13d292b653f90a51c34b = $(`<div id="html_64d5d840e07d13d292b653f90a51c34b" style="width: 100.0%; height: 100.0%;">         <b>Time:</b> 01:31<br>         <b>Activity:</b> travel<br>         <b>Description:</b> Traveling from Home to Workplace<br>         <b>Transport:</b> driving<br></div>`)[0];
+                popup_55204775c570fe21811455a714462dfb.setContent(html_64d5d840e07d13d292b653f90a51c34b);
+            
+        
+
+        marker_a3df0ae80a97365e9517ef410a2ea8dc.bindPopup(popup_55204775c570fe21811455a714462dfb)
+        ;
+
+        
+    
+    
+                marker_a3df0ae80a97365e9517ef410a2ea8dc.setIcon(icon_8aabf2d15d096d802296bc5eb1e1c2bb);
+            
+    
+            var poly_line_694c6bb867faf72596322042c15b78d8 = L.polyline(
+                [[40.850054, -73.903656], [40.812993, -73.907788]],
+                {"bubblingMouseEvents": true, "color": "#8da0cb", "dashArray": null, "dashOffset": null, "fill": false, "fillColor": "#8da0cb", "fillOpacity": 0.2, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "noClip": false, "opacity": 0.7, "smoothFactor": 1.0, "stroke": true, "weight": 3}
+            ).addTo(map_513f70714638107e7b5c2b82b5a14a38);
+        
+    
+            var marker_d787067b1d6784ec1c49a8d5a24b9642 = L.marker(
+                [40.812993, -73.907788],
+                {
+}
+            ).addTo(map_513f70714638107e7b5c2b82b5a14a38);
+        
+    
+            var icon_7efda6e0b87ebf7c3921878490fbed33 = L.AwesomeMarkers.icon(
+                {
+  "markerColor": "darkpurple",
+  "iconColor": "white",
+  "icon": "info-sign",
+  "prefix": "glyphicon",
+  "extraClasses": "fa-rotate-0",
+}
+            );
+        
+    
+        var popup_606fb0f45871d2b39aa102a587410c70 = L.popup({
+  "maxWidth": 300,
+});
+
+        
+            
+                var html_822351184a4304eb427c5a1f62af8086 = $(`<div id="html_822351184a4304eb427c5a1f62af8086" style="width: 100.0%; height: 100.0%;">         <b>Time:</b> 03:00<br>         <b>Activity:</b> commuting<br>         <b>Description:</b> Commute back home, covering a distance of 5.86 km.<br>         </div>`)[0];
+                popup_606fb0f45871d2b39aa102a587410c70.setContent(html_822351184a4304eb427c5a1f62af8086);
+            
+        
+
+        marker_d787067b1d6784ec1c49a8d5a24b9642.bindPopup(popup_606fb0f45871d2b39aa102a587410c70)
+        ;
+
+        
+    
+    
+                marker_d787067b1d6784ec1c49a8d5a24b9642.setIcon(icon_7efda6e0b87ebf7c3921878490fbed33);
+            
+    
+            var poly_line_569ee4715227d4e42b24f230c1589b7c = L.polyline(
+                [[40.812993, -73.907788], [40.812993, -73.907788]],
+                {"bubblingMouseEvents": true, "color": "gray", "dashArray": null, "dashOffset": null, "fill": false, "fillColor": "gray", "fillOpacity": 0.2, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "noClip": false, "opacity": 0.7, "smoothFactor": 1.0, "stroke": true, "weight": 3}
+            ).addTo(map_513f70714638107e7b5c2b82b5a14a38);
+        
+    
+            var marker_f8c5504be0856169e47f1a6c274a159f = L.marker(
+                [40.812993, -73.907788],
+                {
+}
+            ).addTo(map_513f70714638107e7b5c2b82b5a14a38);
+        
+    
+            var icon_53650eb228b45b5548c18c65603c2678 = L.AwesomeMarkers.icon(
+                {
+  "markerColor": "black",
+  "iconColor": "white",
+  "icon": "info-sign",
+  "prefix": "glyphicon",
+  "extraClasses": "fa-rotate-0",
+}
+            );
+        
+    
+        var popup_ca0febd9fce5b2650642fbe7d848c072 = L.popup({
+  "maxWidth": 300,
+});
+
+        
+            
+                var html_5abf56f0ea3e46a347e9c8d7e9d61098 = $(`<div id="html_5abf56f0ea3e46a347e9c8d7e9d61098" style="width: 100.0%; height: 100.0%;">         <b>Time:</b> 03:54<br>         <b>Activity:</b> travel<br>         <b>Description:</b> Traveling from Workplace to Home<br>         <b>Transport:</b> driving<br></div>`)[0];
+                popup_ca0febd9fce5b2650642fbe7d848c072.setContent(html_5abf56f0ea3e46a347e9c8d7e9d61098);
+            
+        
+
+        marker_f8c5504be0856169e47f1a6c274a159f.bindPopup(popup_ca0febd9fce5b2650642fbe7d848c072)
+        ;
+
+        
+    
+    
+                marker_f8c5504be0856169e47f1a6c274a159f.setIcon(icon_53650eb228b45b5548c18c65603c2678);
+            
+    
+            var poly_line_84e0158795bb275e4d0e4b11867f6587 = L.polyline(
+                [[40.812993, -73.907788], [40.812993, -73.907788]],
+                {"bubblingMouseEvents": true, "color": "#8da0cb", "dashArray": null, "dashOffset": null, "fill": false, "fillColor": "#8da0cb", "fillOpacity": 0.2, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "noClip": false, "opacity": 0.7, "smoothFactor": 1.0, "stroke": true, "weight": 3}
+            ).addTo(map_513f70714638107e7b5c2b82b5a14a38);
+        
+    
+            var marker_4dd1c2c7f8422e56d1d35051bbb96cb0 = L.marker(
+                [40.850054, -73.903656],
+                {
+}
+            ).addTo(map_513f70714638107e7b5c2b82b5a14a38);
+        
+    
+            var icon_60b217f9ff1a260fdf19132f1a968c96 = L.AwesomeMarkers.icon(
+                {
+  "markerColor": "black",
+  "iconColor": "white",
+  "icon": "info-sign",
+  "prefix": "glyphicon",
+  "extraClasses": "fa-rotate-0",
+}
+            );
+        
+    
+        var popup_e8f4fc03deafed97b022853e397feb31 = L.popup({
+  "maxWidth": 300,
+});
+
+        
+            
+                var html_e714c43e8e0611e493060add3bcdc823 = $(`<div id="html_e714c43e8e0611e493060add3bcdc823" style="width: 100.0%; height: 100.0%;">         <b>Time:</b> 04:02<br>         <b>Activity:</b> travel<br>         <b>Description:</b> Traveling from Workplace to Home<br>         <b>Transport:</b> driving<br></div>`)[0];
+                popup_e8f4fc03deafed97b022853e397feb31.setContent(html_e714c43e8e0611e493060add3bcdc823);
+            
+        
+
+        marker_4dd1c2c7f8422e56d1d35051bbb96cb0.bindPopup(popup_e8f4fc03deafed97b022853e397feb31)
+        ;
+
+        
+    
+    
+                marker_4dd1c2c7f8422e56d1d35051bbb96cb0.setIcon(icon_60b217f9ff1a260fdf19132f1a968c96);
+            
+    
+            var poly_line_56d9f68d87d639436ccc29d8547c3a1d = L.polyline(
+                [[40.812993, -73.907788], [40.850054, -73.903656]],
+                {"bubblingMouseEvents": true, "color": "#8da0cb", "dashArray": null, "dashOffset": null, "fill": false, "fillColor": "#8da0cb", "fillOpacity": 0.2, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "noClip": false, "opacity": 0.7, "smoothFactor": 1.0, "stroke": true, "weight": 3}
+            ).addTo(map_513f70714638107e7b5c2b82b5a14a38);
+        
+    
+            var marker_25ad2179a7827fbe04137b0d290b4cc5 = L.marker(
+                [40.850054, -73.903656],
+                {
+}
+            ).addTo(map_513f70714638107e7b5c2b82b5a14a38);
+        
+    
+            var icon_6dab7e7b7c11fb130815952f3d8eb5b2 = L.AwesomeMarkers.icon(
+                {
+  "markerColor": "darkgreen",
+  "iconColor": "white",
+  "icon": "info-sign",
+  "prefix": "glyphicon",
+  "extraClasses": "fa-rotate-0",
+}
+            );
+        
+    
+        var popup_66d6b3779e32a1e84873ee3835455570 = L.popup({
+  "maxWidth": 300,
+});
+
+        
+            
+                var html_e04611224835f4641d3ccb1b21ecbd02 = $(`<div id="html_e04611224835f4641d3ccb1b21ecbd02" style="width: 100.0%; height: 100.0%;">         <b>Time:</b> 04:02<br>         <b>Activity:</b> leisure<br>         <b>Description:</b> Relax at home, watching TV and reading.<br>         </div>`)[0];
+                popup_66d6b3779e32a1e84873ee3835455570.setContent(html_e04611224835f4641d3ccb1b21ecbd02);
+            
+        
+
+        marker_25ad2179a7827fbe04137b0d290b4cc5.bindPopup(popup_66d6b3779e32a1e84873ee3835455570)
+        ;
+
+        
+    
+    
+                marker_25ad2179a7827fbe04137b0d290b4cc5.setIcon(icon_6dab7e7b7c11fb130815952f3d8eb5b2);
+            
+    
+            var poly_line_067f0a3280806427cfb6749074aef791 = L.polyline(
+                [[40.850054, -73.903656], [40.850054, -73.903656]],
+                {"bubblingMouseEvents": true, "color": "gray", "dashArray": null, "dashOffset": null, "fill": false, "fillColor": "gray", "fillOpacity": 0.2, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "noClip": false, "opacity": 0.7, "smoothFactor": 1.0, "stroke": true, "weight": 3}
+            ).addTo(map_513f70714638107e7b5c2b82b5a14a38);
+        
+    
+            var marker_fa0a9d1c4748b4ed27c73e99b0ddd4f3 = L.marker(
+                [40.850054, -73.903656],
+                {
+}
+            ).addTo(map_513f70714638107e7b5c2b82b5a14a38);
+        
+    
+            var icon_2958f53f7c8a7d6bac0b70f88e21abea = L.AwesomeMarkers.icon(
+                {
+  "markerColor": "black",
+  "iconColor": "white",
+  "icon": "info-sign",
+  "prefix": "glyphicon",
+  "extraClasses": "fa-rotate-0",
+}
+            );
+        
+    
+        var popup_87297d07b47e3cc13f3e14d676e6f73b = L.popup({
+  "maxWidth": 300,
+});
+
+        
+            
+                var html_9b3c7eb17638c3192be050600176bfa3 = $(`<div id="html_9b3c7eb17638c3192be050600176bfa3" style="width: 100.0%; height: 100.0%;">         <b>Time:</b> 11:00<br>         <b>Activity:</b> travel<br>         <b>Description:</b> Traveling from Home to Workplace<br>         <b>Transport:</b> driving<br></div>`)[0];
+                popup_87297d07b47e3cc13f3e14d676e6f73b.setContent(html_9b3c7eb17638c3192be050600176bfa3);
+            
+        
+
+        marker_fa0a9d1c4748b4ed27c73e99b0ddd4f3.bindPopup(popup_87297d07b47e3cc13f3e14d676e6f73b)
+        ;
+
+        
+    
+    
+                marker_fa0a9d1c4748b4ed27c73e99b0ddd4f3.setIcon(icon_2958f53f7c8a7d6bac0b70f88e21abea);
+            
+    
+            var poly_line_ae5e0fc952b7cf8c50f71ac200849d97 = L.polyline(
+                [[40.850054, -73.903656], [40.850054, -73.903656]],
+                {"bubblingMouseEvents": true, "color": "#8da0cb", "dashArray": null, "dashOffset": null, "fill": false, "fillColor": "#8da0cb", "fillOpacity": 0.2, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "noClip": false, "opacity": 0.7, "smoothFactor": 1.0, "stroke": true, "weight": 3}
+            ).addTo(map_513f70714638107e7b5c2b82b5a14a38);
+        
+    
+            var marker_9824fd82e7aedb262576a777d8ac96d0 = L.marker(
+                [40.812993, -73.907788],
+                {
+}
+            ).addTo(map_513f70714638107e7b5c2b82b5a14a38);
+        
+    
+            var icon_1a40f0feb8229c61ee1ef188e72e4e9d = L.AwesomeMarkers.icon(
+                {
+  "markerColor": "black",
+  "iconColor": "white",
+  "icon": "info-sign",
+  "prefix": "glyphicon",
+  "extraClasses": "fa-rotate-0",
+}
+            );
+        
+    
+        var popup_f25badd34cc504b37b4c3728a90d6213 = L.popup({
+  "maxWidth": 300,
+});
+
+        
+            
+                var html_964c149e36ae5367cb154652ef29fd05 = $(`<div id="html_964c149e36ae5367cb154652ef29fd05" style="width: 100.0%; height: 100.0%;">         <b>Time:</b> 11:08<br>         <b>Activity:</b> travel<br>         <b>Description:</b> Traveling from Home to Workplace<br>         <b>Transport:</b> driving<br></div>`)[0];
+                popup_f25badd34cc504b37b4c3728a90d6213.setContent(html_964c149e36ae5367cb154652ef29fd05);
+            
+        
+
+        marker_9824fd82e7aedb262576a777d8ac96d0.bindPopup(popup_f25badd34cc504b37b4c3728a90d6213)
+        ;
+
+        
+    
+    
+                marker_9824fd82e7aedb262576a777d8ac96d0.setIcon(icon_1a40f0feb8229c61ee1ef188e72e4e9d);
+            
+    
+            var poly_line_d4de988ae75b21bb20231161280b3af9 = L.polyline(
+                [[40.850054, -73.903656], [40.812993, -73.907788]],
+                {"bubblingMouseEvents": true, "color": "#8da0cb", "dashArray": null, "dashOffset": null, "fill": false, "fillColor": "#8da0cb", "fillOpacity": 0.2, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "noClip": false, "opacity": 0.7, "smoothFactor": 1.0, "stroke": true, "weight": 3}
+            ).addTo(map_513f70714638107e7b5c2b82b5a14a38);
+        
+    
+            var marker_43c29fdf79fa1fe605a002c8d585d1f6 = L.marker(
+                [40.812993, -73.907788],
+                {
+}
+            ).addTo(map_513f70714638107e7b5c2b82b5a14a38);
+        
+    
+            var icon_303a5a0b20665c4779a7141f37a36d8f = L.AwesomeMarkers.icon(
+                {
+  "markerColor": "blue",
+  "iconColor": "white",
+  "icon": "info-sign",
+  "prefix": "glyphicon",
+  "extraClasses": "fa-rotate-0",
+}
+            );
+        
+    
+        var popup_5a0ce316f06b9e2c70879cbd2af80417 = L.popup({
+  "maxWidth": 300,
+});
+
+        
+            
+                var html_8df67605b1c47562ab97ae95f6b43947 = $(`<div id="html_8df67605b1c47562ab97ae95f6b43947" style="width: 100.0%; height: 100.0%;">         <b>Time:</b> 11:08<br>         <b>Activity:</b> work<br>         <b>Description:</b> Engage in work activities including financial analysis and meetings at the office.<br>         </div>`)[0];
+                popup_5a0ce316f06b9e2c70879cbd2af80417.setContent(html_8df67605b1c47562ab97ae95f6b43947);
+            
+        
+
+        marker_43c29fdf79fa1fe605a002c8d585d1f6.bindPopup(popup_5a0ce316f06b9e2c70879cbd2af80417)
+        ;
+
+        
+    
+    
+                marker_43c29fdf79fa1fe605a002c8d585d1f6.setIcon(icon_303a5a0b20665c4779a7141f37a36d8f);
+            
+    
+            var poly_line_9a4abb20377cd31d602b6b5f3276750b = L.polyline(
+                [[40.812993, -73.907788], [40.812993, -73.907788]],
+                {"bubblingMouseEvents": true, "color": "gray", "dashArray": null, "dashOffset": null, "fill": false, "fillColor": "gray", "fillOpacity": 0.2, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "noClip": false, "opacity": 0.7, "smoothFactor": 1.0, "stroke": true, "weight": 3}
+            ).addTo(map_513f70714638107e7b5c2b82b5a14a38);
+        
+    
+            var marker_136416effb9c6d8680c221a3906ca695 = L.marker(
+                [40.812993, -73.907788],
+                {
+}
+            ).addTo(map_513f70714638107e7b5c2b82b5a14a38);
+        
+    
+            var icon_d592fe5b9c12d72776c16a0fe0c42aaa = L.AwesomeMarkers.icon(
+                {
+  "markerColor": "black",
+  "iconColor": "white",
+  "icon": "info-sign",
+  "prefix": "glyphicon",
+  "extraClasses": "fa-rotate-0",
+}
+            );
+        
+    
+        var popup_fa80fe243689123e8e5fe1ba7e2b8bda = L.popup({
+  "maxWidth": 300,
+});
+
+        
+            
+                var html_7e01bf397c7b879dd6844b9d3c7d1b02 = $(`<div id="html_7e01bf397c7b879dd6844b9d3c7d1b02" style="width: 100.0%; height: 100.0%;">         <b>Time:</b> 12:06<br>         <b>Activity:</b> travel<br>         <b>Description:</b> Traveling from Workplace to Unknown Location<br>         <b>Transport:</b> driving<br></div>`)[0];
+                popup_fa80fe243689123e8e5fe1ba7e2b8bda.setContent(html_7e01bf397c7b879dd6844b9d3c7d1b02);
+            
+        
+
+        marker_136416effb9c6d8680c221a3906ca695.bindPopup(popup_fa80fe243689123e8e5fe1ba7e2b8bda)
+        ;
+
+        
+    
+    
+                marker_136416effb9c6d8680c221a3906ca695.setIcon(icon_d592fe5b9c12d72776c16a0fe0c42aaa);
+            
+    
+            var poly_line_11134ae3656fa2e5b059d7689a13fb87 = L.polyline(
+                [[40.812993, -73.907788], [40.812993, -73.907788]],
+                {"bubblingMouseEvents": true, "color": "#8da0cb", "dashArray": null, "dashOffset": null, "fill": false, "fillColor": "#8da0cb", "fillOpacity": 0.2, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "noClip": false, "opacity": 0.7, "smoothFactor": 1.0, "stroke": true, "weight": 3}
+            ).addTo(map_513f70714638107e7b5c2b82b5a14a38);
+        
+    
+            var marker_910334ea2e9c7ad9d19873fa4d6339a3 = L.marker(
+                [40.8119099, -73.90969969999999],
+                {
+}
+            ).addTo(map_513f70714638107e7b5c2b82b5a14a38);
+        
+    
+            var icon_5638a98a11c574e319a0164640a22ccc = L.AwesomeMarkers.icon(
+                {
+  "markerColor": "black",
+  "iconColor": "white",
+  "icon": "info-sign",
+  "prefix": "glyphicon",
+  "extraClasses": "fa-rotate-0",
+}
+            );
+        
+    
+        var popup_cbedc960c31703a80763a20658519f7e = L.popup({
+  "maxWidth": 300,
+});
+
+        
+            
+                var html_beee7c3cd4ea5e73912d17c9fc686b15 = $(`<div id="html_beee7c3cd4ea5e73912d17c9fc686b15" style="width: 100.0%; height: 100.0%;">         <b>Time:</b> 12:07<br>         <b>Activity:</b> travel<br>         <b>Description:</b> Traveling from Workplace to Unknown Location<br>         <b>Transport:</b> driving<br></div>`)[0];
+                popup_cbedc960c31703a80763a20658519f7e.setContent(html_beee7c3cd4ea5e73912d17c9fc686b15);
+            
+        
+
+        marker_910334ea2e9c7ad9d19873fa4d6339a3.bindPopup(popup_cbedc960c31703a80763a20658519f7e)
+        ;
+
+        
+    
+    
+                marker_910334ea2e9c7ad9d19873fa4d6339a3.setIcon(icon_5638a98a11c574e319a0164640a22ccc);
+            
+    
+            var poly_line_d67dc18beee08bf520d6e9ec349cd078 = L.polyline(
+                [[40.812993, -73.907788], [40.8119099, -73.90969969999999]],
+                {"bubblingMouseEvents": true, "color": "#8da0cb", "dashArray": null, "dashOffset": null, "fill": false, "fillColor": "#8da0cb", "fillOpacity": 0.2, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "noClip": false, "opacity": 0.7, "smoothFactor": 1.0, "stroke": true, "weight": 3}
+            ).addTo(map_513f70714638107e7b5c2b82b5a14a38);
+        
+    
+            var marker_c843a65210f48a2c8547425ac8e7721a = L.marker(
+                [40.8119099, -73.90969969999999],
+                {
+}
+            ).addTo(map_513f70714638107e7b5c2b82b5a14a38);
+        
+    
+            var icon_f0fe6544487eeb73eed52043496ef419 = L.AwesomeMarkers.icon(
+                {
+  "markerColor": "orange",
+  "iconColor": "white",
+  "icon": "info-sign",
+  "prefix": "glyphicon",
+  "extraClasses": "fa-rotate-0",
+}
+            );
+        
+    
+        var popup_455aebf90c18ec8d62723d2b5f55d1c8 = L.popup({
+  "maxWidth": 300,
+});
+
+        
+            
+                var html_ff28f7e54b0968a8111b95838f2c989a = $(`<div id="html_ff28f7e54b0968a8111b95838f2c989a" style="width: 100.0%; height: 100.0%;">         <b>Time:</b> 12:07<br>         <b>Activity:</b> dining<br>         <b>Description:</b> Lunch break at a nearby restaurant.<br>         </div>`)[0];
+                popup_455aebf90c18ec8d62723d2b5f55d1c8.setContent(html_ff28f7e54b0968a8111b95838f2c989a);
+            
+        
+
+        marker_c843a65210f48a2c8547425ac8e7721a.bindPopup(popup_455aebf90c18ec8d62723d2b5f55d1c8)
+        ;
+
+        
+    
+    
+                marker_c843a65210f48a2c8547425ac8e7721a.setIcon(icon_f0fe6544487eeb73eed52043496ef419);
+            
+    
+            var poly_line_08384ce3c42754b295f81637c07a8eb8 = L.polyline(
+                [[40.8119099, -73.90969969999999], [40.8119099, -73.90969969999999]],
+                {"bubblingMouseEvents": true, "color": "gray", "dashArray": null, "dashOffset": null, "fill": false, "fillColor": "gray", "fillOpacity": 0.2, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "noClip": false, "opacity": 0.7, "smoothFactor": 1.0, "stroke": true, "weight": 3}
+            ).addTo(map_513f70714638107e7b5c2b82b5a14a38);
+        
+    
+            var marker_785968bd57abb8b6b6f4a7ebc9cfaa44 = L.marker(
+                [40.8119099, -73.90969969999999],
+                {
+}
+            ).addTo(map_513f70714638107e7b5c2b82b5a14a38);
+        
+    
+            var icon_5b37cb244d5bdb652694171b291b8be7 = L.AwesomeMarkers.icon(
+                {
+  "markerColor": "black",
+  "iconColor": "white",
+  "icon": "info-sign",
+  "prefix": "glyphicon",
+  "extraClasses": "fa-rotate-0",
+}
+            );
+        
+    
+        var popup_99f1fb0639c42ca4660777df4c1cabc1 = L.popup({
+  "maxWidth": 300,
+});
+
+        
+            
+                var html_8b1608ef181f0471f49794ee789722ef = $(`<div id="html_8b1608ef181f0471f49794ee789722ef" style="width: 100.0%; height: 100.0%;">         <b>Time:</b> 12:40<br>         <b>Activity:</b> travel<br>         <b>Description:</b> Traveling from Mexicocina Mezcaleria to Unknown Location<br>         <b>Transport:</b> driving<br></div>`)[0];
+                popup_99f1fb0639c42ca4660777df4c1cabc1.setContent(html_8b1608ef181f0471f49794ee789722ef);
+            
+        
+
+        marker_785968bd57abb8b6b6f4a7ebc9cfaa44.bindPopup(popup_99f1fb0639c42ca4660777df4c1cabc1)
+        ;
+
+        
+    
+    
+                marker_785968bd57abb8b6b6f4a7ebc9cfaa44.setIcon(icon_5b37cb244d5bdb652694171b291b8be7);
+            
+    
+            var poly_line_0b78df628af31b22ec06f7949bc9aa15 = L.polyline(
+                [[40.8119099, -73.90969969999999], [40.8119099, -73.90969969999999]],
+                {"bubblingMouseEvents": true, "color": "#8da0cb", "dashArray": null, "dashOffset": null, "fill": false, "fillColor": "#8da0cb", "fillOpacity": 0.2, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "noClip": false, "opacity": 0.7, "smoothFactor": 1.0, "stroke": true, "weight": 3}
+            ).addTo(map_513f70714638107e7b5c2b82b5a14a38);
+        
+    
+            var marker_e3cba4183753095987da100486e6f843 = L.marker(
+                [40.8008114367193, -73.89630136475748],
+                {
+}
+            ).addTo(map_513f70714638107e7b5c2b82b5a14a38);
+        
+    
+            var icon_6fb6d4a69c1cf9e7e44ce82c8019e013 = L.AwesomeMarkers.icon(
+                {
+  "markerColor": "black",
+  "iconColor": "white",
+  "icon": "info-sign",
+  "prefix": "glyphicon",
+  "extraClasses": "fa-rotate-0",
+}
+            );
+        
+    
+        var popup_285e001405c3f7433da7e155fca04003 = L.popup({
+  "maxWidth": 300,
+});
+
+        
+            
+                var html_2878c11e73c2316e08badcd33909e331 = $(`<div id="html_2878c11e73c2316e08badcd33909e331" style="width: 100.0%; height: 100.0%;">         <b>Time:</b> 12:44<br>         <b>Activity:</b> travel<br>         <b>Description:</b> Traveling from Mexicocina Mezcaleria to Unknown Location<br>         <b>Transport:</b> driving<br></div>`)[0];
+                popup_285e001405c3f7433da7e155fca04003.setContent(html_2878c11e73c2316e08badcd33909e331);
+            
+        
+
+        marker_e3cba4183753095987da100486e6f843.bindPopup(popup_285e001405c3f7433da7e155fca04003)
+        ;
+
+        
+    
+    
+                marker_e3cba4183753095987da100486e6f843.setIcon(icon_6fb6d4a69c1cf9e7e44ce82c8019e013);
+            
+    
+            var poly_line_46b9acca7b82b41a132ee49277fbcfd7 = L.polyline(
+                [[40.8119099, -73.90969969999999], [40.8008114367193, -73.89630136475748]],
+                {"bubblingMouseEvents": true, "color": "#8da0cb", "dashArray": null, "dashOffset": null, "fill": false, "fillColor": "#8da0cb", "fillOpacity": 0.2, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "noClip": false, "opacity": 0.7, "smoothFactor": 1.0, "stroke": true, "weight": 3}
+            ).addTo(map_513f70714638107e7b5c2b82b5a14a38);
+        
+    
+            var marker_9aa28c397b8a050e8da73f4c498f9c70 = L.marker(
+                [40.8008114367193, -73.89630136475748],
+                {
+}
+            ).addTo(map_513f70714638107e7b5c2b82b5a14a38);
+        
+    
+            var icon_fbbf9f6c002b90c2189e74123e9b4229 = L.AwesomeMarkers.icon(
+                {
+  "markerColor": "darkpurple",
+  "iconColor": "white",
+  "icon": "info-sign",
+  "prefix": "glyphicon",
+  "extraClasses": "fa-rotate-0",
+}
+            );
+        
+    
+        var popup_647c4877c643a7a52f98d50ec62ecc30 = L.popup({
+  "maxWidth": 300,
+});
+
+        
+            
+                var html_8268e82fe186c084a8a868f5fb2a416f = $(`<div id="html_8268e82fe186c084a8a868f5fb2a416f" style="width: 100.0%; height: 100.0%;">         <b>Time:</b> 12:44<br>         <b>Activity:</b> commuting<br>         <b>Description:</b> Commute to a client meeting, traveling for 34 minutes.<br>         </div>`)[0];
+                popup_647c4877c643a7a52f98d50ec62ecc30.setContent(html_8268e82fe186c084a8a868f5fb2a416f);
+            
+        
+
+        marker_9aa28c397b8a050e8da73f4c498f9c70.bindPopup(popup_647c4877c643a7a52f98d50ec62ecc30)
+        ;
+
+        
+    
+    
+                marker_9aa28c397b8a050e8da73f4c498f9c70.setIcon(icon_fbbf9f6c002b90c2189e74123e9b4229);
+            
+    
+            var poly_line_1d21ec7257497a1f7c1f257caa8b0fad = L.polyline(
+                [[40.8008114367193, -73.89630136475748], [40.8008114367193, -73.89630136475748]],
+                {"bubblingMouseEvents": true, "color": "gray", "dashArray": null, "dashOffset": null, "fill": false, "fillColor": "gray", "fillOpacity": 0.2, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "noClip": false, "opacity": 0.7, "smoothFactor": 1.0, "stroke": true, "weight": 3}
+            ).addTo(map_513f70714638107e7b5c2b82b5a14a38);
+        
+</script>
+</html>

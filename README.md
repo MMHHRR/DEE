@@ -1,43 +1,67 @@
-# LLM-Based Human Mobility Simulation
+# LLM-based Mobility Simulation
 
-This project uses large language models (LLMs) to simulate human daily mobility behavior for environmental exposure research.
+This project simulates human daily mobility patterns using LLM (Large Language Model) for activity generation and trajectory planning.
 
-![Research Framework](./data/framework.png)
+## Overview
+
+The simulation creates realistic daily activity schedules and travel patterns for virtual personas. It uses LLMs to generate activities based on demographic information, and then plans their movements through space and time.
+
+## Key Features
+
+- Person-centric simulation with demographic attributes
+- LLM-based activity scheduling and destination selection
+- Realistic travel patterns with various transportation modes
+- Visualization of daily trajectories
+- Historical data loading from CSV files (optional)
 
 ## Project Structure
 
-- `persona.py`: Defines individual attributes and characteristics
-- `activity.py`: Generates activity plans using LLM
-- `destination.py`: Retrieves locations using Google Maps API or OSM
-- `memory.py`: Records daily mobility trajectories
-- `config.py`: Configuration settings
-- `utils.py`: Utility functions
-- `main.py`: Main program to coordinate components
-- `data/`: Directory for storing persona data and simulation results
-
-## Setup
-
-1. Clone this repository
-2. Install dependencies: `pip install -r requirements.txt`
-3. Create a `.env` file with your API keys:
-   ```
-   OPENAI_API_KEY=your_openai_api_key
-   GOOGLE_MAPS_API_KEY=your_google_maps_api_key
-   ```
+- `main.py`: Main entry point for the simulation
+- `config.py`: Configuration settings and prompt templates
+- `persona.py`: Persona class representing individuals
+- `activity.py`: Activity generation using LLMs
+- `destination.py`: Destination selection for activities
+- `memory.py`: Recording and tracking mobility patterns
+- `utils.py`: Helper functions for calculations and visualization
+- `data/`: Contains persona definitions and simulation results
 
 ## Usage
 
-1. Place your persona data in `data/personas.json`
-2. Run the simulation: `python main.py`
-3. Results will be stored in `data/results/`
+1. Set up your `.env` file with API keys:
+```
+GOOGLE_MAPS_API_KEY=your_google_maps_api_key
+DEEPBRICKS_API_KEY=your_openai_api_key
+DEEPBRICKS_BASE_URL=https://api.openai.com/v1
+```
+
+2. Customize persona data in `data/personas.json`
+
+3. Run the simulation:
+```
+python main.py
+```
+
+4. View results in the `data/results/` directory
+
+## Requirements
+
+See `requirements.txt` for dependencies. Main requirements:
+- Python 3.8+
+- OpenAI API (or compatible)
+- GeoPy
+- Folium (for visualization)
+- Matplotlib
+- Pandas
 
 ## Configuration
 
-Modify `config.py` to adjust simulation parameters:
-- Number of days to simulate: `NUM_DAYS_TO_SIMULATE = 3`
-- LLM model to use: `LLM_MODEL = "gpt-4o-mini"`
-- Prompt templates: `ACTIVITY_GENERATION_PROMPT`
+You can modify simulation parameters in `config.py`:
+- Number of days to simulate
+- Starting date
+- Activity types and transportation modes
+- LLM model settings
+- Prompt templates
 
-## TODO List
-- Add validation section (compare to real world): matrix framework
-- Add peception modual (VLM perception environment)
+## License
+
+[Your license information]

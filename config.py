@@ -19,7 +19,7 @@ USE_DEEPBRICKS_API = True  # Always use DeepBricks API
 # LLM Configuration
 LLM_MODEL = "gpt-4o-mini"
 LLM_TEMPERATURE = 0.7
-LLM_MAX_TOKENS = 800
+LLM_MAX_TOKENS = 500
 
 # Simulation Parameters
 NUM_DAYS_TO_SIMULATE = 3
@@ -29,6 +29,12 @@ USE_GOOGLE_MAPS = True  # If False, will use OSM
 # File Paths
 PERSONA_DATA_PATH = "data/personas.json"
 RESULTS_DIR = "data/results/"
+
+# Processing Options
+BATCH_PROCESSING = False  # Whether to use batch processing
+BATCH_SIZE = 10  # Number of items to process in a batch
+ENABLE_CACHING = True  # Whether to enable function result caching
+CACHE_EXPIRY = 86400  # Cache expiry time in seconds (24 hours)
 
 # Activity Types
 ACTIVITY_TYPES = [
@@ -42,17 +48,7 @@ ACTIVITY_TYPES = [
     "education",
     "leisure",
     "errands",
-    "travel",
-    # Sub-activity types
-    "commuting",
-    "warm_up",
-    "main_exercise",
-    "cool_down",
-    "meeting",
-    "break",
-    "meal",
-    "preparation",
-    "relaxation"
+    "travel"
 ]
 
 # Transportation Modes
@@ -93,32 +89,24 @@ LOCATION_TYPES = [
     "religious_place"
 ]
 
-# # Environmental Exposure Factors
-# ENVIRONMENTAL_FACTORS = [
-#     "air_quality",
-#     "noise_level",
-#     "green_space",
-#     "urban_density",
-#     "traffic_density"
-# ]
-
 # Prompt Templates
 ACTIVITY_GENERATION_PROMPT = """
 You are simulating the daily activity schedule for a person with the following characteristics:
 - Gender: {gender}
 - Age: {age}
-- Income level: ${income} annually
-- Consumption habits: {consumption}
 - Education: {education}
+- Occupation: {occupation}
+- Race/ethnicity: {race}
 - Day of week: {day_of_week}
 - Date: {date}
 - Home location: {home_location}
 - Work location: {work_location}
+- Memory patterns: {memory_patterns}
 
 Based on this information, generate a daily schedule for this person, from morning to evening. Include at least 4-6 activities throughout the day, including mandatory activities (like work) and discretionary activities. MAKE SURE the time is continuous and there is no blank window.
 
 GEOGRAPHIC RULES: considering the geographical distance between activities, such as from home to workplace.
-DEMOGRAPHIC CONSIDERATIONS: considering the demographic profile of the person, such as age, gender, income level, consumption habits, education level, etc.
+DEMOGRAPHIC CONSIDERATIONS: considering the demographic profile of the person, such as age, gender, education level, etc.
 
 IMPORTANT RULES FOR ACTIVITY TYPES:
 - "sleep": ONLY for sleeping activities (night sleep, naps)
@@ -180,15 +168,42 @@ Format your response as a JSON array of activities:
 ]
 """
 
-# Add new prompt for refining activities
+# Destination Selection Prompt
+DESTINATION_SELECTION_PROMPT = """
+Generate a specific destination type and preferences for a person with the following characteristics:
+- Gender: {gender}
+- Age: {age}
+- Education: {education}
+- Activity: {activity_type}
+- Description: {description}
+- Time of day: {time}
+- Day of week: {day_of_week}
+- Transportation mode: {transport_mode}
+
+Based on this information, provide:
+1. A specific type of destination suitable for this activity
+2. Price preference (budget, mid-range, upscale)
+3. Distance preference (on a scale of 1-10, where 1 means very close to current location and 10 means can be quite far)
+4. Any specific features or amenities this person would look for
+5. Type of atmosphere/environment preferred
+
+Format your response as a JSON object:
+{
+  "destination_type": "specific type of place",
+  "price_preference": "budget/mid-range/upscale",
+  "distance_preference": 5,
+  "features": ["feature1", "feature2", ...],
+  "atmosphere": "description of preferred atmosphere"
+}
+"""
+
+# Activity Refinement Prompt
 ACTIVITY_REFINEMENT_PROMPT = """
 You are helping to refine a person's activity schedule. Break them down into sub-activities with specific times, when activity need location change based on the previous and current location, you need to add a travel activity.
 
 Person Information:
 - Gender: {gender}
 - Age: {age}
-- Income level: ${income} annually
-- Consumption habits: {consumption}
 - Education: {education}
 
 Activity Information:
@@ -203,6 +218,12 @@ Activity Information:
 - Previous end time: {previous_end_time}
 - Requires transportation: {requires_transportation}
 
+IMPORTANT: Consider the person's demographic profile when refining activities:
+- Their age ({age}) and gender ({gender}) may affect activity choices
+- Their education level ({education}) might influence activity preferences
+- Consider any mobility limitations if the person has disabilities
+- Consider cultural preferences based on their racial/ethnic background
+
 ACTIVITY TYPES:
 "sleep",
 "work",
@@ -214,11 +235,7 @@ ACTIVITY TYPES:
 "education",
 "leisure",
 "errands",
-"travel",
-"exercise",
-"meeting",
-"break",
-"meal"
+"travel"
 
 LOCATION TYPES:
 "home", "workplace", "restaurant", "cafe", "grocery_store", "shopping_mall", "retail_store", 
@@ -246,44 +263,4 @@ Return in JSON format:
   "description": "More detailed activity description (limited to 20 words)",
   "transport_mode": "ONLY include this IF requires_transportation is true, and it MUST be one from the list above"
 }}
-"""
-
-DESTINATION_SELECTION_PROMPT = """
-You are helping to select a specific destination for a person with the following characteristics:
-- Gender: {gender}
-- Age: {age}
-- Income level: ${income} annually
-- Consumption habits: {consumption}
-- Education: {education}
-
-They want to engage in the following activity: {activity_description}
-Activity type: {activity_type}
-Time of day: {time}
-Day of week: {day_of_week}
-
-Their current location is at coordinates: {current_location}
-
-Given these parameters, what specific type of place would this person likely visit for this activity?
-Consider their demographic profile and consumption habits.
-
-LOCATION TYPES:
-"home", "workplace", "restaurant", "cafe", "grocery_store", "shopping_mall", "retail_store", 
-"gym", "park", "hospital", "clinic", "school", "university", "library", "theater", "cinema", 
-"museum", "bar", "friend_home", "family_home", "bank", "post_office", "transit_station", "hotel", "religious_place"
-
-Format your response as a single JSON object:
-{{
-  "place_type": "type of place (MUST be one from the location types list above)",
-  "search_query": "keyword for place (e.g., 'Chinese restaurant')",
-  "distance_preference": "preferred travel distance in kilometers (1-10, where 10 means can be very far)",
-  "price_level": "price level preference (1-4, where 4 is most expensive)"
-}}
-"""
-
-# Add batch processing configuration
-BATCH_PROCESSING = True  # Enable batch processing
-BATCH_SIZE = 5  # Number of activities to process at once
-
-# Add cache configuration
-ENABLE_CACHING = True  # Enable caching
-CACHE_EXPIRY = 3600  # Cache expiration time (seconds) 
+""" 
