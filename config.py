@@ -96,6 +96,7 @@ You are simulating the daily activity schedule for a person with the following c
 - Age: {age}
 - Education: {education}
 - Occupation: {occupation}
+- Household income: ${household_income}
 - Race/ethnicity: {race}
 - Day of week: {day_of_week}
 - Date: {date}
@@ -103,10 +104,7 @@ You are simulating the daily activity schedule for a person with the following c
 - Work location: {work_location}
 - Memory patterns: {memory_patterns}
 
-Based on this information, generate a daily schedule for this person, from morning to evening. Include at least 4-6 activities throughout the day, including mandatory activities (like work) and discretionary activities. MAKE SURE the time is continuous and there is no blank window.
-
-GEOGRAPHIC RULES: considering the geographical distance between activities, such as from home to workplace.
-DEMOGRAPHIC CONSIDERATIONS: considering the demographic profile of the person, such as age, gender, education level, etc.
+Based on this information, generate a realistic daily schedule for this person, from morning to evening. Include at least 4-6 activities throughout the day, including mandatory activities (like working, eating, sleeping) and discretionary activities. MAKE SURE the time is continuous and there is no blank window.
 
 IMPORTANT RULES FOR ACTIVITY TYPES:
 - "sleep": ONLY for sleeping activities (night sleep, naps)
@@ -117,7 +115,7 @@ IMPORTANT RULES FOR ACTIVITY TYPES:
 - "recreation": leisure activities (sports, exercise, etc.)
 - "healthcare": medical appointments, therapy, etc.)
 - "social": meeting friends, parties, etc.
-- "education": classes, studying, etc.
+- "education": classes, studying, etc.)
 - "leisure": relaxing activities (reading, watching TV, etc.)
 - "errands": short tasks (bank, post office, etc.)
 
@@ -152,7 +150,7 @@ For each activity, specify:
 1. Activity type (MUST be one from the list above)
 2. Start time (MUST be the same as the previous activity's end time)
 3. End time (Next activity MUST start at this time)
-4. Detailed description of the activity (limited to 20 words)
+4. Detailed description of the activity (limited to 30 words)
 5. Location type (MUST be one from the location types list above)
 
 Format your response as a JSON array of activities:
@@ -174,27 +172,29 @@ Generate a specific destination type and preferences for a person with the follo
 - Gender: {gender}
 - Age: {age}
 - Education: {education}
+- Occupation: {occupation}
+- Household income: ${household_income}
 - Activity: {activity_type}
-- Description: {description}
+- Description: {activity_description}
 - Time of day: {time}
 - Day of week: {day_of_week}
-- Transportation mode: {transport_mode}
 
-Based on this information, provide:
+{memory_context}
+
+Based on this information, especially considering the historical behavior patterns if available, provide:
 1. A specific type of destination suitable for this activity
-2. Price preference (budget, mid-range, upscale)
+2. Price preference (budget, mid-range, upscale, or a numeric value 1-4)
 3. Distance preference (on a scale of 1-10, where 1 means very close to current location and 10 means can be quite far)
 4. Any specific features or amenities this person would look for
-5. Type of atmosphere/environment preferred
 
 Format your response as a JSON object:
-{
-  "destination_type": "specific type of place",
-  "price_preference": "budget/mid-range/upscale",
+{{
+  "place_type": "specific type of place",
+  "search_query": "search terms for this type of place",
+  "price_level": 2,
   "distance_preference": 5,
-  "features": ["feature1", "feature2", ...],
-  "atmosphere": "description of preferred atmosphere"
-}
+  "features": ["feature1", "feature2", ...]
+}}
 """
 
 # Activity Refinement Prompt
@@ -205,7 +205,7 @@ Person Information:
 - Gender: {gender}
 - Age: {age}
 - Education: {education}
-
+- Household income: ${household_income}
 Activity Information:
 - Date: {date}
 - Day of week: {day_of_week}
@@ -263,4 +263,91 @@ Return in JSON format:
   "description": "More detailed activity description (limited to 20 words)",
   "transport_mode": "ONLY include this IF requires_transportation is true, and it MUST be one from the list above"
 }}
-""" 
+"""
+
+# Transportation and Distance Refinement Prompt
+TRANSPORTATION_REFINEMENT_PROMPT = """
+You are finalizing a person's activity and travel schedule with accurate transportation information. Given the calculated distances and optimal transportation modes, generate the final activity log with precise transportation details.
+
+Person Information:
+- Gender: {gender}
+- Age: {age}
+- Education: {education}
+- Occupation: {occupation}
+- Household income: ${household_income}
+Activity Details:
+- Activity type: {activity_type}
+- Description: {description}
+- From location: {from_location_type}
+- To location: {to_location_type}
+- Start time: {start_time}
+- End time: {end_time}
+- Calculated distance: {distance} km
+- Calculated travel time: {travel_time} minutes
+- Optimal transport mode: {transport_mode}
+
+TRANSPORT MODE CODES:
+- "walking": 200 (on foot)
+- "cycling": 201 (bicycle)
+- "public_transit": 202 (bus, subway, train)
+- "driving": 203 (private car)
+- "rideshare": 204 (taxi, Uber, Lyft)
+
+Based on this information, please finalize the activity entry with exact arrival time, departure time, activity duration, and appropriate transportation details.
+
+Return ONLY a JSON object with the following format:
+{{
+  "activity_type": "{activity_type}",
+  "description": "refined description with transportation details if needed",
+  "location_type": "{to_location_type}",
+  "arrtime": "HH:MM",
+  "deptime": "HH:MM",
+  "travtime": {travel_time},
+  "actdur": calculated activity duration in minutes,
+  "distance": {distance},
+  "mode": transport mode code
+}}
+"""
+
+# Transport Mode Selection Prompt
+TRANSPORT_MODE_PROMPT = """
+As a transportation expert, please select the most suitable transport mode based on the following information:
+
+Person Information:
+- Gender: {gender}
+- Age: {age}
+- Education: {education}
+- Occupation: {occupation}
+- Household income: ${household_income}
+
+Trip Conditions:
+- Activity Type: {activity}
+- Available Time: {minutes} minutes
+- Distance: {distance} kilometers
+- Historical Preferences: {patterns}
+
+Please select ONE most suitable transport mode from the following options:
+Walk
+My own bike
+Divvy bike
+Zagster bike
+Motorcycle/moped
+Auto / van / truck (as the driver) 
+Auto / van / truck (as the passenger) 
+Carpool/vanpool
+School bus
+Bus (CTA, PACE, Huskie Line, Indiana)
+Dial-a-Ride
+Call-n-Ride
+Paratransit
+Train (CTA, METRA, South Shore Line)
+Local transit (NIRPC region)
+Private shuttle bus
+Taxi
+Private limo
+Private car
+Uber/Lyft
+Via/Uber Pool/Lyft Line (shared ride)
+Airplane
+
+Return ONLY the transport mode without any explanation.""" 

@@ -41,6 +41,9 @@ class Persona:
         self.disability = persona_data.get('disability', False)
         self.disability_type = persona_data.get('disability_type', None)
         
+        # Economic attributes
+        self.household_income = persona_data.get('household_income', 50000)
+        
         # Current state
         self.current_location = self.home  # Start at home
         self.current_activity = None       # Complete activity information
@@ -53,6 +56,7 @@ class Persona:
         self.person_csv = "data/person.csv"
         self.gps_place_csv = "data/gps_place.csv"
         self.location_csv = "data/location.csv"
+        self.household_csv = "data/household.csv"
     
     def load_historical_data(self, household_id=None, person_id=None):
         """
@@ -71,9 +75,31 @@ class Persona:
                 household_id = self.id
                 
             # Ensure CSV files exist
-            if not all(os.path.exists(csv_file) for csv_file in [self.person_csv, self.gps_place_csv, self.location_csv]):
-                print(f"Cannot find CSV files: {self.person_csv}, {self.gps_place_csv}, or {self.location_csv}")
+            required_files = [self.person_csv, self.gps_place_csv, self.location_csv, self.household_csv]
+            if not all(os.path.exists(csv_file) for csv_file in required_files):
+                print(f"Cannot find one or more required CSV files: {required_files}")
                 return False
+                
+            # Read household.csv to get household income information
+            try:
+                household_df = pd.read_csv(self.household_csv)
+                household_records = household_df[household_df['sampno'] == household_id]
+                
+                if not household_records.empty:
+                    # Get household income code
+                    income_code = household_records.iloc[0].get('hhinc', 0)
+                    
+                    # Convert income code to actual income value
+                    income_value = self._income_code_to_value(income_code)
+                    
+                    # Update persona attributes
+                    self.income_code = income_code
+                    self.household_income = income_value
+                    print(f"Loaded household income: ${income_value} (code: {income_code})")
+            except Exception as e:
+                print(f"Error loading household data: {e}")
+                import traceback
+                traceback.print_exc()
                 
             # Read person.csv
             person_df = pd.read_csv(self.person_csv)
@@ -501,3 +527,54 @@ class Persona:
         self.current_activity = activity
         self.current_activity_type = activity.get('activity_type', None) if activity else None
     
+    def get_household_income(self):
+        """
+        Get household income
+        
+        Returns:
+            int: Household income value, default to 50000 if not set
+        """
+        return getattr(self, 'household_income', 50000)
+        
+    def _income_code_to_value(self, code):
+        """
+        Convert household income code to estimated dollar value
+        
+        Args:
+            code: Income code from CSV file
+            
+        Returns:
+            int: Estimated household income in dollars
+        """
+        if pd.isna(code):
+            return 50000  # Default middle income
+            
+        try:
+            code = int(code)
+            
+            # For negative codes (-7, -8, -9), return default middle income
+            if code in [-9, -8, -7]:
+                return 50000
+            
+            # Income code mapping based on the provided ranges
+            income_mapping = {
+                -9: 50000,  # Not ascertained - default to middle income
+                -8: 50000,  # I don't know - default to middle income
+                -7: 50000,  # I prefer not to answer - default to middle income
+                1: 15000,   # Less than $15,000 - middle of range
+                2: 24999,   # $15,000 to $24,999 - middle of range
+                3: 29999,   # $25,000 to $29,999 - middle of range
+                4: 34999,   # $30,000 to $34,999 - middle of range
+                5: 49999,   # $35,000 to $49,999 - middle of range
+                6: 59999,   # $50,000 to $59,999 - middle of range
+                7: 74999,   # $60,000 to $74,999 - middle of range
+                8: 99999,   # $75,000 to $99,999 - middle of range
+                9: 149999,  # $100,000 to $149,999 - middle of range
+                10: 150000  # $150,000 or more - conservative estimate
+            }
+            
+            result = income_mapping.get(code, 50000)
+            return result
+            
+        except (ValueError, TypeError) as e:
+            return 50000  # Default middle income

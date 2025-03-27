@@ -6,9 +6,14 @@ Coordinates all components to simulate human daily mobility.
 import os
 import json
 import datetime
+import pandas as pd
 from tqdm import tqdm
 import traceback
 import concurrent.futures
+import matplotlib.pyplot as plt
+import numpy as np
+import argparse
+import gc
 
 from config import (
     PERSONA_DATA_PATH,
@@ -16,6 +21,8 @@ from config import (
     NUM_DAYS_TO_SIMULATE,
     SIMULATION_START_DATE,
     BATCH_PROCESSING,
+    BATCH_SIZE,
+    MEMORY_DAYS
 )
 from persona import Persona
 from activity import Activity
@@ -23,6 +30,7 @@ from destination import Destination
 from memory import Memory
 from utils import (
     load_json,
+    save_json,
     calculate_distance,
     generate_date_range,
     get_day_of_week,
@@ -32,7 +40,10 @@ from utils import (
     estimate_travel_time,
     cached,
     format_time_after_minutes,
-    time_to_minutes
+    time_to_minutes,
+    batch_save_trajectories,
+    compress_trajectory_data,
+    generate_summary_report
 )
 
 
@@ -225,7 +236,7 @@ def simulate_single_day(persona, date, activity_generator, destination_selector,
         return False
 
 
-def simulate_persona(persona_data, num_days=7, start_date=None):
+def simulate_persona(persona_data, num_days=7, start_date=None, memory_days=2):
     """
     Simulate daily activities for a persona over a period of time.
     
@@ -233,6 +244,7 @@ def simulate_persona(persona_data, num_days=7, start_date=None):
         persona_data: Dictionary with persona data
         num_days: Number of days to simulate
         start_date: Starting date (YYYY-MM-DD format)
+        memory_days: Number of days to keep in memory
     
     Returns:
         Memory: Object containing the simulation results
@@ -251,13 +263,13 @@ def simulate_persona(persona_data, num_days=7, start_date=None):
         activity_generator = Activity()
         destination_selector = Destination()
         
-        # Initialize memory
-        memory = Memory(persona.id)
-        # memory.initialize_persona(persona)
+        # Initialize memory with limited history
+        memory = Memory(persona.id, memory_days=memory_days)
+        memory.initialize_persona(persona)
         
         # Try to load historical data if CSV files exist
         try:
-            if os.path.exists("data/person.csv") and os.path.exists("data/location.csv") and os.path.exists("data/gps_place.csv"):
+            if os.path.exists("data/person.csv") and os.path.exists("data/location.csv") and os.path.exists("data/gps_place.csv") and os.path.exists("data/household.csv"):
                 print(f"Attempting to load historical data for {persona.name}...")
                 # Try using persona ID as household ID
                 loaded = persona.load_historical_data(household_id=persona.id)
@@ -278,6 +290,9 @@ def simulate_persona(persona_data, num_days=7, start_date=None):
         # Simulate each day
         for date in date_range:
             simulate_single_day(persona, date, activity_generator, destination_selector, memory)
+            
+            # 每次模拟后清理内存
+            gc.collect()
         
         return memory
     
@@ -287,7 +302,7 @@ def simulate_persona(persona_data, num_days=7, start_date=None):
         return None
 
 
-def simulate_parallel(persona_list, num_days=7, start_date=None, max_workers=4):
+def simulate_parallel(persona_list, num_days=7, start_date=None, max_workers=4, memory_days=2, batch_size=10):
     """
     Simulate multiple personas in parallel using multiprocessing.
     
@@ -296,62 +311,232 @@ def simulate_parallel(persona_list, num_days=7, start_date=None, max_workers=4):
         num_days: Number of days to simulate
         start_date: Starting date
         max_workers: Maximum number of parallel workers
+        memory_days: Number of days to keep in memory
+        batch_size: Number of personas to process in each batch
         
     Returns:
         dict: Dictionary mapping persona IDs to Memory objects
     """
     results = {}
     
-    with concurrent.futures.ProcessPoolExecutor(max_workers=max_workers) as executor:
-        # Create a mapping of futures to persona IDs
-        future_to_persona = {
-            executor.submit(simulate_persona, persona, num_days, start_date): persona['id']
-            for persona in persona_list
-        }
+    # 分批处理persona列表，减少内存占用
+    for batch_start in range(0, len(persona_list), batch_size):
+        batch_end = min(batch_start + batch_size, len(persona_list))
+        current_batch = persona_list[batch_start:batch_end]
         
-        # Process results as they complete
-        for future in concurrent.futures.as_completed(future_to_persona):
-            persona_id = future_to_persona[future]
+        print(f"Processing batch {batch_start//batch_size + 1} ({batch_start+1}-{batch_end} of {len(persona_list)})")
+        
+        batch_results = {}
+        with concurrent.futures.ProcessPoolExecutor(max_workers=max_workers) as executor:
+            # Create a mapping of futures to persona IDs
+            future_to_persona = {
+                executor.submit(
+                    simulate_persona, 
+                    persona, 
+                    num_days, 
+                    start_date,
+                    memory_days
+                ): persona['id']
+                for persona in current_batch
+            }
+            
+            # Process results as they complete
+            for future in concurrent.futures.as_completed(future_to_persona):
+                persona_id = future_to_persona[future]
+                try:
+                    memory = future.result()
+                    if memory:
+                        batch_results[persona_id] = memory
+                        print(f"Completed simulation for persona {persona_id}")
+                    else:
+                        print(f"Failed to simulate persona {persona_id}")
+                except Exception as e:
+                    print(f"Simulation for persona {persona_id} generated an exception: {e}")
+        
+        # 保存当前批次结果
+        for persona_id, memory in batch_results.items():
+            results[persona_id] = memory
+            
+            # 立即保存结果到文件，以释放内存
+            output_file = os.path.join(RESULTS_DIR, f"persona_{persona_id}.json")
+            memory.save_to_file(output_file)
+            print(f"Saved results for persona {persona_id} to {output_file}")
+            
+            # 压缩数据以节省磁盘空间
             try:
-                memory = future.result()
-                if memory:
-                    results[persona_id] = memory
-                    print(f"Completed simulation for persona {persona_id}")
-                else:
-                    print(f"Failed to simulate persona {persona_id}")
+                compress_trajectory_data(output_file, method='gzip')
+                print(f"Compressed trajectory data for persona {persona_id}")
             except Exception as e:
-                print(f"Simulation for persona {persona_id} generated an exception: {e}")
+                print(f"Error compressing data: {e}")
+        
+        # 清理当前批次结果，释放内存
+        batch_results.clear()
+        gc.collect()
     
     return results
 
 
-def main():
+def create_batch_visualizations(results_dir, max_personas_per_vis=10):
+    """
+    为模拟结果创建批量可视化
+    
+    Args:
+        results_dir: 结果目录
+        max_personas_per_vis: 每个可视化包含的最大persona数量
+    """
+    import os
+    import json
+    import folium
+    from folium.plugins import MarkerCluster
+    
+    # 查找所有persona结果文件
+    persona_files = []
+    for filename in os.listdir(results_dir):
+        if filename.startswith("persona_") and filename.endswith(".json"):
+            persona_files.append(os.path.join(results_dir, filename))
+    
+    if not persona_files:
+        print("No persona result files found")
+        return
+    
+    # 按批次创建可视化
+    for batch_idx in range(0, len(persona_files), max_personas_per_vis):
+        batch_files = persona_files[batch_idx:batch_idx + max_personas_per_vis]
+        
+        # 创建地图
+        m = folium.Map(location=[41.8781, -87.6298], zoom_start=11)  # 以芝加哥为中心
+        
+        # 为每个persona创建一个特征组
+        for persona_file in batch_files:
+            try:
+                # 读取persona数据
+                with open(persona_file, 'r') as f:
+                    data = json.load(f)
+                
+                persona_id = data.get('persona_id', 'unknown')
+                
+                # 创建此persona的特征组
+                fg = folium.FeatureGroup(name=f"Persona {persona_id}")
+                
+                # 添加轨迹点
+                for day in data.get('days', []):
+                    date = day.get('date', '')
+                    
+                    # 创建轨迹线
+                    locations = []
+                    for point in day.get('trajectory', []):
+                        if 'location' in point and point['location']:
+                            locations.append(point['location'])
+                    
+                    if len(locations) > 1:
+                        # 添加轨迹线
+                        folium.PolyLine(
+                            locations,
+                            color=f'#{hash(str(persona_id)) % 0xFFFFFF:06x}',  # 基于persona_id生成唯一颜色
+                            weight=2,
+                            opacity=0.7,
+                            popup=f"Persona {persona_id} on {date}"
+                        ).add_to(fg)
+                
+                # 将特征组添加到地图
+                fg.add_to(m)
+                
+            except Exception as e:
+                print(f"Error processing {persona_file}: {e}")
+        
+        # 添加图层控制
+        folium.LayerControl().add_to(m)
+        
+        # 保存地图
+        output_file = os.path.join(results_dir, f"batch_visualization_{batch_idx // max_personas_per_vis + 1}.html")
+        m.save(output_file)
+        print(f"Created batch visualization: {output_file}")
+
+
+def main(args=None):
     """Main entry point for the simulation."""
     try:
+        # 解析命令行参数
+        if args is None:
+            parser = argparse.ArgumentParser(description='Run mobility simulation')
+            parser.add_argument('--personas', type=str, default=PERSONA_DATA_PATH,
+                               help='Path to personas JSON file')
+            parser.add_argument('--days', type=int, default=NUM_DAYS_TO_SIMULATE,
+                               help='Number of days to simulate')
+            parser.add_argument('--start_date', type=str, default=SIMULATION_START_DATE,
+                               help='Start date (YYYY-MM-DD)')
+            parser.add_argument('--output', type=str, default=RESULTS_DIR,
+                               help='Output directory')
+            parser.add_argument('--batch', action='store_true', default=BATCH_PROCESSING,
+                               help='Use batch processing')
+            parser.add_argument('--batch_size', type=int, default=BATCH_SIZE,
+                               help='Batch size for processing')
+            parser.add_argument('--workers', type=int, default=4,
+                               help='Number of parallel workers')
+            parser.add_argument('--memory_days', type=int, default=MEMORY_DAYS,
+                               help='Number of days to keep in memory')
+            parser.add_argument('--compress', action='store_true', default=True,
+                               help='Compress output files')
+            parser.add_argument('--summary', action='store_true', default=True,
+                               help='Generate summary report')
+            
+            args = parser.parse_args()
+        
         # Create results directory if it doesn't exist
-        os.makedirs(RESULTS_DIR, exist_ok=True)
+        os.makedirs(args.output, exist_ok=True)
         
         # Load persona data
-        personas = load_json(PERSONA_DATA_PATH)
+        personas = load_json(args.personas)
         print(f"Loaded {len(personas)} personas")
         
         # Simulate each persona
         results = {}
         
-        if BATCH_PROCESSING:
-            # Use multiprocessing for batch processing
-            results = simulate_parallel(personas, NUM_DAYS_TO_SIMULATE)
+        if args.batch:
+            # Use batch processing
+            results = simulate_parallel(
+                personas, 
+                num_days=args.days,
+                start_date=args.start_date,
+                max_workers=args.workers,
+                memory_days=args.memory_days,
+                batch_size=args.batch_size
+            )
         else:
             # Sequential processing
             for persona_data in tqdm(personas, desc="Simulating personas"):
-                memory = simulate_persona(persona_data, NUM_DAYS_TO_SIMULATE)
+                memory = simulate_persona(
+                    persona_data, 
+                    num_days=args.days, 
+                    start_date=args.start_date,
+                    memory_days=args.memory_days
+                )
+                
                 if memory:
                     results[persona_data['id']] = memory
                     
                     # Save result for this persona
-                    output_file = os.path.join(RESULTS_DIR, f"persona_{persona_data['id']}.json")
+                    output_file = os.path.join(args.output, f"persona_{persona_data['id']}.json")
                     memory.save_to_file(output_file)
                     print(f"Saved results for persona {persona_data['id']} to {output_file}")
+                    
+                    # 压缩数据以节省磁盘空间
+                    if args.compress:
+                        try:
+                            compress_trajectory_data(output_file, method='gzip')
+                        except Exception as e:
+                            print(f"Error compressing data: {e}")
+        
+        # 批量保存轨迹数据，优化大规模结果
+        batch_save_trajectories(results, os.path.join(args.output, 'trajectories'), format='merged')
+        
+        # 生成摘要报告
+        if args.summary:
+            summary_file = generate_summary_report(results, args.output)
+            print(f"Generated summary report: {summary_file}")
+            
+            # 创建批量可视化
+            create_batch_visualizations(args.output)
         
         print(f"Completed simulation for {len(results)} personas")
         return results

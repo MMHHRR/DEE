@@ -1,28 +1,29 @@
 """
 Activity module for the LLM-based mobility simulation.
-Uses LLM to generate and manage daily activity plans.
+Handles activity generation and refinement using LLM.
 """
 
 import json
 import re
 import openai
 import random
-import datetime
-import pandas as pd
+from datetime import datetime, timedelta
 from config import (
-    LLM_MODEL, 
-    LLM_TEMPERATURE, 
+    LLM_MODEL,
+    LLM_TEMPERATURE,
     LLM_MAX_TOKENS,
+    ACTIVITY_TYPES,
+    LOCATION_TYPES,
     ACTIVITY_GENERATION_PROMPT,
     ACTIVITY_REFINEMENT_PROMPT,
-    ACTIVITY_TYPES,
+    TRANSPORTATION_REFINEMENT_PROMPT,
     DEEPBRICKS_API_KEY,
     DEEPBRICKS_BASE_URL,
     TRANSPORT_MODES,
     BATCH_PROCESSING,
     BATCH_SIZE
 )
-from utils import get_day_of_week, normalize_transport_mode, cached, time_to_minutes
+from utils import cached, get_day_of_week, normalize_transport_mode, calculate_distance, estimate_travel_time, time_to_minutes, generate_random_location_near
 
 # Create OpenAI client
 client = openai.OpenAI(
@@ -35,12 +36,13 @@ class Activity:
     Manages the generation and processing of daily activity plans.
     """
     
-    def __init__(self):
+    def __init__(self, config=None):
         """Initialize the Activity generator."""
         self.model = LLM_MODEL
         self.temperature = LLM_TEMPERATURE
         self.max_tokens = LLM_MAX_TOKENS
         self.activity_queue = []  # For batch processing of activities
+        self.config = config  # Store config for destination selector
     
     @cached
     def analyze_memory_patterns(self, memory, persona=None):
@@ -159,63 +161,479 @@ class Activity:
     @cached
     def generate_daily_schedule(self, persona, date):
         """
-        Generate a daily schedule for a given persona.
-        Added caching to avoid repeated generation under the same conditions
+        Generate a daily schedule for a given persona using a three-stage approach:
+        1. Generate basic daily activities
+        2. Determine actual destinations and calculate distances
+        3. Refine with accurate travel and transportation details
         
         Args:
             persona: Persona object
             date: Date string (YYYY-MM-DD)
         
         Returns:
-            list: List of activities for the day
+            list: List of activities for the day with complete travel details
         """
-        day_of_week = get_day_of_week(date)
         
         # Analyze historical memory patterns (if any)
         memory_patterns = None
         if hasattr(persona, 'memory') and persona.memory and persona.memory.days:
             memory_patterns = self.analyze_memory_patterns(persona.memory, persona)
         
-        # Build cache key with more demographic details
-        persona_key = f"{persona.id}:{persona.age}:{persona.gender}:{persona.education}:{persona.occupation}:{persona.race}:{persona.home}:{persona.work}"
-
-        cache_key = f"daily_schedule:{persona_key}:{date}:{day_of_week}"
-        
         # Check if it's a weekend, get weekend/weekday activity preferences from history
+        day_of_week = get_day_of_week(date)
         is_weekend = day_of_week in ['Saturday', 'Sunday']
         
-        # Generate schedule
-        activities = self._generate_activities_with_llm(
-            persona, 
-            date, 
-            day_of_week, 
-            memory_patterns, 
-            is_weekend=is_weekend,
-        )
+        # Stage 1: Generate basic activities with LLM
+        basic_activities = self._generate_activities_with_llm(persona, date, day_of_week, memory_patterns, is_weekend)
+        
+        # Initialize destination selector if needed
+        if not hasattr(self, 'destination_selector'):
+            try:
+                from destination import Destination
+                self.destination_selector = Destination(config=self.config)
+            except Exception as e:
+                print(f"Error initializing destination selector: {e}")
+                # Create a fallback destination selector with empty config if needed
+                from destination import Destination
+                self.destination_selector = Destination()
 
-        print("---------------------------------------------------")
-        print(activities)
-        print("---------------------------------------------------")
+        # Stage 2: Calculate actual destinations and distances
+        activities_with_destinations = self._add_destinations_and_distances(persona, basic_activities, date, day_of_week, memory_patterns)
 
-        # Refine and potentially decompose activities
-        refined_activities = []
-        previous_activity = None
-        for activity in activities:
-            result = self.refine_activity(persona, activity, date, day_of_week, previous_activity)
+        return activities_with_destinations
+        
+    def _add_destinations_and_distances(self, persona, activities, date, day_of_week, memory_patterns=None):
+        """
+        Add actual destinations and calculate distances between activities,
+        passing memory patterns to the destination selector for LLM analysis
+        
+        Args:
+            persona: Persona object
+            activities: List of basic activities
+            date: Date string (YYYY-MM-DD)
+            day_of_week: Day of week string
             
-            # Check if result is a list (decomposed activities) or dict (single refined activity)
-            if isinstance(result, list):
-                refined_activities.extend(result)  # Add all sub-activities
-                previous_activity = result[-1]  # Use the last sub-activity as previous
-            else:
-                refined_activities.append(result)  # Add single refined activity
-                previous_activity = result
-
-        # Validate and correct activities
-        validated_activities = self._validate_activities(refined_activities)
+        Returns:
+            list: Activities with destination details and distances
+        """
+        enhanced_activities = []
+        current_location = persona.home  # Start at home
         
-        return validated_activities
+        # Process each activity
+        for i, activity in enumerate(activities):
+            # 1. 处理在家中的睡眠活动
+            if activity['activity_type'] == 'sleep' and activity['location_type'] == 'home':
+                activity['coordinates'] = persona.home
+                activity['distance'] = 0
+                activity['travel_time'] = 0
+                activity['transport_mode'] = 'No need to travel'
+                activity['location_name'] = 'Home'
+                enhanced_activities.append(activity)
+                continue
+            
+            # 2. 处理通勤和旅行活动 - 需要分析描述来确定起点和终点
+            if activity['activity_type'] in ['commuting', 'travel']:
+                # 分析描述来确定起点和终点
+                desc = activity['description'].lower()
+                
+                # 检查描述中是否包含更丰富的信息
+                home_indicators = ['home', 'house', 'apartment', 'residence']
+                work_indicators = ['work', 'office', 'workplace', 'job', 'company', 'business']
+                
+                # 确定描述中是否提到了从家到工作的通勤
+                from_home_to_work = False
+                if any(f"from {hi}" in desc for hi in home_indicators) and any(f"to {wi}" in desc for wi in work_indicators):
+                    from_home_to_work = True
+                # 处理"去上班"这种形式的描述
+                elif any(wi in desc for wi in work_indicators) and not any(f"from {wi}" in desc for wi in work_indicators):
+                    from_home_to_work = True
+                
+                # 确定描述中是否提到了从工作到家的通勤
+                from_work_to_home = False
+                if any(f"from {wi}" in desc for wi in work_indicators) and any(f"to {hi}" in desc for hi in home_indicators):
+                    from_work_to_home = True
+                # 处理"回家"这种形式的描述
+                elif any(hi in desc for hi in home_indicators) and not any(f"from {hi}" in desc for hi in home_indicators):
+                    from_work_to_home = True
+                
+                # 从家到工作场所
+                if from_home_to_work:
+                    distance = calculate_distance(persona.home, persona.work)
+                    
+                    # 使用destination模块中的方法确定交通方式，保持一致性
+                    transport_mode = self.destination_selector._determine_transport_mode(
+                        persona,
+                        activity['activity_type'],
+                        available_minutes=self._calculate_available_time(activities, i),
+                        distance=distance,
+                        memory_patterns=memory_patterns
+                    )
+                    
+                    activity['coordinates'] = persona.work  # 终点是工作地点
+                    activity['distance'] = distance
+                    activity['travel_time'] = estimate_travel_time(persona.home, persona.work, transport_mode)[0]
+                    activity['from_location'] = persona.home
+                    activity['to_location'] = persona.work
+                    activity['from_location_name'] = 'Home'
+                    activity['to_location_name'] = 'Workplace'
+                    activity['location_name'] = 'Workplace'
+                    activity['transport_mode'] = transport_mode
+                    current_location = persona.work
+                
+                # 从工作场所到家
+                elif from_work_to_home:
+                    distance = calculate_distance(persona.work, persona.home)
+                    
+                    # 使用destination模块中的方法确定交通方式，保持一致性
+                    transport_mode = self.destination_selector._determine_transport_mode(
+                        persona,
+                        activity['activity_type'],
+                        available_minutes=self._calculate_available_time(activities, i),
+                        distance=distance,
+                        memory_patterns=memory_patterns
+                    )
+                    
+                    activity['coordinates'] = persona.home  # 终点是家
+                    activity['distance'] = distance
+                    activity['travel_time'] = estimate_travel_time(persona.work, persona.home, transport_mode)[0]
+                    activity['from_location'] = persona.work
+                    activity['to_location'] = persona.home
+                    activity['from_location_name'] = 'Workplace'
+                    activity['to_location_name'] = 'Home'
+                    activity['location_name'] = 'Home'
+                    activity['transport_mode'] = transport_mode
+                    current_location = persona.home
+                
+                # 其他类型的旅行，保持原有逻辑，但提供起点和终点
+                else:
+                    # 使用目标选择器获取目的地信息
+                    location, details = self.destination_selector.select_destination(
+                        persona,
+                        current_location,
+                        activity['activity_type'],
+                        activity['start_time'],
+                        day_of_week,
+                        self._calculate_available_time(activities, i),
+                        memory_patterns
+                    )
+                    
+                    activity['coordinates'] = location
+                    activity['distance'] = details.get('distance', 0)
+                    activity['travel_time'] = details.get('travel_time', 0)
+                    activity['transport_mode'] = details.get('transport_mode', 'walking')
+                    activity['location_name'] = details.get('name', '')
+                    activity['from_location'] = current_location
+                    activity['to_location'] = location
+                    # 为起点和终点添加名称
+                    if current_location == persona.home:
+                        activity['from_location_name'] = 'Home'
+                    elif current_location == persona.work:
+                        activity['from_location_name'] = 'Workplace'
+                    else:
+                        activity['from_location_name'] = 'Previous Location'
+                    activity['to_location_name'] = details.get('name', 'Destination')
+                    current_location = location
+                
+                enhanced_activities.append(activity)
+                continue
+            
+            # 3. 处理在工作场所的工作活动 - 直接使用工作场所坐标，不需要调用谷歌地图API
+            if activity['activity_type'] == 'work' and (
+                    activity['location_type'] == 'workplace' or 
+                    'at work' in activity['description'].lower() or 
+                    'at office' in activity['description'].lower() or
+                    'at the office' in activity['description'].lower()):
+                activity['coordinates'] = persona.work
+                
+                # 计算从当前位置到工作地点的距离
+                distance = 0 if current_location == persona.work else calculate_distance(current_location, persona.work)
+                
+                # 如果不在同一地点，使用destination模块的方法确定交通方式
+                if distance > 0:
+                    transport_mode = self.destination_selector._determine_transport_mode(
+                        persona,
+                        'commuting',  # 使用通勤活动类型来确定交通方式
+                        available_minutes=self._calculate_available_time(activities, i),
+                        distance=distance,
+                        memory_patterns=memory_patterns
+                    )
+                else:
+                    transport_mode = 'No need to travel'
+                
+                activity['distance'] = distance
+                activity['travel_time'] = 0 if distance == 0 else estimate_travel_time(current_location, persona.work, transport_mode)[0]
+                activity['transport_mode'] = transport_mode
+                activity['location_name'] = 'Workplace'  # 给工作地点一个名称
+                current_location = persona.work
+                enhanced_activities.append(activity)
+                continue
+            
+            # 4. 处理在家中的活动
+            if (activity['location_type'] == 'home' or 
+                'at home' in activity['description'].lower() or 
+                'home' in activity['description'].lower()):
+                activity['coordinates'] = persona.home
+                
+                # 计算从当前位置到家的距离
+                distance = 0 if current_location == persona.home else calculate_distance(current_location, persona.home)
+                
+                # 如果不在同一地点，使用destination模块的方法确定交通方式
+                if distance > 0:
+                    transport_mode = self.destination_selector._determine_transport_mode(
+                        persona,
+                        'commuting',  # 使用通勤活动类型来确定交通方式
+                        available_minutes=self._calculate_available_time(activities, i),
+                        distance=distance,
+                        memory_patterns=memory_patterns
+                    )
+                else:
+                    transport_mode = 'No need to travel'
+                
+                activity['distance'] = distance
+                activity['travel_time'] = 0 if distance == 0 else estimate_travel_time(current_location, persona.home, transport_mode)[0]
+                activity['transport_mode'] = transport_mode
+                activity['location_name'] = 'Home'
+                current_location = persona.home
+                enhanced_activities.append(activity)
+                continue
+            
+            # 4.5. 特殊处理步行/散步等户外活动
+            if ('walk' in activity['description'].lower() or 
+                'stroll' in activity['description'].lower() or 
+                'walking' in activity['description'].lower() or
+                'jog' in activity['description'].lower() or
+                'run' in activity['description'].lower() or
+                ('exercise' in activity['description'].lower() and 'neighborhood' in activity['description'].lower())):
+                
+                # 为散步活动生成一个在周边的随机位置，而不是在家里
+                if current_location == persona.home:
+                    # 生成在家附近0.5-1公里范围内的随机位置
+                    neighborhood_location = generate_random_location_near(persona.home, max_distance_km=0.8)
+                    activity['coordinates'] = neighborhood_location
+                    activity['distance'] = calculate_distance(current_location, neighborhood_location)
+                    activity['travel_time'] = estimate_travel_time(current_location, neighborhood_location, 'walking')[0]
+                    activity['transport_mode'] = 'walking'  # 这种活动通常是步行的
+                    activity['location_name'] = 'Neighborhood'
+                    current_location = neighborhood_location
+                elif current_location == persona.work:
+                    # 生成在工作地附近0.3-0.8公里范围内的随机位置
+                    workplace_area_location = generate_random_location_near(persona.work, max_distance_km=0.6)
+                    activity['coordinates'] = workplace_area_location
+                    activity['distance'] = calculate_distance(current_location, workplace_area_location)
+                    activity['travel_time'] = estimate_travel_time(current_location, workplace_area_location, 'walking')[0]
+                    activity['transport_mode'] = 'walking'  # 这种活动通常是步行的
+                    activity['location_name'] = 'Work Area'
+                    current_location = workplace_area_location
+                else:
+                    # 如果当前不在家也不在工作地，就在当前位置附近生成一个随机位置
+                    nearby_location = generate_random_location_near(current_location, max_distance_km=0.5)
+                    activity['coordinates'] = nearby_location
+                    activity['distance'] = calculate_distance(current_location, nearby_location)
+                    activity['travel_time'] = estimate_travel_time(current_location, nearby_location, 'walking')[0]
+                    activity['transport_mode'] = 'walking'  # 这种活动通常是步行的
+                    activity['location_name'] = 'Nearby Area'
+                    current_location = nearby_location
+                
+                enhanced_activities.append(activity)
+                continue
+                
+            # 5. 处理其他活动，通过描述确定更精确的地点类型
+            # 提取描述中的关键地点信息
+            place_keywords = {
+                'bank': {'place_type': 'bank', 'search_query': 'bank financial institution'},
+                'grocery': {'place_type': 'grocery_or_supermarket', 'search_query': 'grocery store'},
+                'supermarket': {'place_type': 'grocery_or_supermarket', 'search_query': 'supermarket'},
+                'restaurant': {'place_type': 'restaurant', 'search_query': 'restaurant'},
+                'dining': {'place_type': 'restaurant', 'search_query': 'restaurant'},
+                'dinner': {'place_type': 'restaurant', 'search_query': 'restaurant'},
+                'lunch': {'place_type': 'restaurant', 'search_query': 'restaurant cafe'},
+                'breakfast': {'place_type': 'cafe', 'search_query': 'breakfast cafe'},
+                'cafe': {'place_type': 'cafe', 'search_query': 'cafe'},
+                'coffee': {'place_type': 'cafe', 'search_query': 'coffee shop'},
+                'gym': {'place_type': 'gym', 'search_query': 'gym fitness'},
+                'fitness': {'place_type': 'gym', 'search_query': 'fitness center'},
+                'workout': {'place_type': 'gym', 'search_query': 'gym'},
+                'exercise': {'place_type': 'gym', 'search_query': 'fitness center'},
+                'park': {'place_type': 'park', 'search_query': 'park'},
+                'cinema': {'place_type': 'movie_theater', 'search_query': 'cinema'},
+                'movie': {'place_type': 'movie_theater', 'search_query': 'movie theater'},
+                'library': {'place_type': 'library', 'search_query': 'library'},
+                'hospital': {'place_type': 'hospital', 'search_query': 'hospital'},
+                'doctor': {'place_type': 'doctor', 'search_query': 'doctor clinic'},
+                'medical': {'place_type': 'doctor', 'search_query': 'medical center'},
+                'clinic': {'place_type': 'doctor', 'search_query': 'medical clinic'},
+                'shop': {'place_type': 'store', 'search_query': 'retail store'},
+                'shopping': {'place_type': 'store', 'search_query': 'shopping retail'},
+                'mall': {'place_type': 'shopping_mall', 'search_query': 'shopping mall'},
+                'bar': {'place_type': 'bar', 'search_query': 'bar pub'},
+                'pub': {'place_type': 'bar', 'search_query': 'pub'},
+                'school': {'place_type': 'school', 'search_query': 'school'},
+                'university': {'place_type': 'university', 'search_query': 'university'},
+                'college': {'place_type': 'university', 'search_query': 'college'},
+                'hair': {'place_type': 'beauty_salon', 'search_query': 'hair salon'},
+                'salon': {'place_type': 'beauty_salon', 'search_query': 'beauty salon'},
+                'barber': {'place_type': 'beauty_salon', 'search_query': 'barber shop'},
+                'grocery store': {'place_type': 'grocery_or_supermarket', 'search_query': 'grocery store'},
+                'convenience store': {'place_type': 'convenience_store', 'search_query': 'convenience store'},
+                'gas station': {'place_type': 'gas_station', 'search_query': 'gas station'},
+                'pharmacy': {'place_type': 'pharmacy', 'search_query': 'pharmacy drugstore'},
+                'drugstore': {'place_type': 'pharmacy', 'search_query': 'drugstore'},
+            }
+            
+            # 检查描述中是否包含关键场所
+            description = activity['description'].lower()
+            location_type_override = None
+            search_query_override = None
+            
+            # 首先尝试匹配更具体的多词短语
+            multi_word_keywords = [k for k in place_keywords.keys() if ' ' in k]
+            for keyword in multi_word_keywords:
+                if keyword in description:
+                    location_type_override = place_keywords[keyword]['place_type']
+                    search_query_override = place_keywords[keyword]['search_query']
+                    break
+            
+            # 如果没有匹配到多词短语，再检查单词匹配
+            if not location_type_override:
+                for keyword, place_info in place_keywords.items():
+                    if ' ' not in keyword and keyword in description:
+                        # 避免部分匹配（例如，避免将"background"匹配为"back"）
+                        # 检查是否是单词边界
+                        word_boundaries = [' ', '.', ',', '!', '?', ';', ':', '-', '(', ')', '[', ']', '\n', '\t']
+                        
+                        # 检查关键词前后是否是单词边界或字符串的开始/结束
+                        keyword_positions = [m.start() for m in re.finditer(keyword, description)]
+                        for pos in keyword_positions:
+                            # 检查前边界
+                            before_ok = (pos == 0 or description[pos-1] in word_boundaries)
+                            # 检查后边界
+                            after_pos = pos + len(keyword)
+                            after_ok = (after_pos >= len(description) or description[after_pos] in word_boundaries)
+                            
+                            if before_ok and after_ok:
+                                location_type_override = place_info['place_type']
+                                search_query_override = place_info['search_query']
+                                break
+                                
+                    if location_type_override:
+                        break
+            
+            # 对于特定类型的活动，增加特定地点的匹配可能性
+            if not location_type_override:
+                activity_specific_places = {
+                    'dining': {'place_type': 'restaurant', 'search_query': 'restaurant cafe'},
+                    'shopping': {'place_type': 'store', 'search_query': 'shopping retail'},
+                    'recreation': {'place_type': 'park', 'search_query': 'park recreation area'},
+                    'leisure': {'place_type': 'point_of_interest', 'search_query': 'entertainment venue'},
+                    'healthcare': {'place_type': 'doctor', 'search_query': 'doctor medical center'},
+                    'education': {'place_type': 'school', 'search_query': 'education school'},
+                    'social': {'place_type': 'bar', 'search_query': 'social venue cafe'},
+                    'errands': {'place_type': 'store', 'search_query': 'convenience services'}
+                }
+                
+                if activity['activity_type'] in activity_specific_places:
+                    location_type_override = activity_specific_places[activity['activity_type']]['place_type']
+                    search_query_override = activity_specific_places[activity['activity_type']]['search_query']
+            
+            # 使用location_type字段作为备选
+            if not location_type_override and activity['location_type'] and activity['location_type'] != 'other':
+                # 地点类型映射
+                location_type_map = {
+                    'bank': {'place_type': 'bank', 'search_query': 'bank'},
+                    'restaurant': {'place_type': 'restaurant', 'search_query': 'restaurant'},
+                    'cafe': {'place_type': 'cafe', 'search_query': 'cafe'},
+                    'gym': {'place_type': 'gym', 'search_query': 'gym'},
+                    'park': {'place_type': 'park', 'search_query': 'park'},
+                    'store': {'place_type': 'store', 'search_query': 'store'},
+                    'shopping_mall': {'place_type': 'shopping_mall', 'search_query': 'shopping mall'},
+                    'hospital': {'place_type': 'hospital', 'search_query': 'hospital'},
+                    'doctor': {'place_type': 'doctor', 'search_query': 'doctor clinic'},
+                    'school': {'place_type': 'school', 'search_query': 'school'},
+                    'university': {'place_type': 'university', 'search_query': 'university'},
+                    'library': {'place_type': 'library', 'search_query': 'library'},
+                    'bar': {'place_type': 'bar', 'search_query': 'bar pub'},
+                    'beauty_salon': {'place_type': 'beauty_salon', 'search_query': 'beauty salon'},
+                    'pharmacy': {'place_type': 'pharmacy', 'search_query': 'pharmacy'}
+                }
+                
+                if activity['location_type'] in location_type_map:
+                    location_type_override = location_type_map[activity['location_type']]['place_type']
+                    search_query_override = location_type_map[activity['location_type']]['search_query']
+                else:
+                    # 默认使用location_type作为搜索词
+                    location_type_override = 'point_of_interest'
+                    search_query_override = activity['location_type']
+            
+            # 调用目标选择器获取目的地信息
+            destination_params = {}
+            if location_type_override:
+                destination_params = {
+                    'place_type': location_type_override,
+                    'search_query': search_query_override,
+                    'distance_preference': 3,  # 默认中等距离偏好
+                    'price_level': 2  # 默认中等价格水平
+                }
+                # print(f"为活动类型 {activity['activity_type']} 确定了地点类型: {location_type_override}, 搜索词: {search_query_override}")
+                
+            location, details = self.destination_selector.select_destination(
+                persona,
+                current_location,
+                activity['activity_type'],
+                activity['start_time'],
+                day_of_week,
+                self._calculate_available_time(activities, i),
+                memory_patterns,
+                location_type_override=destination_params if destination_params else None
+            )
+            
+            # 更新活动信息
+            activity['coordinates'] = location
+            activity['distance'] = details.get('distance', 0)
+            activity['travel_time'] = details.get('travel_time', 0)
+            activity['transport_mode'] = details.get('transport_mode', 'walking')
+            activity['location_name'] = details.get('name', '')
+            
+            # 更新当前位置
+            current_location = location
+            
+            # 添加到增强的活动列表中
+            enhanced_activities.append(activity)
+            
+        return enhanced_activities
+    
         
+    def _calculate_available_time(self, activities, current_index):
+        """
+        Calculate available time for an activity
+        
+        Args:
+            activities: List of all activities
+            current_index: Index of current activity
+            
+        Returns:
+            int: Available time in minutes
+        """
+        if current_index >= len(activities):
+            return 120  # Default 2 hours for invalid index
+            
+        activity = activities[current_index]
+        
+        # If this is the last activity
+        if current_index == len(activities) - 1:
+            return 120  # Default 2 hours for last activity
+            
+        # Calculate time between this activity and the next
+        next_activity = activities[current_index + 1]
+        start_time = datetime.strptime(activity['start_time'], '%H:%M')
+        end_time = datetime.strptime(next_activity['start_time'], '%H:%M')
+        
+        # Handle day crossing
+        if end_time < start_time:
+            end_time += timedelta(days=1)
+            
+        available_minutes = (end_time - start_time).total_seconds() / 60
+        return available_minutes
+    
     def _generate_activities_with_llm(self, persona, date, day_of_week, memory_patterns=None, is_weekend=False):
         """Generate activities using LLM, with error handling and retry mechanism"""
                 
@@ -224,6 +642,7 @@ class Activity:
             age=persona.age,
             race=persona.race,
             education=persona.education,
+            household_income=persona.get_household_income(),
             occupation=persona.occupation,
             day_of_week=day_of_week,
             date=date,
@@ -249,500 +668,6 @@ class Activity:
         except Exception as e:
             print(f"Error generating activities: {e}")
             return self._generate_default_activities(persona)
-        
-    
-    def _validate_time_continuity(self, activities):
-        """
-        Validate time continuity of activity list
-        
-        Args:
-            activities: List of activities
-            
-        Returns:
-            bool: Whether time is continuous
-        """
-        if not activities:
-            return False
-            
-        # Sort by start time
-        sorted_activities = sorted(activities, key=lambda x: self._format_time(x.get('start_time', '00:00')))
-        
-        # Check if first activity starts at 03:00
-        first_start = self._format_time(sorted_activities[0].get('start_time', ''))
-        if first_start != "00:00":
-            return False
-            
-        # Check if last activity ends at 27:00 (next day 03:00)
-        last_end = self._format_time(sorted_activities[-1].get('end_time', ''))
-        if last_end != "27:00":
-            return False
-            
-        # Check if each activity's end time equals the next activity's start time
-        for i in range(len(sorted_activities) - 1):
-            current_end = self._format_time(sorted_activities[i].get('end_time', ''))
-            next_start = self._format_time(sorted_activities[i + 1].get('start_time', ''))
-            
-            if current_end != next_start:
-                return False
-                
-        return True
-    
-    def _get_time_continuity_errors(self, activities):
-        """
-        Get detailed information about time continuity errors
-        
-        Args:
-            activities: List of activities
-            
-        Returns:
-            str: Error description
-        """
-        if not activities:
-            return "No activities generated"
-            
-        errors = []
-        sorted_activities = sorted(activities, key=lambda x: self._format_time(x.get('start_time', '00:00')))
-        
-        # Check first activity
-        first_start = self._format_time(sorted_activities[0].get('start_time', ''))
-        if first_start != "00:00":
-            errors.append(f"First activity should start at 03:00, not {first_start}")
-            
-        # Check last activity
-        last_end = self._format_time(sorted_activities[-1].get('end_time', ''))
-        if last_end != "24:00":
-            errors.append(f"Last activity should end at 27:00 (next day 03:00), not {last_end}")
-            
-        # Check continuity between activities
-        for i in range(len(sorted_activities) - 1):
-            current = sorted_activities[i]
-            next_act = sorted_activities[i + 1]
-            current_end = self._format_time(current.get('end_time', ''))
-            next_start = self._format_time(next_act.get('start_time', ''))
-            
-            if current_end != next_start:
-                errors.append(
-                    f"Time gap between activities: {current.get('activity_type')} ends at {current_end} " +
-                    f"but {next_act.get('activity_type')} starts at {next_start}"
-                )
-                
-        return "; ".join(errors)
-    
-    def refine_activity(self, persona, activity, date, day_of_week, previous_activity=None):
-        """
-        Refine activity, adding more details and potentially adding transportation mode
-        
-        Args:
-            persona: Persona object
-            activity: Activity dictionary
-            date: Date string (YYYY-MM-DD)
-            day_of_week: Day of week
-            previous_activity: Previous activity dictionary (optional)
-        
-        Returns:
-            dict: Refined activity with transport_mode if needed
-        """
-
-        # Skip refinement for sleep activities (they don't need much detail)
-        if activity.get('activity_type') in ['sleep', 'commuting', 'travel', 'work']:
-            return activity
-            
-        # Check if the activity requires transportation based on previous and current locations
-        requires_transport = False
-        if previous_activity:
-            prev_location = previous_activity.get('location_type', '')
-            current_location = activity.get('location_type', '')
-            requires_transport = self._needs_transportation(prev_location, current_location, activity.get('activity_type', ''))
-        
-        # If transport isn't required, just return the original activity
-        if not requires_transport:
-            return activity
-            
-        # Safely get more demographic attributes, if not available use default values
-        education = getattr(persona, 'education', 'unknown')
-        occupation = getattr(persona, 'occupation', 'unknown')
-        race = getattr(persona, 'race', 'unknown')
-        # disability = getattr(persona, 'disability', False)
-        # disability_type = getattr(persona, 'disability_type', None)
-        
-        # Build the prompt
-        prompt = ACTIVITY_REFINEMENT_PROMPT.format(
-            gender=persona.gender,
-            age=persona.age,
-            education=education,
-            date=date,
-            day_of_week=day_of_week,
-            activity_description=activity.get('description', ''),
-            location_type=activity.get('location_type', ''),
-            start_time=activity.get('start_time', ''),
-            end_time=activity.get('end_time', ''),
-            previous_activity_type=previous_activity.get('activity_type', '') if previous_activity else '',
-            previous_location=previous_activity.get('location_type', '') if previous_activity else '',
-            previous_end_time=previous_activity.get('end_time', '') if previous_activity else '',
-            requires_transportation=str(requires_transport).lower()
-        )
-        
-        # Add more demographic information
-        demographic_info = f"\n\nAdditional demographic information:"
-        demographic_info += f"\n- Occupation: {occupation}"
-        demographic_info += f"\n- Race/ethnicity: {race}"
-        
-        # if disability:
-        #     demographic_info += f"\n- Has disability: Yes"
-        #     if disability_type:
-        #         demographic_info += f" (Type: {disability_type})"
-        
-        prompt += demographic_info
-        
-        try:
-            # Use LLM to refine the activity
-            response = client.chat.completions.create(
-                model=self.model,
-                messages=[{"role": "user", "content": prompt}],
-                temperature=self.temperature,
-                max_tokens=150
-            )
-            
-            # Extract the refined activity
-            content = response.choices[0].message.content
-            
-            # Try to parse the JSON response
-            try:
-                # Find JSON object in the text
-                start_idx = content.find('{')
-                end_idx = content.rfind('}') + 1
-                
-                if start_idx == -1 or end_idx <= start_idx:
-                    return activity
-                    
-                json_str = content[start_idx:end_idx]
-                # Fix common JSON formatting issues
-                fixed_json = self._fix_json_array(json_str)
-                
-                try:
-                    refined_data = json.loads(fixed_json)
-                    
-                    # Handle single refined activity
-                    refined_activity = self._create_refined_activity(refined_data, activity)
-                    return refined_activity
-                    
-                except json.JSONDecodeError as e:
-                    print(f"Failed to parse refined activity JSON: {e}")
-                    return activity
-                    
-            except Exception as e:
-                print(f"Error processing LLM refinement response: {e}")
-                return activity
-            
-        except Exception as e:
-            print(f"Error refining activity: {e}")
-            return activity
-    
-    def _create_refined_activity(self, refined_data, original_activity):
-        """
-        Create a refined activity from LLM response data and original activity
-        
-        Args:
-            refined_data: Dict containing refined activity data
-            original_activity: Original activity dict
-            
-        Returns:
-            dict: Refined activity
-        """
-        # Start with a copy of the original activity
-        refined_activity = original_activity.copy()
-        
-        # Update activity description if provided
-        if 'description' in refined_data and refined_data['description']:
-            refined_activity['description'] = refined_data.get('description')
-        
-        # Add transport mode if specified
-        if 'transport_mode' in refined_data and refined_data['transport_mode']:
-            # Normalize transport mode to ensure consistency
-            refined_activity['transport_mode'] = normalize_transport_mode(refined_data.get('transport_mode'))
-        
-        # Optionally update activity type if the refinement changes it
-        if 'activity_type' in refined_data and refined_data['activity_type'] in ACTIVITY_TYPES:
-            refined_activity['activity_type'] = refined_data.get('activity_type')
-        
-        return refined_activity
-            
-    def _format_time_after_minutes(self, start_time, minutes):
-        """
-        Calculate time after adding specified minutes to a start time
-        
-        Args:
-            start_time: Start time (HH:MM)
-            minutes: Minutes to add
-            
-        Returns:
-            str: Calculated time (HH:MM)
-        """
-        try:
-            start_hour, start_minute = map(int, start_time.split(':'))
-            total_minutes = start_hour * 60 + start_minute + minutes
-            
-            # Ensure time doesn't exceed 23:59
-            if total_minutes >= 24 * 60:
-                total_minutes = 23 * 60 + 59
-                
-            new_hour = total_minutes // 60
-            new_minute = total_minutes % 60
-            
-            return f"{new_hour:02d}:{new_minute:02d}"
-        except:
-            return start_time
-    
-    def _validate_activities(self, activities):
-        """
-        Validate and clean activities data.
-        Support handling decomposed sub-activities, ensuring time continuity and correct activity types.
-        
-        Args:
-            activities: List of activity dictionaries (including normal activities and decomposed sub-activities)
-            
-        Returns:
-            list: Validated activities
-        """
-        if not activities:
-            return []
-            
-        # First sort by start time to ensure proper time sequence
-        sorted_activities = sorted(activities, key=lambda x: self._format_time(x.get('start_time', '03:00')))
-        
-        # Add sleep time and ensure time continuity
-        final_activities = []
-        last_end_time = "03:00"
-        
-        # If first activity doesn't start at 03:00, add sleep time
-        if sorted_activities and self._format_time(sorted_activities[0].get('start_time')) != "03:00":
-            final_activities.append({
-                'activity_type': 'sleep',
-                'start_time': '03:00',
-                'end_time': sorted_activities[0].get('start_time'),
-                'description': 'Sleeping at home',
-                'location_type': 'home'
-            })
-        
-        # Preprocessing: Adjust travel activity times
-        processed_activities = []
-        for i, activity in enumerate(sorted_activities):
-            if activity['activity_type'].lower() == 'travel':
-                # Find next non-travel activity
-                next_activity = None
-                for next_act in sorted_activities[i+1:]:
-                    if next_act['activity_type'].lower() != 'travel':
-                        next_activity = next_act
-                        break
-                
-                if next_activity:
-                    # Adjust travel activity end time to next activity's start time
-                    activity = activity.copy()
-                    activity['end_time'] = next_activity['start_time']
-            
-            processed_activities.append(activity)
-        
-        # Use processed activity list
-        sorted_activities = processed_activities
-        
-        for i, activity in enumerate(sorted_activities):
-            # Skip invalid activities
-            if 'activity_type' not in activity or 'start_time' not in activity or 'end_time' not in activity:
-                continue
-                
-            # Get activity type and ensure it's valid
-            activity_type = activity['activity_type'].lower()
-            
-            # Format times consistently
-            try:
-                start_time = self._format_time(activity['start_time'])
-                end_time = self._format_time(activity['end_time'])
-                
-                # Ensure end time doesn't exceed next day 03:00
-                if end_time > "27:00":  # Convert to 24-hour format's 03:00
-                    end_time = "27:00"  # Equivalent to next day 03:00
-                    
-            except:
-                # Skip activities with invalid times
-                continue
-            
-            # Create updated activity
-            updated_activity = {
-                **activity,
-                'activity_type': activity_type,
-                'start_time': start_time,
-                'end_time': end_time
-            }
-            
-            # Check if time gap needs to be filled
-            if start_time > last_end_time:
-                # Add sleep time (early morning or night)
-                if (int(start_time.split(':')[0]) < 8 or  # Morning before 8 AM
-                    int(last_end_time.split(':')[0]) >= 22):  # Night after 10 PM
-                    gap_activity = {
-                        'activity_type': 'sleep',
-                        'start_time': last_end_time,
-                        'end_time': start_time,
-                        'description': 'Sleeping at home',
-                        'location_type': 'home'
-                    }
-                    final_activities.append(gap_activity)
-            
-            # Check overlap with last activity
-            if final_activities:
-                last_activity = final_activities[-1]
-                if start_time < last_activity['end_time']:
-                    # Handle overlap
-                    if activity_type == last_activity['activity_type']:
-                        # If same activity type, merge them
-                        last_activity['end_time'] = max(last_activity['end_time'], end_time)
-                        continue
-                    elif activity_type == 'travel' or last_activity['activity_type'] == 'travel':
-                        # If one is a travel activity, adjust times
-                        if activity_type == 'travel':
-                            # Travel activity start time becomes last activity's end time
-                            updated_activity['start_time'] = last_activity['end_time']
-                        else:
-                            # Non-travel activity start time becomes travel activity's end time
-                            last_activity['end_time'] = start_time
-                    elif activity_type == 'sleep' or last_activity['activity_type'] == 'sleep':
-                        # If one is a sleep activity, preserve sleep activity
-                        if activity_type == 'sleep':
-                            # Update last activity's end time
-                            last_activity['end_time'] = start_time
-                            final_activities.append(updated_activity)
-                        continue
-                    else:
-                        # Adjust current activity's start time
-                        start_time = last_activity['end_time']
-                        updated_activity['start_time'] = start_time
-                        
-                        # Skip if adjusted start time is later than or equal to end time
-                        if start_time >= end_time:
-                            continue
-            
-            final_activities.append(updated_activity)
-            last_end_time = end_time
-        
-        # If last activity doesn't end at 03:00 (next day), add sleep time
-        if final_activities and final_activities[-1]['end_time'] != "27:00":  # 27:00 represents next day 03:00
-            final_activities.append({
-                'activity_type': 'sleep',
-                'start_time': final_activities[-1]['end_time'],
-                'end_time': '27:00',  # Next day 03:00
-                'description': 'Sleeping at home',
-                'location_type': 'home'
-            })
-        
-        # Merge consecutive activities of the same type
-        merged_activities = []
-        current_activity = None
-        
-        for activity in final_activities:
-            if not current_activity:
-                current_activity = activity.copy()
-                continue
-                
-            if (current_activity['activity_type'] == activity['activity_type'] and
-                current_activity['end_time'] == activity['start_time']):
-                # Merge consecutive activities of the same type
-                current_activity['end_time'] = activity['end_time']
-            else:
-                merged_activities.append(current_activity)
-                current_activity = activity.copy()
-        
-        if current_activity:
-            merged_activities.append(current_activity)
-        
-        # Sort by start time again
-        return sorted(merged_activities, key=lambda x: x['start_time'])
-        
-    def _calculate_duration_minutes(self, start_time, end_time):
-        """
-        Calculate minutes between two time points
-        
-        Args:
-            start_time: Start time (HH:MM)
-            end_time: End time (HH:MM)
-            
-        Returns:
-            int: Minute difference
-        """
-        start_hour, start_minute = map(int, start_time.split(':'))
-        end_hour, end_minute = map(int, end_time.split(':'))
-        
-        # Handle overnight cases
-        if end_hour < start_hour or (end_hour == start_hour and end_minute < start_minute):
-            end_hour += 24
-            
-        return (end_hour - start_hour) * 60 + (end_minute - start_minute)
-    
-    def _correct_activity_type_based_on_description(self, activity_type, description):
-        """
-        Correct activity type based on description
-        
-        Args:
-            activity_type: Original activity type
-            description: Activity description
-            
-        Returns:
-            str: Corrected activity type
-        """
-        description = description.lower()
-        
-        # Keyword mapping to activity types
-        keyword_mapping = {
-            'sleep': ['sleep', 'nap', 'bed', 'rest'],
-            'work': ['work', 'meeting', 'office', 'job', 'task', 'email', 'project', 'client', 'presentation'],
-            'shopping': ['shop', 'store', 'mall', 'purchase', 'buy', 'grocery', 'supermarket'],
-            'dining': ['eat', 'lunch', 'dinner', 'breakfast', 'restaurant', 'cafe', 'meal', 'food', 'brunch'],
-            'recreation': ['exercise', 'gym', 'workout', 'sport', 'run', 'jog', 'swim', 'yoga', 'fitness'],
-            'healthcare': ['doctor', 'dentist', 'medical', 'health', 'therapy', 'hospital', 'clinic'],
-            'social': ['friend', 'party', 'gathering', 'meet up', 'social', 'visit', 'guest'],
-            'education': ['class', 'study', 'learn', 'school', 'course', 'lecture', 'university', 'college'],
-            'leisure': ['relax', 'tv', 'movie', 'read', 'book', 'game', 'hobby', 'leisure'],
-            'errands': ['errand', 'bank', 'post', 'atm', 'dry clean', 'pick up'],
-            'home': ['home', 'house', 'apartment', 'clean', 'cook', 'laundry', 'chore']
-        }
-        
-        # Check if description contains keywords for specific activity types
-        best_match = None
-        max_matches = 0
-        
-        for type_name, keywords in keyword_mapping.items():
-            matches = sum(1 for keyword in keywords if keyword in description)
-            if matches > max_matches:
-                max_matches = matches
-                best_match = type_name
-        
-        # Only modify if there's a clear match and the original type is incorrect
-        if max_matches > 0 and best_match != activity_type:
-            return best_match
-        
-        return activity_type
-    
-    def _needs_transportation(self, previous_location, current_location, activity_type):
-        """
-        Determine if an activity requires transportation
-        
-        Args:
-            previous_location: Previous activity location type
-            current_location: Current activity location type
-            activity_type: Activity type
-            
-        Returns:
-            bool: Whether transportation is required
-        """
-        # If the activity is sleep or home, it usually doesn't require transportation
-        if activity_type in ['sleep', 'home', 'work']:
-            return False
-        
-        # If the locations are the same, no transportation is needed
-        if previous_location and current_location and previous_location == current_location:
-            return False
-        
-        # By default, assume transportation is needed
-        return True
     
     def _format_time(self, time_str):
         """
@@ -777,7 +702,7 @@ class Activity:
         # Try to parse with each format
         for fmt in formats:
             try:
-                dt = datetime.datetime.strptime(time_str, fmt)
+                dt = datetime.strptime(time_str, fmt)
                 return dt.strftime('%H:%M')
             except ValueError:
                 continue
@@ -980,28 +905,6 @@ class Activity:
                 activities.append(current_activity)
         
         return activities
-    
-    # def _is_valid_activity(self, activity):
-    #     """
-    #     Check if an activity dictionary is valid
-        
-    #     Args:
-    #         activity: Activity dictionary
-            
-    #     Returns:
-    #         bool: Whether the activity is valid
-    #     """
-    #     # Check required fields
-    #     required_fields = ['activity_type', 'start_time', 'end_time', 'description']
-    #     if not all(field in activity for field in required_fields):
-    #         return False
-        
-    #     # Check activity type
-    #     activity_type = activity.get('activity_type', '').lower()
-    #     if activity_type not in [t.lower() for t in ACTIVITY_TYPES]:
-    #         return False
-        
-    #     return True
     
     def _generate_default_activities(self, persona):
         """

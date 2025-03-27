@@ -442,79 +442,80 @@ def format_time_after_minutes(start_time, minutes):
     return f"{new_h:02d}:{new_m:02d}"
 
 @cached
-def estimate_travel_time(start_location, end_location, transport_mode, persona=None):
+def estimate_travel_time(origin, destination, transport_mode=None, persona=None):
     """
-    Estimate travel time between two locations
+    Estimate travel time between origin and destination based on distance and transport mode
     
     Args:
-        start_location: Starting coordinates (lat, lon)
-        end_location: Ending coordinates (lat, lon)
-        transport_mode: Transportation mode
-        persona: Persona object (optional)
+        origin: Origin coordinates (latitude, longitude)
+        destination: Destination coordinates (latitude, longitude)
+        transport_mode: Transportation mode (walking, driving, public_transit, cycling)
+        persona: Optional persona object with additional context
         
     Returns:
-        tuple: (travel_time_minutes, transport_mode)
+        tuple: (travel_time_minutes, actual_transport_mode)
     """
-    # Normalize transport mode
-    if transport_mode:
-        transport_mode = normalize_transport_mode(transport_mode)
-    else:
-        # Use persona's preferred transport if available
-        if persona and hasattr(persona, 'preferred_transport'):
-            transport_mode = normalize_transport_mode(persona.preferred_transport)
-        else:
-            transport_mode = 'driving'  # Default
+    # Calculate distance
+    distance_km = calculate_distance(origin, destination)
     
-    # Calculate direct distance in kilometers
-    try:
-        distance_km = calculate_distance(start_location, end_location)
-    except:
-        # Default to a reasonable distance if calculation fails
-        distance_km = 1.0
-        
-    # Adjust distance for real-world routes (not straight lines)
-    # Streets are rarely straight, so multiply by a factor
-    route_factor = {
-        'walking': 1.4,
-        'cycling': 1.3,
-        'driving': 1.2,
-        'public_transit': 1.5,
-        'rideshare': 1.2
-    }
-    
-    adjusted_distance = distance_km * route_factor.get(transport_mode, 1.3)
-    
-    # Calculate travel time based on transport mode and distance
-    # Average speeds (km/h) for different transport modes
+    # Default speeds (km/h) for different transportation modes
     speeds = {
-        'walking': 5.0,     # 5 km/h walking speed
-        'cycling': 15.0,    # 15 km/h cycling speed
-        'driving': 40.0,    # 40 km/h urban driving
-        'public_transit': 20.0,  # 20 km/h public transit with stops
-        'rideshare': 35.0   # 35 km/h rideshare/taxi
+        'walking': 5.0,       # Average walking speed: 5 km/h
+        'cycling': 15.0,      # Average cycling speed: 15 km/h
+        'public_transit': 20.0, # Average public transit speed: 20 km/h
+        'driving': 30.0,      # Average driving speed in urban areas: 30 km/h
+        'rideshare': 25.0     # Average rideshare speed: 25 km/h
     }
     
-    # Get speed for selected transport mode
-    speed = speeds.get(transport_mode, 30.0)
+    # Default transport mode if none provided
+    if not transport_mode:
+        # Select transport mode based on distance
+        if distance_km < 1.0:
+            transport_mode = 'walking'
+        elif distance_km < 3.0:
+            transport_mode = 'cycling'
+        elif distance_km < 10.0:
+            transport_mode = 'public_transit'
+        else:
+            transport_mode = 'driving'
     
-    # Calculate travel time in minutes
-    travel_time_minutes = (adjusted_distance / speed) * 60
+    # Normalize transport mode
+    transport_mode = normalize_transport_mode(transport_mode)
     
-    # Add traffic delay for driving modes (random factor)
-    if transport_mode in ['driving', 'rideshare']:
-        traffic_factor = random.uniform(1.0, 1.3)  # 0-30% delay
-        travel_time_minutes *= traffic_factor
+    # Get speed for the selected transport mode
+    speed = speeds.get(transport_mode, 15.0)  # Default to 15 km/h if unknown mode
+    
+    # Adjust speed based on personal attributes if available
+    if persona:
+        if hasattr(persona, 'age'):
+            # Elderly people might move slower
+            if persona.age > 65 and transport_mode in ['walking', 'cycling']:
+                speed = speed * 0.8
+            # Young adults might move faster
+            elif 18 <= persona.age <= 35 and transport_mode in ['walking', 'cycling']:
+                speed = speed * 1.2
+            
+        if hasattr(persona, 'disability') and persona.disability:
+            # People with disabilities might move slower
+            speed = speed * 0.7
+    
+    # Calculate travel time (hours) = distance / speed
+    travel_time_hours = distance_km / speed
+    
+    # Convert to minutes and round to nearest minute
+    travel_time_minutes = round(travel_time_hours * 60)
     
     # Add waiting time for public transit and rideshare
     if transport_mode == 'public_transit':
-        wait_time = random.randint(5, 15)  # 5-15 minutes waiting
-        travel_time_minutes += wait_time
+        travel_time_minutes += 5  # Average 5 min waiting time
     elif transport_mode == 'rideshare':
-        wait_time = random.randint(3, 10)  # 3-10 minutes waiting
-        travel_time_minutes += wait_time
+        travel_time_minutes += 3  # Average 3 min waiting time
     
-    # Ensure minimum travel time
-    travel_time_minutes = max(1, int(round(travel_time_minutes)))
+    # Add 2 min buffer time for any mode
+    travel_time_minutes += 2
+    
+    # Ensure minimum travel time of 1 minute
+    travel_time_minutes = max(1, travel_time_minutes)
     
     return travel_time_minutes, transport_mode
 

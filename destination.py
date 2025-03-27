@@ -7,8 +7,9 @@ import json
 import random
 import requests
 import openai
-import osmnx as ox
 import numpy as np
+import re
+import pandas as pd
 from config import (
     GOOGLE_MAPS_API_KEY,
     LLM_MODEL,
@@ -16,19 +17,25 @@ from config import (
     LLM_MAX_TOKENS,
     USE_GOOGLE_MAPS,
     DESTINATION_SELECTION_PROMPT,
+    TRANSPORT_MODE_PROMPT,
     DEEPBRICKS_API_KEY,
     DEEPBRICKS_BASE_URL,
     TRANSPORT_MODES,
     ENABLE_CACHING
 )
-from utils import calculate_distance, generate_random_location_near, cached, normalize_transport_mode, estimate_travel_time, cache
-import re
-import pandas as pd
+from utils import (
+    calculate_distance, 
+    generate_random_location_near, 
+    cached, 
+    normalize_transport_mode,
+    estimate_travel_time, 
+    cache
+)
 
 # Create OpenAI client
 client = openai.OpenAI(
-    api_key = DEEPBRICKS_API_KEY,
-    base_url = DEEPBRICKS_BASE_URL,
+    api_key=DEEPBRICKS_API_KEY,
+    base_url=DEEPBRICKS_BASE_URL,
 )
 
 class Destination:
@@ -43,14 +50,15 @@ class Destination:
         self.temperature = LLM_TEMPERATURE
         self.max_tokens = LLM_MAX_TOKENS
         self.use_google_maps = USE_GOOGLE_MAPS
-        # Add location cache
+        self.config = config or {}
+        
+        # Initialize caches
         self.location_cache = {}
-        self.transport_mode_cache = {}  # Transportation mode cache
-        self.google_maps_cache = {}  # Google Maps API results cache
-        self.config = config
+        self.transport_mode_cache = {}
+        self.google_maps_cache = {}
     
     @cached
-    def select_destination(self, persona, current_location, activity_type, time, day_of_week, available_minutes, transport_mode=None):
+    def select_destination(self, persona, current_location, activity_type, time, day_of_week, available_minutes, memory_patterns=None, location_type_override=None):
         """
         Select an appropriate destination for the given activity
         
@@ -61,82 +69,62 @@ class Destination:
             time: Time string (HH:MM)
             day_of_week: Day of week string
             available_minutes: Available time (minutes)
-            transport_mode: Transportation mode (obtained from activity plan)
+            memory_patterns: Historical memory patterns for LLM analysis (optional)
+            location_type_override: 根据活动描述提取的位置类型信息 (optional)
         
         Returns:
             tuple: ((latitude, longitude), location_details)
         """
         try:
-            # 特殊处理工作活动，直接返回工作地点，不添加任何交通信息
-            if activity_type == 'work':
-                return persona.work, {'name': 'Workplace', 'is_work': True}
-                
-            # 特殊处理通勤活动
-            if activity_type == 'commuting':
-                # 如果是从家到工作地点的通勤
-                if current_location == persona.home:
-                    return persona.work, {'name': 'Workplace', 'is_commuting': True}
-                # 如果是从工作地点回家的通勤
-                elif current_location == persona.work:
-                    return persona.home, {'name': 'Home', 'is_commuting': True}
-                
-            # Generate cache key
-            cache_key = f"dest_{persona.id}_{activity_type}_{time}_{day_of_week}_{available_minutes}_{transport_mode}"
-            cache_key = cache_key.replace(" ", "_")
-            
-            # Check cache
-            if cache_key in self.location_cache:
-                print(f"Using cached destination: {cache_key}")
-                return self.location_cache[cache_key]
-            
-            # If no transportation mode specified, determine default transportation mode
-            if not transport_mode:
-                transport_mode = self._determine_transport_mode(persona, activity_type, available_minutes, current_location)
+            # Step 1: Determine appropriate destination type
+            if location_type_override:
+                # 如果提供了特定地点类型覆盖信息，直接使用
+                destination_type = location_type_override
             else:
-                # Standardize transportation mode
-                transport_mode = normalize_transport_mode(transport_mode)
+                # 否则使用正常逻辑确定目的地类型
+                destination_type = self._determine_destination_type(
+                    persona, 
+                    {"activity_type": activity_type, "description": f"{activity_type} activity"}, 
+                    time, 
+                    day_of_week,
+                    memory_patterns
+                )
             
-            # 1. Use LLM to determine suitable destination type, price preference, and distance preference based on activity and character features
-            destination_type = self._determine_destination_type(
-                persona, 
-                {"activity_type": activity_type, "description": f"{activity_type} activity"}, 
-                time, 
-                day_of_week, 
-                transport_mode
-            )
+            # Step 2: Calculate search parameters
+            time_window = self._calculate_time_window(available_minutes)
+            max_radius = self._calculate_search_radius(persona, activity_type, time_window, destination_type)
             
-            # 2. Calculate available time window (excluding round trip travel time)
-            time_window = self._calculate_time_window(available_minutes, transport_mode=transport_mode)
-            
-            # 3. Determine maximum search radius based on available time and transportation mode
-            max_radius = self._calculate_max_radius(
-                persona, 
-                activity_type, 
-                time_window, 
-                transport_mode=transport_mode
-            )
-            
-            # 4. Apply distance preference adjustment factor based on LLM provided distance preference
-            if 'distance_preference' in destination_type:
-                # Distance preference value range 1-10, 1 means very close, 10 means can be very far
-                distance_pref = destination_type.get('distance_preference', 5)
-                # Convert distance preference to radius adjustment factor (0.5-1.5)
-                distance_factor = 0.5 + (distance_pref / 10)
-                # Adjust maximum radius
-                max_radius = max_radius * distance_factor
-                print(f"  Distance preference: {distance_pref}, adjusted radius: {max_radius:.2f}km")
-            
-            # 5. Consider all factors to get destination location
-            location, details = self._retrieve_location_google_maps(
+            # Step 3: Find appropriate destination location
+            location, details = self._retrieve_location(
                 current_location, 
                 destination_type, 
                 max_radius, 
+                available_minutes
+            )
+
+            # Step 4: 确保距离被正确计算
+            if 'distance' not in details or not isinstance(details['distance'], (int, float)):
+                details['distance'] = calculate_distance(current_location, location)
+
+            # Step 5: Determine transportation details - 仅在目的地确定后才确定交通方式
+            transport_mode = self._determine_transport_mode(
+                persona, 
+                activity_type,
                 available_minutes,
-                transport_mode
+                details['distance'],
+                memory_patterns
             )
             
-            # 6. Cache result
-            self.location_cache[cache_key] = (location, details)
+            # Step 6: 计算选定交通方式下的旅行时间
+            travel_time, _ = estimate_travel_time(current_location, location, transport_mode)
+                
+            # Step 7: Update location details with transport information
+            details.update({
+                'name': details['name'],
+                'transport_mode': transport_mode,
+                'travel_time': travel_time,
+                'distance': details['distance']  # 确保距离信息存在
+            })
             
             return location, details
             
@@ -145,16 +133,15 @@ class Destination:
             # Generate random location as backup
             radius = min(5, available_minutes / 60)  # Simple estimate: 1 hour range 5 kilometers
             random_location = generate_random_location_near(current_location, max_distance_km=radius)
-            return random_location, {"name": f"{activity_type}(Backup Location)", "address": "Generated Location"}
+            return random_location, {"name": f"{activity_type} Location", "address": "Generated Location"}
     
     @cached
-    def _calculate_time_window(self, available_minutes, transport_mode=None):
+    def _calculate_time_window(self, available_minutes):
         """
         Calculate available time window for activity
         
         Args:
             available_minutes: Available time (minutes)
-            transport_mode: Transportation mode
         
         Returns:
             int: Available time (minutes)
@@ -170,13 +157,12 @@ class Destination:
         return available_minutes
     
     @cached
-    def _calculate_max_radius(self, persona, activity_type, time_window, transport_mode=None):
+    def _calculate_max_radius(self, persona, activity_type, time_window):
         """
-        Calculate the maximum search radius based on available time and transportation mode.
+        Calculate the maximum search radius based on available time.
         
         Args:
             available_minutes: 可用时间（分钟）
-            transport_mode: 交通方式
             activity_type: 活动类型
         
         Returns:
@@ -196,16 +182,7 @@ class Destination:
             # Long activity, larger range
             base_radius = 4.0  # 4 kilometers range
         
-        # 2. Transportation mode correction
-        transport_modifiers = {
-            'walking': 0.5,      # Walking range minimum
-            'cycling': 1.0,      # Bicycle range medium
-            'public_transit': 1.5, # Public transportation larger range
-            'driving': 2.0      # Car range maximum
-        }
-        transport_modifier = transport_modifiers.get(transport_mode.lower(), 1.0)
-        
-        # 3. Activity type correction
+        # 2. Activity type correction
         activity_modifiers = {
             'shopping': 0.8,    # Shopping preference close
             'dining': 0.7,      # Dining usually close
@@ -217,70 +194,152 @@ class Destination:
         }
         activity_modifier = activity_modifiers.get(activity_type.lower(), 1.0)
         
-        # 4. Calculate final radius and apply upper limit
-        final_radius = min(base_radius * transport_modifier * activity_modifier, 8.0)
+        # 3. Calculate final radius and apply upper limit
+        final_radius = min(base_radius * activity_modifier, 8.0)
         
         # Ensure minimum radius
         return max(0.3, final_radius)
     
     @cached
-    def _determine_destination_type(self, persona, activity, time, day_of_week, transport_mode):
+    def _determine_destination_type(self, persona, activity, time, day_of_week, memory_patterns=None):
         """
-        Determine destination type based on character features, activity details, time, and transportation mode
+        Determine destination type based on persona, activity, and context.
+        
+        Args:
+            persona: Character object
+            activity: Activity dictionary
+            time: Time string (HH:MM)
+            day_of_week: Day of week string
+            memory_patterns: Historical memory patterns (optional)
+            
+        Returns:
+            dict: Destination type information with preferences
+        """
+        try:
+            # Try to determine destination type using LLM
+            llm_result = self._determine_destination_type_with_llm(
+                persona, 
+                activity, 
+                time, 
+                day_of_week, 
+                memory_patterns
+            )
+            
+            if llm_result and all(key in llm_result for key in ['place_type', 'search_query', 'distance_preference']):
+                return llm_result
+                
+            # Fall back to rule-based approach if LLM fails
+            return self._generate_default_destination(persona, activity, time, day_of_week, memory_patterns)
+            
+        except Exception as e:
+            print(f"Error determining destination type: {e}")
+            # Return simple default value
+            return {
+                'place_type': 'point_of_interest',
+                'search_query': activity['activity_type'] if activity['activity_type'] else 'place',
+                'distance_preference': 5,
+                'price_level': 2
+            }
+    
+    def _determine_destination_type_with_llm(self, persona, activity, time, day_of_week, memory_patterns):
+        """Use LLM to determine appropriate destination type"""
+        try:
+            # Format prompt with all contextual information
+            # Get persona attributes safely with defaults
+            gender = getattr(persona, 'gender', 'unknown')
+            age = getattr(persona, 'age', 30)
+            occupation = getattr(persona, 'occupation', 'unknown')
+            education = getattr(persona, 'education', 'unknown')
+            current_location = getattr(persona, 'current_location', 'unknown')
+            
+            # Get household income safely
+            try:
+                household_income = persona.get_household_income()
+            except Exception:
+                household_income = 50000  # Default value
+                
+            # Get activity details safely
+            activity_description = activity.get('description', 'unknown activity')
+            activity_type = activity.get('activity_type', 'unknown')
+            
+            # Format memory context
+            memory_context = str(memory_patterns) if memory_patterns else "No memory patterns available"
+            
+            # Format the prompt
+            enhanced_prompt = DESTINATION_SELECTION_PROMPT.format(
+                gender=gender,
+                age=age,
+                household_income=household_income,
+                education=education,
+                occupation=occupation,
+                activity_description=activity_description,
+                activity_type=activity_type,
+                time=time,
+                day_of_week=day_of_week,
+                memory_context=memory_context
+            )
+            
+            # Call LLM
+            response = client.chat.completions.create(
+                model=self.model,
+                messages=[{"role": "user", "content": enhanced_prompt}],
+                temperature=self.temperature,
+                max_tokens=self.max_tokens
+            )
+            
+            # Extract structured data from LLM response
+            result = self._extract_destination_from_text(response.choices[0].message.content)
+            
+            # Ensure required fields exist
+            if not result:
+                result = {}
+                
+            if 'place_type' not in result:
+                result['place_type'] = 'point_of_interest'
+                
+            if 'search_query' not in result:
+                result['search_query'] = activity_type
+                
+            if 'distance_preference' not in result:
+                result['distance_preference'] = 5
+                
+            if 'price_level' not in result:
+                result['price_level'] = 2
+                
+            return result
+            
+        except Exception as llm_error:
+            print(f"LLM destination type determination failed: {str(llm_error)}")
+            return None
+    
+    def _generate_default_destination(self, persona, activity, time, day_of_week, memory_patterns=None):
+        """
+        Generate default destination type based on predefined mappings when LLM analysis fails.
         
         Args:
             persona: Character object
             activity: Activity dictionary, containing activity_type and description
             time: Time string
             day_of_week: Day of week
-            transport_mode: Transportation mode
-        
+            memory_patterns: Historical memory patterns (optional)
+            
         Returns:
-            dict: Destination type information
+            dict: Default destination type information
         """
         try:
-            # Use LLM for judgment first
-            prompt = DESTINATION_SELECTION_PROMPT.format(
-                gender=persona.gender,
-                age=persona.age,
-                income=persona.income,
-                consumption=persona.consumption,
-                education=persona.education,
-                activity_description=activity['description'],
-                activity_type=activity['activity_type'],
-                time=time,
-                day_of_week=day_of_week,
-                current_location=persona.current_location
-            )
-            
-            try:
-                response = client.chat.completions.create(
-                    model=self.model,
-                    messages=[{"role": "user", "content": prompt}],
-                    temperature=self.temperature,
-                    max_tokens=self.max_tokens
-                )
-                
-                llm_result = self._extract_destination_from_text(response.choices[0].message.content)
-                if llm_result and all(key in llm_result for key in ['place_type', 'search_query', 'distance_preference']):
-                    return llm_result
-            except Exception as llm_error:
-                print(f"LLM call failed, use alternative: {llm_error}")
-            
-            # Alternative: Pre-defined mapping
             # Activity type to destination type basic mapping
             default_destinations = {
                 'shopping': {
                     'place_type': 'store',
                     'search_query': 'shopping center',
                     'distance_preference': 4,
-                    'price_level': min(3, max(1, int(persona.income / 25000)))
+                    'price_level': min(3, max(1, int(persona.get_household_income() / 25000)))
                 },
                 'dining': {
                     'place_type': 'restaurant',
                     'search_query': 'restaurant',
                     'distance_preference': 3,
-                    'price_level': min(4, max(1, int(persona.income / 20000)))
+                    'price_level': min(4, max(1, int(persona.get_household_income() / 20000)))
                 },
                 'recreation': {
                     'place_type': 'park',
@@ -292,7 +351,7 @@ class Destination:
                     'place_type': 'point_of_interest',
                     'search_query': 'leisure entertainment',
                     'distance_preference': 5,
-                    'price_level': min(3, max(1, int(persona.income / 30000)))
+                    'price_level': min(3, max(1, int(persona.get_household_income() / 30000)))
                 },
                 'healthcare': {
                     'place_type': 'health',
@@ -310,7 +369,7 @@ class Destination:
                     'place_type': 'bar',
                     'search_query': 'social venue cafe',
                     'distance_preference': 4,
-                    'price_level': min(3, max(1, int(persona.income / 25000)))
+                    'price_level': min(3, max(1, int(persona.get_household_income() / 25000)))
                 },
                 'errands': {
                     'place_type': 'store',
@@ -319,6 +378,28 @@ class Destination:
                     'price_level': 1
                 }
             }
+            
+            # Apply memory-based preferences if available
+            if memory_patterns and 'distances' in memory_patterns and activity['activity_type'] in memory_patterns['distances']:
+                distances = memory_patterns['distances'][activity['activity_type']]
+                if distances:
+                    avg_distance = sum(distances) / len(distances)
+                    # Convert average distance to preference scale (1-10)
+                    # 0-1km: 1-2, 1-3km: 3-4, 3-5km: 5-6, 5-8km: 7-8, 8+km: 9-10
+                    if avg_distance < 1:
+                        distance_pref = min(2, max(1, int(avg_distance * 2)))
+                    elif avg_distance < 3:
+                        distance_pref = min(4, max(3, int(2 + (avg_distance - 1))))
+                    elif avg_distance < 5:
+                        distance_pref = min(6, max(5, int(4 + (avg_distance - 3) / 2)))
+                    elif avg_distance < 8:
+                        distance_pref = min(8, max(7, int(6 + (avg_distance - 5) / 3)))
+                    else:
+                        distance_pref = min(10, max(9, int(8 + (avg_distance - 8) / 2)))
+                        
+                    # Update default preference with memory-based value
+                    if activity['activity_type'] in default_destinations:
+                        default_destinations[activity['activity_type']]['distance_preference'] = distance_pref
             
             # Keyword mapping to optimize destination type
             keywords = {
@@ -354,18 +435,10 @@ class Destination:
             
             # Based on description keyword optimization
             for keyword, mapping in keywords.items():
-                if keyword in activity['description']:
+                if keyword in activity['description'].lower():
                     destination['place_type'] = mapping['place_type']
                     destination['search_query'] = mapping['search_query']
                     break
-            
-            # Adjust distance preference based on transportation mode
-            if transport_mode == 'walking':
-                destination['distance_preference'] = min(3, destination['distance_preference'])
-            elif transport_mode == 'cycling':
-                destination['distance_preference'] = min(5, destination['distance_preference'])
-            elif transport_mode == 'public_transit':
-                destination['distance_preference'] = min(7, destination['distance_preference'])
             
             # Further adjust based on day of week and time
             if day_of_week in ['Saturday', 'Sunday']:
@@ -380,8 +453,8 @@ class Destination:
             return destination
             
         except Exception as e:
-            print(f"Destination type judgment error: {e}")
-            # Return default value
+            print(f"Error generating default destination: {e}")
+            # Return basic default value
             return {
                 'place_type': 'point_of_interest',
                 'search_query': activity['activity_type'] if activity['activity_type'] else 'place',
@@ -389,7 +462,58 @@ class Destination:
                 'price_level': 2
             }
     
-    def _retrieve_location_google_maps(self, current_location, destination_type, max_radius, available_minutes, transport_mode):
+    def _retrieve_location(self, current_location, destination_type, max_radius, available_minutes):
+        """
+        Retrieve a suitable location based on the given parameters.
+        This is a wrapper that uses Google Maps API or falls back to alternatives.
+        
+        Args:
+            current_location: Current location (latitude, longitude)
+            destination_type: Destination type information
+            max_radius: Maximum search radius (kilometers)
+            available_minutes: Available time (minutes)
+        
+        Returns:
+            tuple: ((latitude, longitude), location_details)
+        """
+        try:
+            # Validate inputs
+            if not current_location or not isinstance(current_location, tuple) or len(current_location) != 2:
+                print(f"Invalid current_location format: {current_location}, using fallback")
+                # Use a default location if the input is invalid
+                return self._generate_fallback_location(max_radius)
+                
+            # Verify destination_type is a valid dictionary
+            if not destination_type or not isinstance(destination_type, dict):
+                print(f"Invalid destination_type: {destination_type}, using default")
+                destination_type = {
+                    'place_type': 'point_of_interest',
+                    'search_query': 'place',
+                    'distance_preference': 5,
+                    'price_level': 2
+                }
+                
+            # Validate and correct max_radius if necessary
+            if not isinstance(max_radius, (int, float)) or max_radius <= 0:
+                max_radius = 2.0  # Default 2km
+                
+            # Select method based on configuration
+            if self.use_google_maps:
+                return self._retrieve_location_google_maps(
+                    current_location, 
+                    destination_type, 
+                    max_radius, 
+                    available_minutes
+                )
+            else:
+                # Fallback to random location as a simple alternative
+                return self._generate_fallback_location(max_radius, current_location, destination_type)
+        
+        except Exception as e:
+            print(f"Error in _retrieve_location: {str(e)}")
+            return self._generate_fallback_location(max_radius, current_location)
+            
+    def _retrieve_location_google_maps(self, current_location, destination_type, max_radius, available_minutes):
         """
         Use Google Maps API to get destination location
         
@@ -398,125 +522,211 @@ class Destination:
             destination_type: Destination type information
             max_radius: Maximum search radius (kilometers)
             available_minutes: Available time (minutes)
-            transport_mode: Transportation mode
         
         Returns:
             tuple: ((latitude, longitude), location_details)
         """
         try:
-            # Build cache key
-            cache_key = f"google_maps_{current_location}_{destination_type.get('search_query')}_{max_radius}_{transport_mode}"
-            cache_key = cache_key.replace(" ", "_").replace(",", "_")
-            
             # Check cache
+            cache_key = self._build_location_cache_key(current_location, destination_type, max_radius)
             cached_result = cache.get(cache_key)
             if cached_result and ENABLE_CACHING:
                 return cached_result
-                
-            # Prepare parameters for Google Maps API
-            search_query = destination_type.get('search_query', 'point of interest')
-            place_type = destination_type.get('place_type', 'point_of_interest')
             
-            # Convert maximum radius from kilometers to meters
-            radius_meters = int(max_radius * 1000)
+            # Get places from Google Maps API
+            candidates = self._get_places_from_google_maps(
+                current_location, 
+                destination_type, 
+                max_radius, 
+                available_minutes
+            )
             
-            # Prepare API request parameters
-            params = {
-                'key': GOOGLE_MAPS_API_KEY,
-                'location': f"{current_location[0]},{current_location[1]}",
-                'radius': radius_meters,
-                'type': place_type,
-                'keyword': search_query,
-                'rankby': 'prominence'  # Default sort by popularity
-            }
-            
-            # Call Places API
-            url = "https://maps.googleapis.com/maps/api/place/nearbysearch/json"
-            response = requests.get(url, params=params)
-            response.raise_for_status()
-            data = response.json()
-            
-            if data.get('status') == 'OK' and data.get('results'):
-                # Process only the first 5 results
-                results = data.get('results')[:5]
-                
-                # Create candidate location list
-                candidates = []
-                
-                for result in results:
-                    # Get location coordinates
-                    location = result.get('geometry', {}).get('location', {})
-                    dest_coords = (location.get('lat'), location.get('lng'))
-                    
-                    # Calculate distance from current location
-                    distance = calculate_distance(current_location, dest_coords)
-                    
-                    # Estimate travel time
-                    travel_time, actual_transport_mode = estimate_travel_time(
-                        current_location, 
-                        dest_coords, 
-                        transport_mode,
-                        persona=None
-                    )
-                    
-                    # Skip if travel time exceeds 80% of available time
-                    if travel_time > available_minutes * 0.8:
-                        continue
-                    
-                    # Get rating (default 3.0)
-                    rating = result.get('rating', 3.0) or 3.0
-                    
-                    # Calculate simple comprehensive score
-                    score = (
-                        (available_minutes - travel_time) / available_minutes * 0.4 +  # Time window score
-                        (1.0 if actual_transport_mode == transport_mode else 0.5) * 0.3 +  # Transportation mode match
-                        (rating / 5.0) * 0.3  # Rating
-                    )
-                    
-                    # Add to candidate list
-                    candidates.append({
-                        'coords': dest_coords,
-                        'details': {
-                            'name': result.get('name', 'Unknown Location'),
-                            'address': result.get('vicinity', 'Unknown Address'),
-                            'place_id': result.get('place_id', ''),
-                            'rating': rating,
-                            'distance': distance,
-                            'travel_time': travel_time,
-                            'transport_mode': actual_transport_mode
-                        },
-                        'score': score
-                    })
-                
-                # If no suitable location found or API returns no results, try alternative approach
-                if not candidates:
-                    return self._try_alternative_search(current_location, destination_type, max_radius)
-                
-                # Sort by score and select best location
-                candidates.sort(key=lambda x: x['score'], reverse=True)
-                best_candidate = candidates[0]
-                
-                # Save to cache
-                result = (best_candidate['coords'], best_candidate['details'])
-                if ENABLE_CACHING:
-                    cache.set(cache_key, result)
-                
-                return result
-            else:
-                # If API returns no results, try alternative approaches
+            # If no suitable location found, try alternative approach
+            if not candidates:
                 return self._try_alternative_search(current_location, destination_type, max_radius)
+            
+            # Select best candidate and cache result
+            best_candidate = self._select_best_candidate(candidates)
+            result = (best_candidate['coords'], best_candidate['details'])
+            
+            if ENABLE_CACHING:
+                cache.set(cache_key, result)
+            
+            return result
                 
         except Exception as e:
             print(f"Error occurred retrieving location: {str(e)}")
             # Return random location in case of error
             random_location = generate_random_location_near(current_location, max_radius * 0.5)
             return random_location, {'name': f'Random Location (Error)', 'address': f'Distance: {round(calculate_distance(current_location, random_location), 1)}km'}
-
+            
+    def _build_location_cache_key(self, current_location, destination_type, max_radius):
+        """Build cache key for location retrieval"""
+        cache_key = f"google_maps_{current_location}_{destination_type.get('search_query')}_{max_radius}"
+        return cache_key.replace(" ", "_").replace(",", "_")
+        
+    def _get_places_from_google_maps(self, current_location, destination_type, max_radius, available_minutes):
+        """
+        Query Google Maps API and process results into a list of candidate locations
+        
+        Returns:
+            list: List of candidate locations with their details and scores
+        """
+        # Prepare parameters for Google Maps API
+        search_query = destination_type.get('search_query', 'point of interest')
+        place_type = destination_type.get('place_type', 'point_of_interest')
+        radius_meters = int(max_radius * 1000)
+        
+        # Prepare API request parameters
+        params = {
+            'key': self.google_maps_api_key,
+            'location': f"{current_location[0]},{current_location[1]}",
+            'radius': radius_meters,
+            'type': place_type,
+            'keyword': search_query,
+            'rankby': 'prominence'  # Default sort by popularity
+        }
+        
+        # Call Places API
+        url = "https://maps.googleapis.com/maps/api/place/nearbysearch/json"
+        response = requests.get(url, params=params)
+        response.raise_for_status()
+        data = response.json()
+        
+        if data.get('status') != 'OK' or not data.get('results'):
+            return []
+            
+        # Process only the first 5 results
+        results = data.get('results')[:5]
+        candidates = []
+        
+        # 获取价格偏好
+        price_preference = destination_type.get('price_level', 2)
+        
+        for result in results:
+            try:
+                # Get location coordinates
+                location = result.get('geometry', {}).get('location', {})
+                lat = location.get('lat')
+                lng = location.get('lng')
+                
+                # Skip invalid coordinates
+                if lat is None or lng is None:
+                    continue
+                    
+                dest_coords = (lat, lng)
+                
+                # Calculate distance
+                distance = calculate_distance(current_location, dest_coords)
+                
+                # Skip if location is too far (rough estimate based on distance)
+                # Assuming average speed of 30km/h, estimating if we can reach in time
+                estimated_time_minutes = (distance / 30) * 60
+                if available_minutes and estimated_time_minutes > available_minutes * 0.4:
+                    continue
+                
+                # Get rating and price level
+                rating = result.get('rating', 3.0) or 3.0
+                place_price_level = result.get('price_level', 2)
+                
+                # 使用优化后的评分函数，传递所有需要的参数
+                score = self._calculate_place_score(
+                    rating=rating, 
+                    distance=distance, 
+                    max_distance=max_radius, 
+                    price_level=place_price_level, 
+                    price_preference=price_preference
+                )
+                
+                # Add to candidate list
+                candidates.append({
+                    'coords': dest_coords,
+                    'details': {
+                        'name': result.get('name', 'Unknown Location'),
+                        'address': result.get('vicinity', 'Unknown Address'),
+                        'place_id': result.get('place_id', ''),
+                        'rating': rating,
+                        'price_level': place_price_level,
+                        'distance': distance
+                    },
+                    'score': score
+                })
+            except Exception as e:
+                print(f"Error processing place result: {e}")
+                continue
+            
+        return candidates
+        
+    def _calculate_place_score(self, rating, distance, max_distance, price_level, price_preference):
+        """
+        Calculate a comprehensive score for a place based on rating, distance and price match
+        
+        Args:
+            rating: Place rating (1-5)
+            distance: Distance in kilometers
+            max_distance: Maximum search radius
+            price_level: Place price level (1-4)
+            price_preference: User price preference (1-4)
+            
+        Returns:
+            float: Score value
+        """
+        # Ensure parameters are valid
+        if not isinstance(rating, (int, float)):
+            rating = 3.0
+        if not isinstance(distance, (int, float)):
+            distance = max_distance / 2  # Default to middle of search radius
+        if not isinstance(max_distance, (int, float)) or max_distance <= 0:
+            max_distance = 5.0
+        if not isinstance(price_level, (int, float)):
+            price_level = 2
+        if not isinstance(price_preference, (int, float)):
+            price_preference = 2
+            
+        # Normalize rating (40%)
+        rating_factor = (min(5.0, max(1.0, rating)) / 5.0) * 0.4
+        
+        # Distance factor (40%) - 越近越好
+        distance_factor = max(0, 1 - (distance / max_distance)) * 0.3
+        
+        # Price match (20%) - 价格等级与偏好匹配程度
+        price_match = 1 - (abs(price_level - price_preference) / 4)
+        price_factor = max(0, price_match) * 0.3
+        
+        return rating_factor + distance_factor + price_factor
+        
+    def _select_best_candidate(self, candidates):
+        """Select the best candidate from a list based on score"""
+        candidates.sort(key=lambda x: x['score'], reverse=True)
+        return candidates[0]
+    
     def _try_alternative_search(self, current_location, destination_type, max_radius):
         """
         Try alternative search approaches when primary search fails
+        
+        Args:
+            current_location: Current location coordinates
+            destination_type: Destination type information
+            max_radius: Maximum search radius in kilometers
+            
+        Returns:
+            tuple: ((latitude, longitude), location_details)
         """
-        # Approach 1: Use more generic search keywords
+        # Try with generic keywords first
+        generic_result = self._try_generic_keyword_search(current_location, destination_type, max_radius)
+        if generic_result:
+            return generic_result
+        
+        # Fall back to random location as last resort
+        random_location = generate_random_location_near(current_location, max_radius)
+        return random_location, {
+            'name': f'Nearby location', 
+            'address': f'Distance: {round(calculate_distance(current_location, random_location), 1)}km'
+        }
+    
+    def _try_generic_keyword_search(self, current_location, destination_type, max_radius):
+        """Try search with more generic keywords when specific search fails"""
+        # Map of generic keywords for different activity types
         generic_keywords = {
             'restaurant': ['restaurant', 'dining', 'food'],
             'cafe': ['cafe', 'coffee', 'tea'],
@@ -530,49 +740,51 @@ class Destination:
         }
         
         # Extract possible activity type from search query
+        search_query = destination_type.get('search_query', '').lower()
         activity_type = None
-        search_query = destination_type.get('search_query', '')
+        
         for key, values in generic_keywords.items():
-            if any(keyword in search_query.lower() for keyword in values):
+            if any(keyword in search_query for keyword in values):
                 activity_type = key
                 break
         
-        if activity_type:
-            # Search with more generic keywords
+        if not activity_type:
+            return None
+            
+        # Try search with more generic keywords
+        try:
             generic_params = {
-                'key': GOOGLE_MAPS_API_KEY,
+                'key': self.google_maps_api_key,
                 'location': f"{current_location[0]},{current_location[1]}",
-                'radius': int(max_radius * 1000 * 1.5),  # Expand search radius
+                'radius': int(max_radius * 1000 * 1.5),  # Expand search radius by 50%
                 'keyword': generic_keywords.get(activity_type, ['place'])[0]
             }
             
-            try:
-                url = "https://maps.googleapis.com/maps/api/place/nearbysearch/json"
-                generic_response = requests.get(url, params=generic_params)
-                generic_data = generic_response.json()
+            url = "https://maps.googleapis.com/maps/api/place/nearbysearch/json"
+            generic_response = requests.get(url, params=generic_params)
+            generic_data = generic_response.json()
+            
+            if generic_data.get('status') == 'OK' and generic_data.get('results'):
+                # Process alternative location found
+                result = generic_data['results'][0]  # Use first result
+                location = result.get('geometry', {}).get('location', {})
+                dest_coords = (location.get('lat'), location.get('lng'))
                 
-                if generic_data.get('status') == 'OK' and generic_data.get('results'):
-                    # Process alternative location found
-                    result = generic_data['results'][0]  # Use first result
-                    location = result.get('geometry', {}).get('location', {})
-                    dest_coords = (location.get('lat'), location.get('lng'))
-                    
-                    # Calculate distance
-                    distance = calculate_distance(current_location, dest_coords)
-                    details = {
-                        'name': result.get('name', 'Alternative location'),
-                        'address': result.get('vicinity', 'Unknown address'),
-                        'rating': result.get('rating', 3.0),
-                        'distance': distance
-                    }
-                    
-                    return dest_coords, details
-            except Exception as e:
-                print(f"Alternative search error: {str(e)}")
-        
-        # Only use random location as last resort
-        random_location = generate_random_location_near(current_location, max_radius)
-        return random_location, {'name': f'Nearby location', 'address': f'Distance: {round(calculate_distance(current_location, random_location), 1)}km'}
+                # Calculate distance
+                distance = calculate_distance(current_location, dest_coords)
+                details = {
+                    'name': result.get('name', 'Alternative location'),
+                    'address': result.get('vicinity', 'Unknown address'),
+                    'rating': result.get('rating', 3.0),
+                    'distance': distance
+                }
+                
+                return dest_coords, details
+                
+        except Exception as e:
+            print(f"Alternative search error: {str(e)}")
+            
+        return None
     
     def _extract_destination_from_text(self, text):
         """
@@ -584,15 +796,45 @@ class Destination:
         Returns:
             dict: Extracted destination information
         """
+        try:
+            # First try to parse as JSON
+            if text.strip().startswith('{') and text.strip().endswith('}'):
+                try:
+                    json_data = json.loads(text)
+                    # 验证并规范化JSON结果
+                    result = {}
+                    if 'place_type' in json_data:
+                        result['place_type'] = str(json_data['place_type'])
+                    if 'search_query' in json_data:
+                        result['search_query'] = str(json_data['search_query'])
+                    if 'distance_preference' in json_data:
+                        try:
+                            result['distance_preference'] = float(json_data['distance_preference'])
+                        except (ValueError, TypeError):
+                            result['distance_preference'] = 5.0
+                    if 'price_level' in json_data:
+                        try:
+                            result['price_level'] = int(json_data['price_level'])
+                        except (ValueError, TypeError):
+                            result['price_level'] = 2
+                    
+                    return result
+                except json.JSONDecodeError:
+                    # If JSON parsing fails, fall back to text parsing
+                    pass
+        except Exception as e:
+            print(f"Error parsing destination as JSON: {e}")
+        
+        # Fall back to text parsing
         destination = {}
         lines = text.split('\n')
         
         # Define keys to look for
         keys = {
-            'place_type': ['place type', 'type of place', 'destination type'],
-            'search_query': ['search query', 'search term', 'search for'],
-            'distance_preference': ['distance', 'how far', 'kilometers', 'miles'],
-            'price_level': ['price', 'cost', 'expensive', 'budget']
+            'place_type': ['place type', 'type of place', 'destination type', 'place_type'],
+            'search_query': ['search query', 'search term', 'search for', 'keyword', 'search_query'],
+            'distance_preference': ['distance', 'how far', 'kilometers', 'miles', 'distance_preference'],
+            'price_level': ['price', 'cost', 'expensive', 'budget', 'price_level']
         }
         
         # Extract information from each line
@@ -602,6 +844,10 @@ class Destination:
             if not line:
                 continue
             
+            # Skip lines that are likely not relevant
+            if line.startswith('```') or line.startswith('#'):
+                continue
+                
             # Check if this line contains any keywords
             found_key = False
             for key, patterns in keys.items():
@@ -614,12 +860,27 @@ class Destination:
                         value = value_part.strip('",\'').strip()
                         if value:
                             destination[key] = self._process_destination_value(key, value)
+                    elif '=' in line:
+                        value_part = line.split('=', 1)[1].strip()
+                        value = value_part.strip('",\'').strip()
+                        if value:
+                            destination[key] = self._process_destination_value(key, value)
                     break
             
             # If no keyword found but we have a current key, treat as continuation
             if not found_key and current_key and current_key not in destination:
                 destination[current_key] = self._process_destination_value(current_key, line)
         
+        # Ensure we have all required fields with default values if missing
+        if 'place_type' not in destination:
+            destination['place_type'] = 'point_of_interest'
+        if 'search_query' not in destination:
+            destination['search_query'] = 'place'
+        if 'distance_preference' not in destination:
+            destination['distance_preference'] = 5.0
+        if 'price_level' not in destination:
+            destination['price_level'] = 2
+            
         return destination
     
     def _process_destination_value(self, key, value):
@@ -659,52 +920,191 @@ class Destination:
         
         return value
     
-    def _determine_transport_mode(self, persona, activity_type, available_minutes, current_location):
+    def _determine_transport_mode(self, persona, activity_type, available_minutes, distance, memory_patterns=None):
         """
-        Determine suitable transportation mode based on character features, activity, and available time
+        Determine suitable transportation mode based on persona, activity, and distance.
         
         Args:
             persona: Character object
-            activity_type: An activity type (e.g. "dinner", "shopping")
+            activity_type: Activity type
             available_minutes: Available time (minutes)
-            current_location: Current location
+            distance: Distance in kilometers
+            memory_patterns: Historical memory patterns (optional)
             
         Returns:
-            str: Transportation mode ('walking', 'driving', 'public_transit', 'cycling')
+            str: Transportation mode ('walking', 'driving', 'public_transit', 'cycling', 'rideshare')
         """
-        # Cache key
-        cache_key = f"transport_{persona.id}_{activity_type}_{available_minutes}"
-        if cache_key in self.transport_mode_cache:
-            return self.transport_mode_cache[cache_key]
-        
-        # Default transportation mode
-        transport_mode = 'walking'
-        
-        # Based on available time, preliminary judgment
-        if available_minutes < 30:
-            transport_mode = 'walking'  # Short time, walking is the most convenient
-        elif 30 <= available_minutes < 90:
-            # Short to medium distance, possibly walking, cycling, or public transit
-            options = ['walking', 'cycling', 'public_transit']
-            transport_mode = random.choice(options)
-        else:
-            # Long activity, may use any transportation mode
-            options = ['walking', 'cycling', 'public_transit', 'driving']
-            transport_mode = random.choice(options)
-        
-        # Based on personal preference adjustment
-        if hasattr(persona, 'transportation_preference') and persona.transportation_preference:
-            # 70% probability use preferred transportation mode
-            if random.random() < 0.7:
-                transport_mode = persona.transportation_preference
-        
-        # Based on activity type adjustment
-        shopping_activities = ['shopping', 'grocery shopping', 'mall']
-        if any(act in activity_type.lower() for act in shopping_activities) and available_minutes > 60:
-            # Shopping may require carrying items, tend to drive or public transit
-            if random.random() < 0.7:
-                transport_mode = random.choice(['driving', 'public_transit'])
-        
-        # Cache result
-        self.transport_mode_cache[cache_key] = transport_mode
+
+        # Try LLM-based determination
+        transport_mode = self._determine_transport_mode_with_llm(
+            persona, 
+            activity_type, 
+            available_minutes, 
+            distance, 
+            memory_patterns
+        )
+        # self.transport_mode_cache[cache_key] = transport_mode
         return transport_mode
+    
+    def _determine_transport_mode_with_llm(self, persona, activity_type, available_minutes, distance, memory_patterns):
+        """Use LLM to determine the most appropriate transport mode"""
+        try:
+            # For very short distances, use heuristic directly without calling LLM
+            if distance < 0.3:  # Less than 300 meters
+                return 'walking'
+                
+            # Prepare prompt inputs
+            prompt = self._prepare_transport_mode_prompt(
+                persona, 
+                activity_type, 
+                available_minutes, 
+                distance, 
+                memory_patterns
+            )
+            
+            # Call LLM
+            response = client.chat.completions.create(
+                model=self.model,
+                messages=[{"role": "user", "content": prompt}],
+                temperature=self.temperature,
+                max_tokens=20,  # Only need a short answer
+            )
+            
+            # Get and normalize response
+            transport_mode = self._normalize_transport_mode(response.choices[0].message.content)
+            return transport_mode
+            
+        except Exception as e:
+            print(f"LLM transport mode determination failed: {str(e)}")
+            # Fall back to simple heuristic determination
+            return self._determine_transport_mode_heuristic(distance)
+    
+    def _prepare_transport_mode_prompt(self, persona, activity_type, available_minutes, distance, memory_patterns):
+        """Prepare the prompt for transport mode determination"""
+        try:
+            # Prepare historical preference data
+            pattern_str = "No historical data"
+            if memory_patterns and 'transport_modes' in memory_patterns:
+                pattern_items = []
+                for mode, count in memory_patterns['transport_modes'].items():
+                    if mode and mode != 'unknown':
+                        pattern_items.append(f"{mode}({count} times)")
+                if pattern_items:
+                    pattern_str = ", ".join(pattern_items)
+            
+            # Prepare persona traits
+            traits = []
+            if hasattr(persona, 'traits'):
+                traits.extend(persona.traits)
+            traits_str = ", ".join(traits) if traits else "No special traits"
+            
+            # Ensure all parameters are valid
+            gender = getattr(persona, 'gender', 'unknown')
+            age = getattr(persona, 'age', 30)
+            education = getattr(persona, 'education', 'unknown')
+            occupation = getattr(persona, 'occupation', 'unknown')
+            
+            # Get household income safely
+            try:
+                household_income = persona.get_household_income()
+            except Exception:
+                household_income = 50000  # Default value
+            
+            # Format distance value
+            distance_str = f"{float(distance):.1f}" if isinstance(distance, (int, float)) else "1.0"
+            
+            # Build and return prompt
+            return TRANSPORT_MODE_PROMPT.format(
+                gender=gender,
+                age=age,
+                education=education,
+                occupation=occupation,
+                household_income=household_income,
+                traits=traits_str,
+                activity=activity_type,
+                minutes=available_minutes,
+                distance=distance_str,
+                patterns=pattern_str
+            )
+        except Exception as e:
+            print(f"Error preparing transport mode prompt: {str(e)}")
+            # Return simplified prompt
+            return f"What transportation mode should be used for a {activity_type} activity that is {distance:.1f}km away?"
+    
+    def _normalize_transport_mode(self, transport_mode_text):
+        """Normalize transport mode text to standard categories"""
+        transport_mode = transport_mode_text.strip().lower()
+        
+        if 'walk' in transport_mode:
+            return 'walking'
+        elif 'cycl' in transport_mode or 'bike' in transport_mode:
+            return 'cycling'
+        elif 'bus' in transport_mode or 'train' in transport_mode or 'transit' in transport_mode:
+            return 'public_transit'
+        elif 'car' in transport_mode or 'driv' in transport_mode:
+            return 'driving'
+        elif 'taxi' in transport_mode or 'uber' in transport_mode or 'lyft' in transport_mode or 'ride' in transport_mode:
+            return 'rideshare'
+        else:
+            return 'walking'  # Default to walking
+    
+    def _determine_transport_mode_heuristic(self, distance):
+        """Determine transport mode based on simple distance heuristics"""
+        if distance < 1:
+            return 'walking'
+        elif distance < 3:
+            return 'cycling'
+        elif distance < 10:
+            return 'public_transit'
+        else:
+            return 'driving'
+
+    def _calculate_search_radius(self, persona, activity_type, time_window, destination_type):
+        """
+        Calculate the maximum search radius based on available time and preferences.
+        
+        Args:
+            persona: Persona object
+            activity_type: Activity type
+            time_window: Available time window in minutes
+            destination_type: Destination type information with preferences
+            
+        Returns:
+            float: Maximum search radius in kilometers
+        """
+        # Get base radius from time window
+        max_radius = self._calculate_max_radius(persona, activity_type, time_window)
+        
+        # Apply distance preference if available
+        if 'distance_preference' in destination_type:
+            # Distance preference value range 1-10, 1 means very close, 10 means can be very far
+            distance_pref = destination_type.get('distance_preference', 5)
+            # Convert distance preference to radius adjustment factor (0.5-1.5)
+            distance_factor = 0.5 + (distance_pref / 10)
+            # Adjust maximum radius
+            max_radius = max_radius * distance_factor
+            
+        return max_radius
+
+    def _generate_fallback_location(self, max_radius, current_location=None, destination_type=None):
+        """Generate a fallback location when normal methods fail"""
+        try:
+            # Use a random location near the current location if available
+            if current_location and isinstance(current_location, tuple) and len(current_location) == 2:
+                random_location = generate_random_location_near(current_location, max_radius * 0.5)
+                name = f'Location for {destination_type.get("search_query", "activity")}' if destination_type else 'Fallback Location'
+                return random_location, {
+                    'name': name, 
+                    'address': f'Generated Location',
+                    'is_fallback': True
+                }
+            else:
+                # Complete fallback with default values
+                return (0.0, 0.0), {
+                    'name': 'Default Location',
+                    'address': 'No valid location data available',
+                    'is_fallback': True
+                }
+        except Exception as e:
+            print(f"Error generating fallback location: {str(e)}")
+            return (0.0, 0.0), {'name': 'Error Location', 'address': 'Error generating location'}

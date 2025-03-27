@@ -7,34 +7,41 @@ import os
 import json
 import datetime
 from config import RESULTS_DIR
-from utils import visualize_trajectory
+from utils import visualize_trajectory, get_day_of_week
 
 class Memory:
     """
     Records and manages the memory of daily mobility trajectories.
+    限制为仅保留最近2天的活动记录，减轻LLM处理压力
     """
     
-    def __init__(self, persona_id):
+    def __init__(self, persona_id, memory_days=2):
         """
         Initialize a Memory instance.
         
         Args:
             persona_id: Identifier for the persona
+            memory_days: Number of days to retain in memory (default: 2)
         """
         self.persona_id = persona_id
         self.persona_info = None
         self.days = []
         self.current_day = None
+        self.memory_days = memory_days
         self.location_frequency = {}
         self.activity_type_frequency = {}
         self.time_preference = {}
         
         # Create results directory if it doesn't exist
         os.makedirs(RESULTS_DIR, exist_ok=True)
+        
+        # 为高效处理创建索引
+        self.location_index = {}  # 位置索引 - 提高位置查询效率
+        self.latest_activities = {}  # 最近的活动类型 - 用于更快地检索历史行为
     
     def initialize_persona(self, persona):
         """
-        Initialize the memory with persona information.
+        Initialize memory with persona information
         
         Args:
             persona: Persona object
@@ -44,7 +51,7 @@ class Memory:
             'name': persona.name,
             'gender': persona.gender,
             'age': persona.age,
-            'income': persona.income,
+            'income': persona.get_household_income(),
             'education': persona.education,
             'home': persona.home,
             'work': persona.work
@@ -57,9 +64,10 @@ class Memory:
         Args:
             date: Date string (YYYY-MM-DD)
         """
+        day_of_week = get_day_of_week(date)
         self.current_day = {
             'date': date,
-            'day_of_week': datetime.datetime.strptime(date, "%Y-%m-%d").strftime("%A"),
+            'day_of_week': day_of_week,
             'activities': [],
             'trajectory': []
         }
@@ -96,6 +104,20 @@ class Memory:
         
         # Update statistics
         self._update_statistics(activity_record, location, timestamp)
+        
+        # 更新最近活动索引
+        activity_type = activity_record.get('activity_type')
+        if activity_type:
+            self.latest_activities[activity_type] = {
+                'timestamp': timestamp,
+                'location': location,
+                'location_name': activity_record.get('location_name', '')
+            }
+            
+        # 更新位置索引 - 使用位置名作为键
+        location_name = activity_record.get('location_name')
+        if location_name:
+            self.location_index[location_name] = location
     
     def _get_location_name(self, activity):
         """
@@ -206,6 +228,20 @@ class Memory:
             is_travel=True,
             travel_position='end'
         )
+        
+        # 更新位置索引
+        if start_location_name:
+            self.location_index[start_location_name] = start_location
+        if end_location_name:
+            self.location_index[end_location_name] = end_location
+            
+        # 更新最近活动
+        self.latest_activities['travel'] = {
+            'timestamp': end_time,
+            'transport_mode': transport_mode,
+            'from': start_location_name,
+            'to': end_location_name
+        }
     
     def _find_location_name(self, location):
         """
@@ -217,6 +253,12 @@ class Memory:
         Returns:
             str: Location name if found, otherwise "Unknown Location"
         """
+        # 先检查位置索引，这比遍历活动更快
+        for name, coords in self.location_index.items():
+            if self._is_same_location(coords, location):
+                return name
+                
+        # 如果索引中没有找到，再检查当前日的活动
         if not self.current_day or not self.current_day['activities']:
             return "Unknown Location"
             
@@ -268,10 +310,118 @@ class Memory:
     def end_day(self):
         """
         End current day recording and add to days list.
+        维持只有最近的memory_days天的记录
         """
         if self.current_day:
+            # 添加当前日到历史记录
             self.days.append(self.current_day)
+            
+            # 如果超过记忆限制，删除最早的日记录
+            while len(self.days) > self.memory_days:
+                oldest_day = self.days.pop(0)
+                print(f"Removed oldest day ({oldest_day.get('date', 'unknown')}) from memory")
+                
             self.current_day = None
+    
+    def get_recent_activities(self, activity_type=None, days=None):
+        """
+        获取最近的活动，可以按类型过滤
+        
+        Args:
+            activity_type: 可选的活动类型过滤
+            days: 要获取的天数，默认为所有记忆中的天
+            
+        Returns:
+            list: 符合条件的活动列表
+        """
+        if days is None:
+            days = self.memory_days
+            
+        days = min(days, len(self.days))
+        
+        # 只获取最近的n天
+        recent_days = self.days[-days:]
+        
+        activities = []
+        for day in recent_days:
+            for activity in day['activities']:
+                if activity_type is None or activity['activity_type'] == activity_type:
+                    activities.append(activity)
+                    
+        return activities
+    
+    def get_mobility_patterns(self):
+        """
+        提取基本的移动模式统计信息，仅基于存储的天数
+        
+        Returns:
+            dict: 移动模式信息
+        """
+        patterns = {
+            'frequent_locations': {},
+            'transport_preferences': {},
+            'activity_time_patterns': {},
+            'daily_routines': {}
+        }
+        
+        # 收集所有活动
+        all_activities = []
+        for day in self.days:
+            all_activities.extend(day['activities'])
+            
+        # 频繁位置
+        patterns['frequent_locations'] = self.location_frequency
+        
+        # 交通偏好
+        transport_counts = {}
+        for activity in all_activities:
+            if activity['activity_type'] == 'travel':
+                mode = activity.get('transport_mode', 'unknown')
+                transport_counts[mode] = transport_counts.get(mode, 0) + 1
+                
+        patterns['transport_preferences'] = transport_counts
+        
+        # 活动时间模式
+        activity_times = {}
+        for activity in all_activities:
+            act_type = activity['activity_type']
+            if act_type not in activity_times:
+                activity_times[act_type] = []
+                
+            start_time = activity.get('start_time', '')
+            if start_time:
+                activity_times[act_type].append(start_time)
+                
+        for act_type, times in activity_times.items():
+            if times:
+                # 将时间转换为分钟
+                minutes = []
+                for t in times:
+                    h, m = map(int, t.split(':'))
+                    minutes.append(h * 60 + m)
+                    
+                # 计算平均时间
+                avg_minutes = sum(minutes) / len(minutes)
+                avg_hour = int(avg_minutes / 60)
+                avg_min = int(avg_minutes % 60)
+                
+                patterns['activity_time_patterns'][act_type] = f"{avg_hour:02d}:{avg_min:02d}"
+        
+        # 日常规律
+        for day in self.days:
+            day_type = 'weekday'
+            if day['day_of_week'] in ['Saturday', 'Sunday']:
+                day_type = 'weekend'
+                
+            if day_type not in patterns['daily_routines']:
+                patterns['daily_routines'][day_type] = []
+                
+            # 提取当天的活动序列
+            activity_sequence = [a['activity_type'] for a in day['activities'] if a['activity_type'] != 'travel']
+            if activity_sequence:
+                patterns['daily_routines'][day_type].append(activity_sequence)
+        
+        return patterns
     
     def save_to_file(self, file_path):
         """
@@ -284,7 +434,7 @@ class Memory:
             # Create directory if it doesn't exist
             os.makedirs(os.path.dirname(file_path), exist_ok=True)
             
-            # Prepare data
+            # Prepare data - 减少数据量，只保存必要信息
             data = {
                 'persona_id': self.persona_id,
                 'persona_info': self.persona_info,
@@ -293,7 +443,8 @@ class Memory:
                     'location_frequency': self.location_frequency,
                     'activity_type_frequency': self.activity_type_frequency,
                     'time_preference': self.time_preference
-                }
+                },
+                'mobility_patterns': self.get_mobility_patterns()
             }
             
             # Save to file
@@ -302,7 +453,7 @@ class Memory:
                 
             print(f"Memory data saved to {file_path}")
             
-            # Generate visualization for each day
+            # 生成可视化
             self.create_visualizations(os.path.dirname(file_path))
             
         except Exception as e:
@@ -323,7 +474,11 @@ class Memory:
             try:
                 date_str = day.get('date', f"day_{i+1}")
                 map_file = os.path.join(output_dir, f"trajectory_{self.persona_id}_{date_str}.html")
-                visualize_trajectory(day['trajectory'], map_file)
+                visualize_trajectory(
+                    day['trajectory'], 
+                    map_file,
+                    title=f"Trajectory for Persona {self.persona_id} on {date_str}"
+                )
             except Exception as e:
                 print(f"Error creating visualization: {e}")
     
