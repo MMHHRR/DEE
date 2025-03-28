@@ -16,6 +16,8 @@ import math
 import hashlib
 import time
 import functools
+import gzip
+import shutil
 
 # Caching system implementation
 class Cache:
@@ -571,4 +573,241 @@ def generate_random_location_near(center, max_distance_km=5.0):
     lat2 = math.degrees(lat2)
     lon2 = math.degrees(lon2)
     
-    return (lat2, lon2) 
+    return (lat2, lon2)
+
+def compress_trajectory_data(file_path, method='gzip'):
+    """
+    Compress JSON trajectory data file to save disk space.
+    
+    Args:
+        file_path: Path to the JSON file
+        method: Compression method ('gzip' is currently supported)
+    
+    Returns:
+        str: Path to the compressed file
+    """
+    if method != 'gzip':
+        print(f"Warning: Compression method {method} not supported, using gzip")
+        
+    try:
+        # Create compressed file path
+        compressed_file = f"{file_path}.gz"
+        
+        # Compress file
+        with open(file_path, 'rb') as f_in:
+            with gzip.open(compressed_file, 'wb') as f_out:
+                shutil.copyfileobj(f_in, f_out)
+                
+        # Return path to compressed file
+        return compressed_file
+    except Exception as e:
+        print(f"Error compressing file {file_path}: {e}")
+        return None
+
+def batch_save_trajectories(results, output_dir, format='json'):
+    """
+    Save all activity data in batch for efficient storage.
+    Only saves activity data, not trajectory data.
+    
+    Args:
+        results: Dictionary of Memory objects
+        output_dir: Directory to save the activities
+        format: Output format ('json' or 'merged')
+    
+    Returns:
+        str: Path to saved file or directory
+    """
+    try:
+        # Create output directory if it doesn't exist
+        os.makedirs(output_dir, exist_ok=True)
+        
+        if format == 'merged':
+            # Save all activities in a single JSON file with links to daily files
+            merged_data = {}
+            
+            for household_id, memory in results.items():
+                if hasattr(memory, 'days'):
+                    # For each household, create a summary with dates
+                    merged_data[str(household_id)] = {
+                        'persona_info': memory.persona_info,
+                        'days_summary': [{'date': day['date'], 'day_of_week': day['day_of_week']} for day in memory.days]
+                    }
+            
+            # Save merged data
+            merged_file = os.path.join(output_dir, 'all_activities_summary.json')
+            with open(merged_file, 'w', encoding='utf-8') as f:
+                json.dump(merged_data, f, indent=2)
+                
+            print(f"Saved merged activities summary to {merged_file}")
+            return merged_file
+            
+        else:  # Individual JSON files
+            for household_id, memory in results.items():
+                if hasattr(memory, 'days'):
+                    # Create a directory for this household
+                    household_dir = os.path.join(output_dir, f"household_{household_id}")
+                    os.makedirs(household_dir, exist_ok=True)
+                    
+                    # Save summary file
+                    summary_file = os.path.join(household_dir, "summary.json")
+                    summary_data = {
+                        'persona_id': household_id,
+                        'persona_info': memory.persona_info,
+                        'days_summary': [{'date': day['date'], 'day_of_week': day['day_of_week']} for day in memory.days]
+                    }
+                    
+                    with open(summary_file, 'w', encoding='utf-8') as f:
+                        json.dump(summary_data, f, indent=2)
+                    
+                    # Save each day to a separate file
+                    for day in memory.days:
+                        date = day['date']
+                        date_filename = date.replace('-', '')  # Remove hyphens for filename
+                        day_file = os.path.join(household_dir, f"{date_filename}.json")
+                        
+                        # Create a copy of the day data with only activities, without trajectory
+                        day_data = {
+                            'date': day['date'],
+                            'day_of_week': day['day_of_week'],
+                            'activities': day['activities']
+                        }
+                        
+                        with open(day_file, 'w', encoding='utf-8') as f:
+                            json.dump(day_data, f, indent=2)
+            
+            print(f"Saved individual activities to {output_dir}")
+            return output_dir
+            
+    except Exception as e:
+        print(f"Error saving activities: {e}")
+        return None
+
+def generate_summary_report(results, output_dir):
+    """
+    Generate a summary report of the simulation results.
+    
+    Args:
+        results: Dictionary of Memory objects
+        output_dir: Directory to save the summary report
+    
+    Returns:
+        str: Path to the summary report file
+    """
+    try:
+        # Prepare summary data
+        summary = {
+            'total_households': len(results),
+            'total_activities': 0,
+            'activity_types': {},
+            'transport_modes': {},
+            'location_types': {}
+        }
+        
+        # Calculate statistics
+        for household_id, memory in results.items():
+            if not hasattr(memory, 'days'):
+                continue
+                
+            for day in memory.days:
+                for activity in day['activities']:
+                    # Count activities
+                    summary['total_activities'] += 1
+                    
+                    # Count activity types
+                    activity_type = activity.get('activity_type', 'unknown')
+                    summary['activity_types'][activity_type] = summary['activity_types'].get(activity_type, 0) + 1
+                    
+                    # Count transport modes for travel activities
+                    if activity_type == 'travel' and 'transport_mode' in activity:
+                        mode = activity['transport_mode']
+                        summary['transport_modes'][mode] = summary['transport_modes'].get(mode, 0) + 1
+                    
+                    # Count location types
+                    location_type = activity.get('location_type', 'unknown')
+                    summary['location_types'][location_type] = summary['location_types'].get(location_type, 0) + 1
+        
+        # Save summary report
+        summary_file = os.path.join(output_dir, 'simulation_summary.json')
+        with open(summary_file, 'w', encoding='utf-8') as f:
+            json.dump(summary, f, indent=2)
+            
+        print(f"Generated summary report with {summary['total_activities']} activities")
+        return summary_file
+        
+    except Exception as e:
+        print(f"Error generating summary report: {e}")
+        return None
+
+def create_batch_visualizations(results_dir, max_personas_per_vis=10):
+    """
+    Create batch visualizations for simulation results
+    
+    Args:
+        results_dir: Results directory
+        max_personas_per_vis: Maximum number of personas per visualization
+    """
+    import folium
+    from folium.plugins import MarkerCluster
+    
+    # Find all household result files
+    household_files = []
+    for filename in os.listdir(results_dir):
+        if filename.startswith("household_") and filename.endswith(".json"):
+            household_files.append(os.path.join(results_dir, filename))
+    
+    if not household_files:
+        print("No household result files found")
+        return
+    
+    # Create visualizations by batch
+    for batch_idx in range(0, len(household_files), max_personas_per_vis):
+        batch_files = household_files[batch_idx:batch_idx + max_personas_per_vis]
+        
+        # Create map
+        m = folium.Map(location=[41.8781, -87.6298], zoom_start=11)  # Centered on Chicago
+        
+        # Create a feature group for each household
+        for household_file in batch_files:
+            try:
+                # Read household data
+                with open(household_file, 'r') as f:
+                    data = json.load(f)
+                
+                household_id = data.get('persona_id', 'unknown')
+                
+                # Create feature group for this household
+                fg = folium.FeatureGroup(name=f"Household {household_id}")
+                
+                # Add trajectory points
+                for day in data.get('days', []):
+                    date = day.get('date', '')
+                    
+                    # Create trajectory line
+                    locations = []
+                    for point in day.get('trajectory', []):
+                        if 'location' in point and point['location']:
+                            locations.append(point['location'])
+                    
+                    if len(locations) > 1:
+                        # Add trajectory line
+                        folium.PolyLine(
+                            locations,
+                            color=f'#{hash(str(household_id)) % 0xFFFFFF:06x}',  # Generate unique color based on household_id
+                            weight=2,
+                            opacity=0.7,
+                            popup=f"Household {household_id} on {date}"
+                        ).add_to(fg)
+                
+                # Add feature group to map
+                fg.add_to(m)
+                
+            except Exception as e:
+                print(f"Error processing {household_file}: {e}")
+        
+        # Add layer control
+        folium.LayerControl().add_to(m)
+        
+        # Save map
+        output_file = os.path.join(results_dir, f"batch_visualization_{batch_idx // max_personas_per_vis + 1}.html")
+        m.save(output_file)
+        print(f"Created batch visualization: {output_file}") 

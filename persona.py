@@ -6,7 +6,7 @@ Defines the Persona class to represent individuals with their attributes and cha
 import os
 import pandas as pd 
 import datetime
-from config import RESULTS_DIR
+from config import RESULTS_DIR, PERSON_CSV_PATH, LOCATION_CSV_PATH, GPS_PLACE_CSV_PATH, HOUSEHOLD_CSV_PATH
 
 class Memory:
     """
@@ -52,11 +52,11 @@ class Persona:
         # Historical data memory
         self.memory = None
         
-        # CSV data file paths
-        self.person_csv = "data/person.csv"
-        self.gps_place_csv = "data/gps_place.csv"
-        self.location_csv = "data/location.csv"
-        self.household_csv = "data/household.csv"
+        # CSV data file paths (from config)
+        self.person_csv = PERSON_CSV_PATH
+        self.gps_place_csv = GPS_PLACE_CSV_PATH
+        self.location_csv = LOCATION_CSV_PATH
+        self.household_csv = HOUSEHOLD_CSV_PATH
     
     def load_historical_data(self, household_id=None, person_id=None):
         """
@@ -70,11 +70,11 @@ class Persona:
             bool: Whether data was successfully loaded
         """
         try:
-            # If ID not specified, use current persona's ID
+            # 如果没有指定household_id，则尝试使用当前persona的ID
             if household_id is None:
                 household_id = self.id
                 
-            # Ensure CSV files exist
+            # 确保所有CSV文件都存在
             required_files = [self.person_csv, self.gps_place_csv, self.location_csv, self.household_csv]
             if not all(os.path.exists(csv_file) for csv_file in required_files):
                 print(f"Cannot find one or more required CSV files: {required_files}")
@@ -82,7 +82,7 @@ class Persona:
                 
             # Read household.csv to get household income information
             try:
-                household_df = pd.read_csv(self.household_csv)
+                household_df = pd.read_csv(self.household_csv, low_memory=False)
                 household_records = household_df[household_df['sampno'] == household_id]
                 
                 if not household_records.empty:
@@ -102,7 +102,7 @@ class Persona:
                 traceback.print_exc()
                 
             # Read person.csv
-            person_df = pd.read_csv(self.person_csv)
+            person_df = pd.read_csv(self.person_csv, low_memory=False)
             
             # If person_id not specified, find person matching current persona features
             if person_id is None:
@@ -147,10 +147,10 @@ class Persona:
                     self.education = self._determine_education(selected_person['educ'])
                 
             # Read location.csv to get location information
-            location_df = pd.read_csv(self.location_csv)
+            location_df = pd.read_csv(self.location_csv, low_memory=False)
             
             # Read gps_place.csv to get travel records
-            places_df = pd.read_csv(self.gps_place_csv)
+            places_df = pd.read_csv(self.gps_place_csv, low_memory=False)
             
             # Filter current person's records
             person_places = places_df[(places_df['sampno'] == household_id) & (places_df['perno'] == person_id)]

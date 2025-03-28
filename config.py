@@ -25,10 +25,16 @@ LLM_MAX_TOKENS = 500
 NUM_DAYS_TO_SIMULATE = 3
 SIMULATION_START_DATE = "2025-02-03"
 USE_GOOGLE_MAPS = True  # If False, will use OSM
+MEMORY_DAYS = 2  # Number of days to keep in memory
 
 # File Paths
-PERSONA_DATA_PATH = "data/personas.json"
 RESULTS_DIR = "data/results/"
+
+# CSV Data Files
+PERSON_CSV_PATH = "data/person.csv"
+LOCATION_CSV_PATH = "data/location.csv"
+GPS_PLACE_CSV_PATH = "data/gps_place.csv"
+HOUSEHOLD_CSV_PATH = "data/household.csv"
 
 # Processing Options
 BATCH_PROCESSING = False  # Whether to use batch processing
@@ -111,6 +117,7 @@ IMPORTANT RULES FOR ACTIVITY TYPES:
 - "work": work-related activities (office work, meetings, etc.)
 - "shopping": purchasing goods (groceries, clothes, etc.)
 - "commuting": travel between home and work
+- "travel": travel between locations
 - "dining": eating meals outside or at home (restaurants, cafes, home cooking)
 - "recreation": leisure activities (sports, exercise, etc.)
 - "healthcare": medical appointments, therapy, etc.)
@@ -351,3 +358,8 @@ Via/Uber Pool/Lyft Line (shared ride)
 Airplane
 
 Return ONLY the transport mode without any explanation.""" 
+# CSV Data Files
+PERSON_CSV_PATH = "data/person.csv"
+LOCATION_CSV_PATH = "data/location.csv"
+GPS_PLACE_CSV_PATH = "data/gps_place.csv"
+HOUSEHOLD_CSV_PATH = "data/household.csv"

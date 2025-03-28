@@ -16,13 +16,16 @@ import argparse
 import gc
 
 from config import (
-    PERSONA_DATA_PATH,
     RESULTS_DIR,
     NUM_DAYS_TO_SIMULATE,
     SIMULATION_START_DATE,
     BATCH_PROCESSING,
     BATCH_SIZE,
-    MEMORY_DAYS
+    MEMORY_DAYS,
+    PERSON_CSV_PATH,
+    LOCATION_CSV_PATH,
+    GPS_PLACE_CSV_PATH,
+    HOUSEHOLD_CSV_PATH
 )
 from persona import Persona
 from activity import Activity
@@ -70,26 +73,6 @@ def format_time_after_minutes(start_time, minutes):
     
     return f"{new_h:02d}:{new_m:02d}"
 
-
-def are_locations_same(loc1, loc2, threshold=0.001):
-    """
-    Check if two locations are close enough to be considered the same.
-    
-    Args:
-        loc1: First location coordinates (lat, lon)
-        loc2: Second location coordinates (lat, lon)
-        threshold: Distance threshold in degrees (default: 0.001 ~= 100m)
-        
-    Returns:
-        bool: True if locations are close enough
-    """
-    if not loc1 or not loc2:
-        return False
-        
-    lat_diff = abs(loc1[0] - loc2[0])
-    lon_diff = abs(loc1[1] - loc2[1])
-    
-    return lat_diff < threshold and lon_diff < threshold
 
 
 def simulate_single_day(persona, date, activity_generator, destination_selector, memory):
@@ -236,21 +219,22 @@ def simulate_single_day(persona, date, activity_generator, destination_selector,
         return False
 
 
-def simulate_persona(persona_data, num_days=7, start_date=None, memory_days=2):
+def simulate_persona(persona_data, num_days=7, start_date=None, memory_days=2, household_id=None, person_id=None):
     """
     Simulate daily activities for a persona over a period of time.
     
     Args:
-        persona_data: Dictionary with persona data
+        persona_data: Persona data
         num_days: Number of days to simulate
         start_date: Starting date (YYYY-MM-DD format)
         memory_days: Number of days to keep in memory
+        household_id: Specified household ID to use for loading historical data
+        person_id: Specified person ID to use for loading historical data
     
     Returns:
         Memory: Object containing the simulation results
     """
     try:
-        # Create persona object
         persona = Persona(persona_data)
         
         # Initialize date
@@ -262,25 +246,19 @@ def simulate_persona(persona_data, num_days=7, start_date=None, memory_days=2):
         # Initialize components
         activity_generator = Activity()
         destination_selector = Destination()
-        
-        # Initialize memory with limited history
         memory = Memory(persona.id, memory_days=memory_days)
         memory.initialize_persona(persona)
         
         # Try to load historical data if CSV files exist
         try:
-            if os.path.exists("data/person.csv") and os.path.exists("data/location.csv") and os.path.exists("data/gps_place.csv") and os.path.exists("data/household.csv"):
+            if os.path.exists(PERSON_CSV_PATH) and os.path.exists(LOCATION_CSV_PATH) and os.path.exists(GPS_PLACE_CSV_PATH) and os.path.exists(HOUSEHOLD_CSV_PATH):
                 print(f"Attempting to load historical data for {persona.name}...")
-                # Try using persona ID as household ID
-                loaded = persona.load_historical_data(household_id=persona.id)
+                
+                if persona.load_historical_data(household_id=household_id, person_id=person_id):
+                    print(f"Successfully loaded historical data for household ID {household_id}, person ID {person_id}")
+                else:
+                    print(f"Failed to load historical data for household ID {household_id}, person ID {person_id}")
 
-                if not loaded and isinstance(persona.id, int):
-                    # If loading fails, try a few different household IDs
-                    sample_household_ids = [20000228, 20001882, 20002935]
-                    for sample_id in sample_household_ids:
-                        if persona.load_historical_data(household_id=sample_id):
-                            print(f"Successfully loaded historical data using household ID {sample_id}")
-                            break
         except Exception as load_error:
             print(f"Error loading historical data: {load_error}")
         
@@ -291,54 +269,76 @@ def simulate_persona(persona_data, num_days=7, start_date=None, memory_days=2):
         for date in date_range:
             simulate_single_day(persona, date, activity_generator, destination_selector, memory)
             
-            # 每次模拟后清理内存
+            # Clean memory after each simulation
             gc.collect()
         
         return memory
-    
     except Exception as e:
         print(f"Error in persona simulation: {e}")
         traceback.print_exc()
-        return None
+        return None    
 
 
-def simulate_parallel(persona_list, num_days=7, start_date=None, max_workers=4, memory_days=2, batch_size=10):
+def simulate_parallel(persona_list, num_days=7, start_date=None, max_workers=4, memory_days=2, batch_size=10, household_person_pairs=None):
     """
     Simulate multiple personas in parallel using multiprocessing.
     
     Args:
-        persona_list: List of persona data dictionaries
+        persona_list: List of persona data
         num_days: Number of days to simulate
         start_date: Starting date
         max_workers: Maximum number of parallel workers
         memory_days: Number of days to keep in memory
         batch_size: Number of personas to process in each batch
+        household_person_pairs: List of (household_id, person_id) tuples to simulate
         
     Returns:
-        dict: Dictionary mapping persona IDs to Memory objects
+        dict: Dictionary mapping household_persona IDs to Memory objects
     """
     results = {}
     
-    # 分批处理persona列表，减少内存占用
+    # If no household-person pairs are provided, use default values
+    if household_person_pairs is None or len(household_person_pairs) == 0:
+        household_person_pairs = [(20000228, 1), (20001882, 1)]
+        print(f"Parallel simulation using {len(household_person_pairs)} default household-person pairs")
+    
+    # Process each household-person pair with each persona template
+    for household_id, person_id in tqdm(household_person_pairs, desc="Simulating household-person pairs"):
+        # Create a basic persona data for this household-person pair
+        for persona in persona_list:
+            # Create a unique ID for this combination
+            persona['id'] = f"{household_id}_{person_id}_{persona.get('id', 'unknown')}"
+            persona['name'] = f"Person-{household_id}-{person_id}"
+    
+    # Process persona list in batches to reduce memory usage
     for batch_start in range(0, len(persona_list), batch_size):
         batch_end = min(batch_start + batch_size, len(persona_list))
         current_batch = persona_list[batch_start:batch_end]
         
-        print(f"Processing batch {batch_start//batch_size + 1} ({batch_start+1}-{batch_end} of {len(persona_list)})")
+        print(f"Processing batch {batch_start//batch_size + 1} ({batch_start+1}-{batch_end}/{len(persona_list)})")
         
         batch_results = {}
         with concurrent.futures.ProcessPoolExecutor(max_workers=max_workers) as executor:
             # Create a mapping of futures to persona IDs
-            future_to_persona = {
-                executor.submit(
-                    simulate_persona, 
-                    persona, 
-                    num_days, 
-                    start_date,
-                    memory_days
-                ): persona['id']
-                for persona in current_batch
-            }
+            future_to_persona = {}
+            
+            for persona in current_batch:
+                # Extract household_id and person_id from persona ID
+                parts = persona['id'].split('_')
+                if len(parts) >= 2:
+                    household_id = int(parts[0])
+                    person_id = int(parts[1])
+                    
+                    future = executor.submit(
+                        simulate_persona, 
+                        persona, 
+                        num_days, 
+                        start_date,
+                        memory_days,
+                        household_id,
+                        person_id
+                    )
+                    future_to_persona[future] = persona['id']
             
             # Process results as they complete
             for future in concurrent.futures.as_completed(future_to_persona):
@@ -347,33 +347,67 @@ def simulate_parallel(persona_list, num_days=7, start_date=None, max_workers=4, 
                     memory = future.result()
                     if memory:
                         batch_results[persona_id] = memory
-                        print(f"Completed simulation for persona {persona_id}")
+                        print(f"Completed simulation for {persona_id}")
                     else:
-                        print(f"Failed to simulate persona {persona_id}")
+                        print(f"Failed to simulate {persona_id}")
                 except Exception as e:
-                    print(f"Simulation for persona {persona_id} generated an exception: {e}")
+                    print(f"Exception occurred during simulation for {persona_id}: {e}")
         
-        # 保存当前批次结果
+        # Save current batch results
         for persona_id, memory in batch_results.items():
             results[persona_id] = memory
             
-            # 立即保存结果到文件，以释放内存
-            output_file = os.path.join(RESULTS_DIR, f"persona_{persona_id}.json")
+            # Immediately save results to file to free memory
+            output_file = os.path.join(RESULTS_DIR, f"{persona_id}.json")
             memory.save_to_file(output_file)
-            print(f"Saved results for persona {persona_id} to {output_file}")
+            print(f"Saved results for {persona_id} to {output_file}")
             
-            # 压缩数据以节省磁盘空间
+            # Save activity data to CSV format
+            parts = persona_id.split('_')
+            if len(parts) >= 2:
+                person_id_str = parts[1]
+                csv_path = memory.save_to_csv(output_dir=RESULTS_DIR, persona_id=person_id_str)
+            
+            # Compress data to save disk space
             try:
                 compress_trajectory_data(output_file, method='gzip')
-                print(f"Compressed trajectory data for persona {persona_id}")
+                print(f"Compressed trajectory data for {persona_id}")
             except Exception as e:
                 print(f"Error compressing data: {e}")
         
-        # 清理当前批次结果，释放内存
+        # Clean up current batch results to free memory
         batch_results.clear()
         gc.collect()
     
     return results
+
+
+def load_household_ids():
+    """
+    Load list of household and person IDs from the GPS place CSV file
+    
+    Returns:
+        list: List of tuples (household_id, person_id)
+    """
+    try:
+        # Read household IDs and person IDs from the GPS place CSV file using pandas
+        if os.path.exists(GPS_PLACE_CSV_PATH):
+            # Read 'sampno' and 'perno' columns
+            place_df = pd.read_csv(GPS_PLACE_CSV_PATH, usecols=['sampno', 'perno'])
+            # Get unique combinations of sampno and perno
+            household_person_pairs = place_df[['sampno', 'perno']].drop_duplicates().values.tolist()
+            
+            print(f"Successfully loaded {len(household_person_pairs)} household-person pairs from {GPS_PLACE_CSV_PATH}")
+            return household_person_pairs
+        else:
+            # If the file doesn't exist, use default values
+            print(f"Warning: Could not find {GPS_PLACE_CSV_PATH}, using default household-person pairs for testing")
+            return [(20000228, 1), (20001882, 1)]
+        
+    except Exception as e:
+        print(f"Error loading household IDs: {e}")
+        print(f"Using default household-person pairs for testing")
+        return [(20000228, 1), (20001882, 1)]
 
 
 def create_batch_visualizations(results_dir, max_personas_per_vis=10):
@@ -392,7 +426,7 @@ def create_batch_visualizations(results_dir, max_personas_per_vis=10):
     # 查找所有persona结果文件
     persona_files = []
     for filename in os.listdir(results_dir):
-        if filename.startswith("persona_") and filename.endswith(".json"):
+        if filename.endswith(".json") and not filename.endswith(".gz"):
             persona_files.append(os.path.join(results_dir, filename))
     
     if not persona_files:
@@ -456,93 +490,178 @@ def create_batch_visualizations(results_dir, max_personas_per_vis=10):
 def main(args=None):
     """Main entry point for the simulation."""
     try:
-        # 解析命令行参数
+        # Parse command line arguments
         if args is None:
             parser = argparse.ArgumentParser(description='Run mobility simulation')
-            parser.add_argument('--personas', type=str, default=PERSONA_DATA_PATH,
-                               help='Path to personas JSON file')
             parser.add_argument('--days', type=int, default=NUM_DAYS_TO_SIMULATE,
-                               help='Number of days to simulate')
+                              help='Number of days to simulate')
             parser.add_argument('--start_date', type=str, default=SIMULATION_START_DATE,
-                               help='Start date (YYYY-MM-DD)')
+                              help='Start date (YYYY-MM-DD)')
             parser.add_argument('--output', type=str, default=RESULTS_DIR,
-                               help='Output directory')
+                              help='Output directory')
             parser.add_argument('--batch', action='store_true', default=BATCH_PROCESSING,
-                               help='Use batch processing')
+                              help='Use batch processing')
             parser.add_argument('--batch_size', type=int, default=BATCH_SIZE,
-                               help='Batch size for processing')
+                              help='Batch size for processing')
             parser.add_argument('--workers', type=int, default=4,
-                               help='Number of parallel workers')
+                              help='Number of parallel workers')
             parser.add_argument('--memory_days', type=int, default=MEMORY_DAYS,
-                               help='Number of days to keep in memory')
-            parser.add_argument('--compress', action='store_true', default=True,
-                               help='Compress output files')
+                              help='Number of days to keep in memory')
+            parser.add_argument('--compress', action='store_true', default=False,
+                              help='Compress output files')
             parser.add_argument('--summary', action='store_true', default=True,
-                               help='Generate summary report')
+                              help='Generate summary report')
+            parser.add_argument('--household_ids', type=str, default='',
+                              help='Comma-separated list of household IDs to simulate (optional)')
+            parser.add_argument('--visualize', action='store_true', default=False,
+                              help='Generate trajectory visualizations')
             
             args = parser.parse_args()
         
         # Create results directory if it doesn't exist
         os.makedirs(args.output, exist_ok=True)
         
-        # Load persona data
-        personas = load_json(args.personas)
-        print(f"Loaded {len(personas)} personas")
-        
-        # Simulate each persona
+        # Load household-person pairs
+        household_person_pairs = []
+        if args.household_ids:
+            # If household IDs are provided in command line, use them with default person ID 1
+            household_ids = [int(hid.strip()) for hid in args.household_ids.split(',') if hid.strip()]
+            household_person_pairs = [(hid, 1) for hid in household_ids]
+            print(f"Using command line provided {len(household_person_pairs)} household IDs for simulation")
+        else:
+            # Otherwise load from file
+            household_person_pairs = load_household_ids()
+            print(f"Will simulate {len(household_person_pairs)} household-person pairs")
+            
+        if not household_person_pairs:
+            print("No valid household-person pairs found, cannot proceed with simulation")
+            return {}
+            
+        # Simulate each household-person pair
         results = {}
         
         if args.batch:
-            # Use batch processing
-            results = simulate_parallel(
-                personas, 
-                num_days=args.days,
-                start_date=args.start_date,
-                max_workers=args.workers,
-                memory_days=args.memory_days,
-                batch_size=args.batch_size
-            )
+            # Use batch processing for multiple household-person pairs
+            print(f"Using batch processing mode to simulate {len(household_person_pairs)} household-person pairs")
+            
+            # Process in batches
+            batch_size = args.batch_size
+            for i in range(0, len(household_person_pairs), batch_size):
+                batch = household_person_pairs[i:i+batch_size]
+                print(f"Processing batch {i//batch_size + 1} ({i+1}-{min(i+batch_size, len(household_person_pairs))}/{len(household_person_pairs)})")
+                
+                batch_results = {}
+                with concurrent.futures.ProcessPoolExecutor(max_workers=args.workers) as executor:
+                    # Create a mapping of futures to pairs
+                    future_to_pair = {}
+                    for household_id, person_id in batch:
+                        # Create a basic persona for each household-person pair
+                        persona_data = {
+                            'id': f"{household_id}_{person_id}",
+                            'name': f"Person-{household_id}-{person_id}"
+                        }
+                        
+                        future = executor.submit(
+                            simulate_persona, 
+                            persona_data, 
+                            args.days, 
+                            args.start_date,
+                            args.memory_days,
+                            household_id,
+                            person_id
+                        )
+                        future_to_pair[future] = (household_id, person_id)
+                    
+                    # Process results as they complete
+                    for future in concurrent.futures.as_completed(future_to_pair):
+                        household_id, person_id = future_to_pair[future]
+                        pair_id = f"{household_id}_{person_id}"
+                        try:
+                            memory = future.result()
+                            if memory:
+                                batch_results[pair_id] = memory
+                                print(f"Completed simulation for household {household_id}, person {person_id}")
+                                
+                                # Save results
+                                output_file = os.path.join(args.output, f"{pair_id}.json")
+                                memory.save_to_file(output_file)
+                                
+                                # Save to CSV
+                                csv_path = memory.save_to_csv(output_dir=args.output, persona_id=person_id)
+                                
+                                # Compress if needed
+                                if args.compress:
+                                    try:
+                                        compress_trajectory_data(output_file, method='gzip')
+                                    except Exception as e:
+                                        print(f"Error compressing data: {e}")
+                            else:
+                                print(f"Failed to simulate household {household_id}, person {person_id}")
+                        except Exception as e:
+                            print(f"Exception during simulation for household {household_id}, person {person_id}: {e}")
+                
+                # Add batch results to overall results
+                results.update(batch_results)
+                
+                # Clean up
+                batch_results.clear()
+                gc.collect()
         else:
-            # Sequential processing
-            for persona_data in tqdm(personas, desc="Simulating personas"):
+            # Sequential processing for each household-person pair
+            for household_id, person_id in tqdm(household_person_pairs, desc="Simulating household-person pairs"):
+                # Create a basic persona for each household-person pair
+                persona_data = {
+                    'id': f"{household_id}_{person_id}",
+                    'name': f"Person-{household_id}-{person_id}"
+                }
+                
+                # Simulate persona with specified household and person IDs
                 memory = simulate_persona(
                     persona_data, 
                     num_days=args.days, 
                     start_date=args.start_date,
-                    memory_days=args.memory_days
+                    memory_days=args.memory_days,
+                    household_id=household_id,
+                    person_id=person_id
                 )
                 
                 if memory:
-                    results[persona_data['id']] = memory
+                    pair_id = f"{household_id}_{person_id}"
+                    results[pair_id] = memory
                     
-                    # Save result for this persona
-                    output_file = os.path.join(args.output, f"persona_{persona_data['id']}.json")
+                    # Save activity data
+                    output_file = os.path.join(args.output, f"{pair_id}.json")
                     memory.save_to_file(output_file)
-                    print(f"Saved results for persona {persona_data['id']} to {output_file}")
+                    print(f"Saved activity data for household {household_id}, person {person_id} to {output_file}")
                     
-                    # 压缩数据以节省磁盘空间
+                    # Save activity data to CSV format
+                    csv_path = memory.save_to_csv(output_dir=args.output, persona_id=person_id)
+                    
+                    # Compress data if needed
                     if args.compress:
                         try:
                             compress_trajectory_data(output_file, method='gzip')
                         except Exception as e:
                             print(f"Error compressing data: {e}")
         
-        # 批量保存轨迹数据，优化大规模结果
-        batch_save_trajectories(results, os.path.join(args.output, 'trajectories'), format='merged')
+        # Save all activity data
+        activity_path = os.path.join(args.output, 'activities')
+        batch_save_trajectories(results, activity_path, format='merged')
         
-        # 生成摘要报告
+        # Generate summary report
         if args.summary:
             summary_file = generate_summary_report(results, args.output)
             print(f"Generated summary report: {summary_file}")
             
-            # 创建批量可视化
-            create_batch_visualizations(args.output)
+            # Only create batch visualizations if specifically requested
+            if args.visualize:
+                create_batch_visualizations(args.output)
         
-        print(f"Completed simulation for {len(results)} personas")
+        print(f"Completed simulation for {len(household_person_pairs)} household-person pairs")
         return results
         
     except Exception as e:
-        print(f"Error in main function: {e}")
+        print(f"Main function error: {e}")
         traceback.print_exc()
         return None
 
