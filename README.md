@@ -6,6 +6,8 @@ This project simulates human daily mobility patterns using LLM (Large Language M
 
 The simulation creates realistic daily activity schedules and travel patterns for virtual personas. It uses LLMs to generate activities based on demographic information, and then plans their movements through space and time.
 
+<img src=".\data\framework.png">
+
 ## Key Features
 
 - Person-centric simulation with demographic attributes
@@ -61,6 +63,15 @@ You can modify simulation parameters in `config.py`:
 - Activity types and transportation modes
 - LLM model settings
 - Prompt templates
+
+## TODO List
+📌实现大规模LLM-Based Agent日程模拟（约4S每天日程）  
+📌与芝加哥出行数据进行对齐（对个体的历史移动进行分析）     
+🔴需要检查一下memory对历史pattern是否正确输入（***）    
+🔴实现轨迹计算并保存+道路感知？（会增加运算时间）（***）    
+🔴整合暴露计算？（需要考虑shap文件结合+暴露计算（涉及时间加权等内容））（***）     
+🔴模拟加速，加入缓存和并行（**）
+
 
 ## License
 

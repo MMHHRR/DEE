@@ -142,6 +142,9 @@ class Memory:
                 self.location_index[location_name] = coordinates
             elif location:
                 self.location_index[location_name] = location
+            elif end_location and activity_type == 'travel':
+                # For travel activities, use end_location for the destination
+                self.location_index[location_name] = end_location
     
     def end_day(self):
         """
@@ -310,7 +313,8 @@ class Memory:
     def save_to_csv(self, output_dir=None, persona_id=None):
         """
         Save all mobility data to a CSV file with the following columns:
-        sampno, perno, dayno, locname, arrtime, deptime, travtime, actdur, distance, transportmode, lon, lat
+        sampno, perno, dayno, locname, arrtime, deptime, travtime, actdur, distance, transportmode, lon, lat, 
+        start_lon, start_lat, end_lon, end_lat
         
         Args:
             output_dir: Directory to save the CSV file (defaults to RESULTS_DIR)
@@ -343,10 +347,18 @@ class Memory:
         # Prepare data rows for CSV
         rows = []
         
+        # Track the last known location for each day
+        last_coords = {}  # day_index -> (lat, lon)
+        
         # Process each day in memory
         for day_index, day in enumerate(self.days, 1):
             date = day['date']
-            
+            # Initialize last known coordinates for this day to home location
+            if self.persona_info and 'home' in self.persona_info and self.persona_info['home']:
+                home_coords = self.persona_info['home']
+                if isinstance(home_coords, (list, tuple)) and len(home_coords) >= 2:
+                    last_coords[day_index] = home_coords
+                    
             # Process each activity for this day
             for activity in day['activities']:
                 # Extract location name
@@ -375,12 +387,58 @@ class Memory:
                 
                 # Extract coordinates (lon, lat)
                 lon, lat = 0, 0
-                if 'coordinates' in activity:
+                start_lon, start_lat = 0, 0
+                end_lon, end_lat = 0, 0
+                
+                # Try different ways to get location coordinates
+                if 'coordinates' in activity and activity['coordinates']:
                     # Check if coordinates are in (lat, lon) or (lon, lat) format
                     coords = activity['coordinates']
                     if isinstance(coords, (list, tuple)) and len(coords) >= 2:
                         # Assume coordinates are in (lat, lon) format
                         lat, lon = coords[0], coords[1]
+                        # For current activity's end location
+                        end_lat, end_lon = lat, lon
+                elif 'location' in activity and activity['location']:
+                    # Try location field as alternative
+                    loc = activity['location']
+                    if isinstance(loc, (list, tuple)) and len(loc) >= 2:
+                        lat, lon = loc[0], loc[1]
+                        # For current activity's end location
+                        end_lat, end_lon = lat, lon
+                elif 'to_location' in activity and activity['to_location']:
+                    # If we have a to_location but no coordinates/location, use to_location
+                    to_loc = activity['to_location']
+                    if isinstance(to_loc, (list, tuple)) and len(to_loc) >= 2:
+                        lat, lon = to_loc[0], to_loc[1]
+                        end_lat, end_lon = lat, lon
+                
+                # For travel activities, try to get explicitly defined start and end coordinates
+                if 'from_location' in activity and activity['from_location']:
+                    # Use explicit from_location if available
+                    from_loc = activity['from_location']
+                    if isinstance(from_loc, (list, tuple)) and len(from_loc) >= 2:
+                        start_lat, start_lon = from_loc[0], from_loc[1]
+                elif day_index in last_coords:
+                    # Use last known coordinates for this day as the starting point
+                    prev_coords = last_coords[day_index]
+                    if isinstance(prev_coords, (list, tuple)) and len(prev_coords) >= 2:
+                        start_lat, start_lon = prev_coords[0], prev_coords[1]
+                
+                # For travel activities, try to get explicitly defined end coordinates
+                if 'to_location' in activity and activity['to_location']:
+                    # Use explicit to_location if available
+                    to_loc = activity['to_location']
+                    if isinstance(to_loc, (list, tuple)) and len(to_loc) >= 2:
+                        end_lat, end_lon = to_loc[0], to_loc[1]
+                
+                # If we don't have start coordinates but have end coordinates, and this is not the first activity
+                if (start_lat == 0 and start_lon == 0) and (end_lat != 0 and end_lon != 0) and day_index in last_coords:
+                    start_lat, start_lon = last_coords[day_index]
+                
+                # Update last known coordinates for next activity
+                if end_lat != 0 and end_lon != 0:
+                    last_coords[day_index] = (end_lat, end_lon)
                 
                 # Create a row for this activity
                 row = {
@@ -395,7 +453,11 @@ class Memory:
                     'distance': distance,
                     'transportmode': transportmode,
                     'lon': lon,
-                    'lat': lat
+                    'lat': lat,
+                    'start_lon': start_lon,
+                    'start_lat': start_lat,
+                    'end_lon': end_lon,
+                    'end_lat': end_lat
                 }
                 
                 rows.append(row)
@@ -406,7 +468,8 @@ class Memory:
             
             # Define column order to match the specified format
             columns = ['sampno', 'perno', 'dayno', 'locname', 'arrtime', 'deptime', 
-                      'travtime', 'actdur', 'distance', 'transportmode', 'lon', 'lat']
+                      'travtime', 'actdur', 'distance', 'transportmode', 'lon', 'lat',
+                      'start_lon', 'start_lat', 'end_lon', 'end_lat']
             
             # Reorder columns and save to CSV
             csv_path = os.path.join(output_dir, f"household_{household_id}_persona_{persona_id}_activities.csv")

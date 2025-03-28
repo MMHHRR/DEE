@@ -1,0 +1,203 @@
+{
+  "date": "2025-02-03",
+  "day_of_week": "Monday",
+  "activities": [
+    {
+      "activity_type": "commuting",
+      "start_time": "05:26",
+      "end_time": "05:54",
+      "description": "Commute from home to work location using transit.",
+      "location_name": "Workplace",
+      "location_type": "transit_station",
+      "transport_mode": "driving",
+      "distance": 12.421946885924385,
+      "travel_time": 27,
+      "coordinates": [
+        41.8881,
+        -87.63980000000001
+      ],
+      "from_location": [
+        41.776951,
+        -87.623216
+      ],
+      "to_location": [
+        41.8881,
+        -87.63980000000001
+      ]
+    },
+    {
+      "activity_type": "work",
+      "start_time": "05:54",
+      "end_time": "12:06",
+      "description": "Work-related activities, including meetings and tasks.",
+      "location_name": "Workplace",
+      "location_type": "workplace",
+      "transport_mode": "No need to travel",
+      "distance": 0,
+      "travel_time": 0,
+      "coordinates": [
+        41.8881,
+        -87.63980000000001
+      ]
+    },
+    {
+      "activity_type": "travel",
+      "start_time": "12:06",
+      "end_time": "12:40",
+      "description": "Travel from work to another location for lunch.",
+      "location_name": "Museum of Illusions Chicago",
+      "location_type": "transit_station",
+      "transport_mode": "walking",
+      "distance": 1.2135563932613744,
+      "travel_time": 17,
+      "coordinates": [
+        41.88303579999999,
+        -87.6268441
+      ],
+      "from_location": [
+        41.8881,
+        -87.63980000000001
+      ],
+      "to_location": [
+        41.88303579999999,
+        -87.6268441
+      ]
+    },
+    {
+      "activity_type": "dining",
+      "start_time": "12:40",
+      "end_time": "13:23",
+      "description": "Have lunch at a restaurant with a friend.",
+      "location_name": "Remington's",
+      "location_type": "restaurant",
+      "transport_mode": "walking",
+      "distance": 0.18435066980694836,
+      "travel_time": 4,
+      "coordinates": [
+        41.8826897,
+        -87.6246719
+      ]
+    },
+    {
+      "activity_type": "travel",
+      "start_time": "13:23",
+      "end_time": "13:29",
+      "description": "Travel back to work for a brief meeting.",
+      "location_name": "Workplace",
+      "location_type": "transit_station",
+      "transport_mode": "rideshare",
+      "distance": 12.421946885924385,
+      "travel_time": 35,
+      "coordinates": [
+        41.8881,
+        -87.63980000000001
+      ],
+      "from_location": [
+        41.776951,
+        -87.623216
+      ],
+      "to_location": [
+        41.8881,
+        -87.63980000000001
+      ]
+    },
+    {
+      "activity_type": "work",
+      "start_time": "13:29",
+      "end_time": "15:32",
+      "description": "Continue work with a focus on tasks and meetings.",
+      "location_name": "Workplace",
+      "location_type": "workplace",
+      "transport_mode": "No need to travel",
+      "distance": 0,
+      "travel_time": 0,
+      "coordinates": [
+        41.8881,
+        -87.63980000000001
+      ]
+    },
+    {
+      "activity_type": "commuting",
+      "start_time": "15:32",
+      "end_time": "16:02",
+      "description": "Commute back home after work.",
+      "location_name": "Workplace",
+      "location_type": "transit_station",
+      "transport_mode": "driving",
+      "distance": 12.421946885924385,
+      "travel_time": 27,
+      "coordinates": [
+        41.8881,
+        -87.63980000000001
+      ],
+      "from_location": [
+        41.776951,
+        -87.623216
+      ],
+      "to_location": [
+        41.8881,
+        -87.63980000000001
+      ]
+    },
+    {
+      "activity_type": "leisure",
+      "start_time": "16:02",
+      "end_time": "19:00",
+      "description": "Relax at home, watch TV, and read a book.",
+      "location_name": "Home",
+      "location_type": "home",
+      "transport_mode": "driving",
+      "distance": 12.421946885924385,
+      "travel_time": 27,
+      "coordinates": [
+        41.776951,
+        -87.623216
+      ]
+    },
+    {
+      "activity_type": "dining",
+      "start_time": "19:00",
+      "end_time": "19:45",
+      "description": "Dinner at home, cooking a simple meal.",
+      "location_name": "Home",
+      "location_type": "home",
+      "transport_mode": "No need to travel",
+      "distance": 0,
+      "travel_time": 0,
+      "coordinates": [
+        41.776951,
+        -87.623216
+      ]
+    },
+    {
+      "activity_type": "leisure",
+      "start_time": "19:45",
+      "end_time": "22:00",
+      "description": "Engage in a hobby or leisure activity, like playing games.",
+      "location_name": "Home",
+      "location_type": "home",
+      "transport_mode": "No need to travel",
+      "distance": 0,
+      "travel_time": 0,
+      "coordinates": [
+        41.776951,
+        -87.623216
+      ]
+    },
+    {
+      "activity_type": "sleep",
+      "start_time": "22:00",
+      "end_time": "05:26",
+      "description": "Sleep for the night to rest for the next day.",
+      "location_name": "Home",
+      "location_type": "home",
+      "transport_mode": "No need to travel",
+      "distance": 0,
+      "travel_time": 0,
+      "coordinates": [
+        41.776951,
+        -87.623216
+      ]
+    }
+  ]
+}

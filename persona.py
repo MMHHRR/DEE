@@ -149,6 +149,27 @@ class Persona:
             # Read location.csv to get location information
             location_df = pd.read_csv(self.location_csv, low_memory=False)
             
+            # Find home and work locations
+            home_location = location_df[(location_df['sampno'] == household_id) & (location_df['loctype'] == 1)]
+            work_location = location_df[(location_df['sampno'] == household_id) & (location_df['loctype'] == 2)]
+            
+            # Extract home coordinates
+            if not home_location.empty and 'latitude' in home_location.columns and 'longitude' in home_location.columns:
+                home_lat = home_location.iloc[0]['latitude']
+                home_lon = home_location.iloc[0]['longitude']
+                if not pd.isna(home_lat) and not pd.isna(home_lon):
+                    self.home = (float(home_lat), float(home_lon))
+            
+            # Extract work coordinates
+            if not work_location.empty and 'latitude' in work_location.columns and 'longitude' in work_location.columns:
+                work_lat = work_location.iloc[0]['latitude']
+                work_lon = work_location.iloc[0]['longitude']
+                if not pd.isna(work_lat) and not pd.isna(work_lon):
+                    self.work = (float(work_lat), float(work_lon))
+                    
+            # Set current location to home
+            self.current_location = self.home
+            
             # Read gps_place.csv to get travel records
             places_df = pd.read_csv(self.gps_place_csv, low_memory=False)
             
@@ -231,10 +252,11 @@ class Persona:
                     # 获取坐标
                     coords = []
                     if not location_record.empty:
-                        if 'wgslat' in location_record.columns and 'wgslon' in location_record.columns:
-                            lat = location_record.iloc[0]['wgslat']
-                            lon = location_record.iloc[0]['wgslon']
-                            coords = [float(lat), float(lon)]
+                        if 'latitude' in location_record.columns and 'longitude' in location_record.columns:
+                            lat = location_record.iloc[0]['latitude']
+                            lon = location_record.iloc[0]['longitude']
+                            if not pd.isna(lat) and not pd.isna(lon):
+                                coords = [float(lat), float(lon)]
                     
                     # Get movement related data
                     travel_time = float(place['travtime']) if not pd.isna(place['travtime']) else 0
@@ -259,16 +281,57 @@ class Persona:
                         'distance': round(distance, 2)
                     }
 
+                    # If this is a home or work location and coordinates exist, update persona's home/work location
+                    if coords and location_type == "home" and self.home == (0, 0):
+                        self.home = tuple(coords)
+                        self.current_location = self.home
+                    elif coords and location_type == "work" and self.work == (0, 0):
+                        self.work = tuple(coords)
+
                     day_data['activities'].append(activity)
                 
                 # Add to memory if activities exist
                 if day_data['activities']:
                     self.memory.days.append(day_data)
             
+            # After processing all activities, ensure we have valid home and work locations
+            if self.home == (0, 0) and len(self.memory.days) > 0:
+                # Try to find any home activity
+                for day in self.memory.days:
+                    for activity in day['activities']:
+                        if activity.get('location_type') == 'home' and activity.get('location'):
+                            self.home = tuple(activity['location'])
+                            self.current_location = self.home
+                            break
+                    if self.home != (0, 0):
+                        break
+                        
+            if self.work == (0, 0) and len(self.memory.days) > 0:
+                # Try to find any work activity
+                for day in self.memory.days:
+                    for activity in day['activities']:
+                        if activity.get('location_type') == 'work' and activity.get('location'):
+                            self.work = tuple(activity['location'])
+                            break
+                    if self.work != (0, 0):
+                        break
+            
+            # If still no valid coordinates, set some default values
+            if self.home == (0, 0):
+                # Default coordinates for Chicago
+                self.home = (41.8781, -87.6298)
+                self.current_location = self.home
+                
+            if self.work == (0, 0):
+                # Work location a bit away from home
+                self.work = (41.8781 + 0.01, -87.6298 - 0.01)
+            
             return len(self.memory.days) > 0
             
         except Exception as e:
             print(f"Error loading historical data: {e}")
+            import traceback
+            traceback.print_exc()
             return False
     
     def _parse_time(self, time_str):
