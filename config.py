@@ -22,8 +22,8 @@ LLM_TEMPERATURE = 0.7
 LLM_MAX_TOKENS = 400
 
 # Simulation Parameters
-NUM_DAYS_TO_SIMULATE = 2
-SIMULATION_START_DATE = "2025-02-03"
+NUM_DAYS_TO_SIMULATE = 7
+SIMULATION_START_DATE = "2025-03-10"
 USE_GOOGLE_MAPS = True  # If False, will use OSM
 MEMORY_DAYS = 2  # Number of days to keep in memory
 

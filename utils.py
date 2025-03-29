@@ -537,24 +537,97 @@ def time_to_minutes(time_str):
     except:
         return 0
 
-def generate_random_location_near(center, max_distance_km=5.0):
+def generate_random_location_near(center, max_distance_km=5.0, max_attempts=10, validate=True):
     """
-    Generate a random location within a specified distance from a center point
+    Generate a random location within a specified distance from a center point,
+    using Google Maps API to ensure the location is reasonable.
     
     Args:
         center: Center point (lat, lon)
         max_distance_km: Maximum distance in kilometers
+        max_attempts: Maximum number of attempts
+        validate: Whether to validate the location is valid (avoid water areas, etc.)
         
     Returns:
         tuple: (lat, lon) of random location
     """
-    # Earth's radius in kilometers
+    # If validation is not needed, directly use geometric algorithm to generate a random point
+    if not validate:
+        return _generate_random_point_geometrically(center, max_distance_km)
+    
+    from config import GOOGLE_MAPS_API_KEY
+    import requests
+    import random
+    
+    if not GOOGLE_MAPS_API_KEY:
+        print("Warning: Google Maps API key not set, cannot validate location validity")
+        return _generate_random_point_geometrically(center, max_distance_km)
+    
+    # Method 1: Use Places API to get real POI points
+    try:
+        # Add some randomness to the search radius, but not exceeding max distance
+        search_radius = int(random.uniform(0.3, 1.0) * max_distance_km * 1000)
+        
+        # Randomly select place type to ensure randomness and diversity
+        place_types = [
+            "point_of_interest", "establishment", "street_address", 
+            "route", "intersection", "neighborhood", "store", 
+            "restaurant", "cafe", "park", "shopping_mall"
+        ]
+        place_type = random.choice(place_types)
+        
+        # Build API request
+        url = "https://maps.googleapis.com/maps/api/place/nearbysearch/json"
+        params = {
+            "location": f"{center[0]},{center[1]}",
+            "radius": search_radius,
+            "type": place_type,
+            "key": GOOGLE_MAPS_API_KEY
+        }
+        
+        response = requests.get(url, params=params)
+        data = response.json()
+        
+        # If results found
+        if data["status"] == "OK" and data["results"]:
+            # Randomly select a result
+            result = random.choice(data["results"])
+            location = result["geometry"]["location"]
+            return (location["lat"], location["lng"])
+            
+    except Exception as e:
+        print(f"Failed to generate random location using Places API: {e}")
+    
+    if max_distance_km > 1.0:
+        return generate_random_location_near(center, max_distance_km=max_distance_km/2, 
+                                           max_attempts=max_attempts, validate=validate)
+    
+    # Last resort: return a simple geometric random point
+    return _generate_random_point_geometrically(center, max_distance_km * 0.5)
+
+
+def _generate_random_point_geometrically(center, max_distance_km):
+    """
+    Generate a random point using geometric method
+    
+    Args:
+        center: Center point coordinates (lat, lon)
+        max_distance_km: Maximum distance (kilometers)
+        
+    Returns:
+        tuple: Random location coordinates (lat, lon)
+    """
+    import random
+    import math
+    
+    # Earth radius in kilometers
     earth_radius = 6371.0
     
-    # Convert max distance to radians
+    # Convert maximum distance to radians
     max_distance_radians = max_distance_km / earth_radius
     
     # Generate random distance and angle
+    # Using square root to ensure uniform distribution
     random_distance = max_distance_radians * math.sqrt(random.random())
     random_angle = random.random() * 2 * math.pi
     
