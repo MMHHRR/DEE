@@ -171,6 +171,10 @@ class Activity:
         memory_patterns = None
         if hasattr(persona, 'memory') and persona.memory and persona.memory.days:
             memory_patterns = self.analyze_memory_patterns(persona.memory, persona)
+
+        print('--------------------------------')
+        print(memory_patterns)
+        print('--------------------------------')
         
         # Check if it's a weekend, get weekend/weekday activity preferences from history
         day_of_week = get_day_of_week(date)

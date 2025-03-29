@@ -372,6 +372,7 @@ class Memory:
             # Process each activity for this day
             for activity in day['activities']:
                 # Extract location name
+                actype = activity.get('activity_type', 'Unknown')
                 locname = activity.get('location_name', 'Unknown')
                 
                 # Extract arrival and departure times
@@ -461,6 +462,7 @@ class Memory:
                     'sampno': household_id,
                     'perno': persona_id,
                     'dayno': day_index,
+                    'actype': actype,
                     'locname': locname,
                     'arrtime': arrtime,
                     'deptime': deptime,
@@ -486,7 +488,7 @@ class Memory:
             df = pd.DataFrame(rows)
             
             # Define column order to match the specified format
-            columns = ['sampno', 'perno', 'dayno', 'locname', 'arrtime', 'deptime', 
+            columns = ['sampno', 'perno', 'dayno', 'actype', 'locname', 'arrtime', 'deptime', 
                       'travtime', 'actdur', 'distance', 'transportmode', 'lon', 'lat',
                       'start_lon', 'start_lat', 'end_lon', 'end_lat']
             

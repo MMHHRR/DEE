@@ -147,11 +147,18 @@ class Persona:
                     self.education = self._determine_education(selected_person['educ'])
                 
             # Read location.csv to get location information
-            location_df = pd.read_csv(self.location_csv, low_memory=False)
+            try:
+                location_df = pd.read_csv(self.location_csv, low_memory=False)
+            except UnicodeDecodeError:
+                # 如果默认编码失败，尝试其他编码
+                try:
+                    location_df = pd.read_csv(self.location_csv, low_memory=False, encoding='gbk')
+                except UnicodeDecodeError:
+                    location_df = pd.read_csv(self.location_csv, low_memory=False, encoding='latin1')
             
             # Find home and work locations
-            home_location = location_df[(location_df['sampno'] == household_id) & (location_df['loctype'] == 1)]
-            work_location = location_df[(location_df['sampno'] == household_id) & (location_df['loctype'] == 2)]
+            home_location = location_df[(location_df['sampno'] == household_id) & (location_df['loctype_new'] == 1)]
+            work_location = location_df[(location_df['sampno'] == household_id) & (location_df['loctype_new'] == 2)]
             
             # 设置工作状态标记
             self.has_job = not work_location.empty
@@ -221,7 +228,7 @@ class Persona:
                     # Determine location type
                     location_type = "other"
                     if not location_record.empty:
-                        loc_type = location_record.iloc[0]['loctype']
+                        loc_type = location_record.iloc[0]['loctype_new']
                         if loc_type == 1:
                             location_type = "home"
                         elif loc_type == 2:
@@ -230,6 +237,18 @@ class Persona:
                             location_type = "school"
                         elif loc_type == 4:
                             location_type = "transit"
+                        elif loc_type == 5:
+                            location_type = "Residential & Community"
+                        elif loc_type == 6:
+                            location_type = "Commercial Services"
+                        elif loc_type == 7:
+                            location_type = "Finance & Legal"
+                        elif loc_type == 8:
+                            location_type = "Healthcare & Social"
+                        elif loc_type == 9:
+                            location_type = "Hospitality & Tourism"
+                        elif loc_type == 10:
+                            location_type = "Education & Culture"
                         else:
                             location_type = "other"
                     
@@ -399,10 +418,20 @@ class Persona:
             return "home"
         elif location_type == "work":
             return "work"
-        elif location_type == "school":
-            return "education"
         elif location_type == "transit":
             return "travel"
+        elif location_type == "Education & Culture":
+            return "education"
+        elif location_type == "Residential & Community":
+            return "residential"
+        elif location_type == "Commercial Services":
+            return "shopping"
+        elif location_type == "Finance & Legal":
+            return "financial_legal"
+        elif location_type == "Healthcare & Social":
+            return "healthcare"
+        elif location_type == "Hospitality & Tourism":
+            return "hospitality_tourism"
         else:
             return "other"
     
