@@ -684,6 +684,13 @@ class Activity:
         Returns:
             str: Formatted time string (HH:MM)
         """
+        # 首先检查格式为(HH:MM)的时间
+        parenthesis_match = re.search(r'\((\d{1,2}):(\d{2})\)', time_str)
+        if parenthesis_match:
+            hour = int(parenthesis_match.group(1))
+            minute = parenthesis_match.group(2)
+            return f"{hour:02d}:{minute}"
+            
         # First, check if it's an ISO 8601 format datetime string
         iso_match = re.search(r'(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})', time_str)
         if iso_match:
