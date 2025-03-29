@@ -32,7 +32,7 @@ RESULTS_DIR = "data/results/"
 
 # CSV Data Files
 PERSON_CSV_PATH = "data/person.csv"
-LOCATION_CSV_PATH = "data/location.csv"
+LOCATION_CSV_PATH = "data/location_new.csv"
 GPS_PLACE_CSV_PATH = "data/gps_place.csv"
 HOUSEHOLD_CSV_PATH = "data/household.csv"
 
@@ -358,8 +358,3 @@ Via/Uber Pool/Lyft Line (shared ride)
 Airplane
 
 Return ONLY the transport mode without any explanation.""" 
-# CSV Data Files
-PERSON_CSV_PATH = "data/person.csv"
-LOCATION_CSV_PATH = "data/location.csv"
-GPS_PLACE_CSV_PATH = "data/gps_place.csv"
-HOUSEHOLD_CSV_PATH = "data/household.csv"

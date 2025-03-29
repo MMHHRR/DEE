@@ -247,6 +247,8 @@ def main(args=None):
                               help='Number of simulations to batch process')
             parser.add_argument('--llm_rate_limit', type=float, default=0.5,
                               help='Minimum seconds between LLM requests to avoid rate limiting')
+            parser.add_argument('--no_threading', action='store_true', default=True,
+                              help='Disable multi-threading for debugging (runs in single thread)')
             
             args = parser.parse_args()
         
@@ -368,22 +370,32 @@ def main(args=None):
                 print(f"\nProcessing batch {i//batch_size + 1}/{(total_pairs + batch_size - 1)//batch_size} " 
                       f"({len(batch)} household-person pairs)")
                 
-                # Use ThreadPoolExecutor for IO-bound operations (better for API calls)
-                with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as executor:
-                    # Submit all tasks in this batch
-                    futures = {executor.submit(process_household_person_pair, pair, args_dict): pair 
-                              for pair in batch}
-                    
-                    # Process results as they complete
-                    for future in tqdm(concurrent.futures.as_completed(futures), 
-                                      total=len(futures), 
-                                      desc="Processing pairs"):
-                        pair = futures[future]
-                        result = future.result()
+                if args.no_threading:
+                    # Single-threaded mode for debugging
+                    print("Running in single-thread mode for debugging")
+                    for pair in tqdm(batch, desc="Processing pairs"):
+                        result = process_household_person_pair(pair, args_dict)
                         if result:
                             pair_id, memory = result
                             with results_lock:
                                 results[pair_id] = memory
+                else:
+                    # Use ThreadPoolExecutor for IO-bound operations (better for API calls)
+                    with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as executor:
+                        # Submit all tasks in this batch
+                        futures = {executor.submit(process_household_person_pair, pair, args_dict): pair 
+                                  for pair in batch}
+                        
+                        # Process results as they complete
+                        for future in tqdm(concurrent.futures.as_completed(futures), 
+                                          total=len(futures), 
+                                          desc="Processing pairs"):
+                            pair = futures[future]
+                            result = future.result()
+                            if result:
+                                pair_id, memory = result
+                                with results_lock:
+                                    results[pair_id] = memory
                 
                 # Explicit garbage collection between batches
                 gc.collect()
@@ -392,6 +404,8 @@ def main(args=None):
         print(f"Starting simulation with {workers} parallel workers, " 
               f"max {args.max_concurrent_llm} concurrent LLM requests, "
               f"and {args.batch_size} simulations per batch")
+        if args.no_threading:
+            print("Warning: Threading disabled. Running in single-thread mode for debugging.")
         process_batches()
         
         # Generate summary report

@@ -147,19 +147,13 @@ class Persona:
                     self.education = self._determine_education(selected_person['educ'])
                 
             # Read location.csv to get location information
-            try:
-                location_df = pd.read_csv(self.location_csv, low_memory=False)
-            except UnicodeDecodeError:
-                # 如果默认编码失败，尝试其他编码
-                try:
-                    location_df = pd.read_csv(self.location_csv, low_memory=False, encoding='gbk')
-                except UnicodeDecodeError:
-                    location_df = pd.read_csv(self.location_csv, low_memory=False, encoding='latin1')
+
+            location_df = pd.read_csv(self.location_csv, low_memory=False)
             
             # Find home and work locations
             home_location = location_df[(location_df['sampno'] == household_id) & (location_df['loctype_new'] == 1)]
             work_location = location_df[(location_df['sampno'] == household_id) & (location_df['loctype_new'] == 2)]
-            
+
             # 设置工作状态标记
             self.has_job = not work_location.empty
             
