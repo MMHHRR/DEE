@@ -36,7 +36,7 @@ LOCATION_CSV_PATH = "data/location.csv"
 GPS_PLACE_CSV_PATH = "data/gps_place.csv"
 HOUSEHOLD_CSV_PATH = "data/household.csv"
 
-# Processing Options
+# # Processing Options
 BATCH_PROCESSING = False  # Whether to use batch processing
 BATCH_SIZE = 10  # Number of items to process in a batch
 ENABLE_CACHING = True  # Whether to enable function result caching

@@ -85,11 +85,6 @@ def simulate_single_day(persona, date, activity_generator, destination_selector,
                 from_location = activity.get('from_location')
                 to_location = activity.get('to_location')
                 
-                # Print travel information if applicable
-                if transport_mode and transport_mode != 'No need to travel' and travel_time > 0:
-                    print(f"(Traveling to {location_name} by {transport_mode}, "
-                          f"estimated travel time: {travel_time} min)")
-                
                 # Record activity in memory with all available details
                 memory.record_mobility_event(
                     activity_type=activity_type,
