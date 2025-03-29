@@ -3,162 +3,40 @@
   "day_of_week": "Tuesday",
   "activities": [
     {
-      "activity_type": "commuting",
+      "activity_type": "recreation",
       "start_time": "05:26",
-      "end_time": "05:56",
-      "description": "Commute from home to work, covering a distance of 1.47 miles.",
-      "location_name": "Workplace",
-      "location_type": "transit_station",
-      "transport_mode": "driving",
-      "distance": 12.421946885924385,
-      "travel_time": 27,
+      "end_time": "06:26",
+      "description": "Morning jog around the neighborhood to stay fit and energized for the day.",
+      "location_name": "Neighborhood Walking Path",
+      "location_type": "park",
+      "transport_mode": "walking",
+      "distance": 0.34086081161233556,
+      "travel_time": 6,
       "coordinates": [
-        41.8881,
-        -87.63980000000001
-      ],
-      "from_location": [
-        41.776951,
-        -87.623216
-      ],
-      "to_location": [
-        41.8881,
-        -87.63980000000001
-      ]
-    },
-    {
-      "activity_type": "work",
-      "start_time": "05:56",
-      "end_time": "12:06",
-      "description": "Work activities, including meetings and tasks at the office.",
-      "location_name": "Workplace",
-      "location_type": "workplace",
-      "transport_mode": "No need to travel",
-      "distance": 0,
-      "travel_time": 0,
-      "coordinates": [
-        41.8881,
-        -87.63980000000001
+        41.77818971339713,
+        -87.62696709150669
       ]
     },
     {
       "activity_type": "dining",
-      "start_time": "12:06",
-      "end_time": "12:40",
-      "description": "Lunch break at a nearby restaurant.",
-      "location_name": "Carnivale Chicago",
-      "location_type": "restaurant",
-      "transport_mode": "walking",
-      "distance": 0.5302354123719224,
-      "travel_time": 8,
-      "coordinates": [
-        41.8869731,
-        -87.6460081
-      ]
-    },
-    {
-      "activity_type": "commuting",
-      "start_time": "12:40",
-      "end_time": "13:23",
-      "description": "Travel to another location for a brief engagement.",
-      "location_name": "Working From_",
-      "location_type": "transit_station",
-      "transport_mode": "walking",
-      "distance": 0.2618947680389853,
-      "travel_time": 5,
-      "coordinates": [
-        41.8859941,
-        -87.6488787
-      ],
-      "from_location": [
-        41.8869731,
-        -87.6460081
-      ],
-      "to_location": [
-        41.8859941,
-        -87.6488787
-      ]
-    },
-    {
-      "activity_type": "recreation",
-      "start_time": "13:23",
-      "end_time": "13:52",
-      "description": "Recreation or personal activity at a nearby park.",
-      "location_name": "Bartelme Dog Friendly Area",
-      "location_type": "park",
-      "transport_mode": "walking",
-      "distance": 0.6908138931651191,
-      "travel_time": 10,
-      "coordinates": [
-        41.8799212,
-        -87.65067549999999
-      ]
-    },
-    {
-      "activity_type": "commuting",
-      "start_time": "13:52",
-      "end_time": "14:01",
-      "description": "Short commute back to work or another meeting location.",
-      "location_name": "Workplace",
-      "location_type": "transit_station",
-      "transport_mode": "driving",
-      "distance": 12.421946885924385,
-      "travel_time": 27,
-      "coordinates": [
-        41.8881,
-        -87.63980000000001
-      ],
-      "from_location": [
-        41.776951,
-        -87.623216
-      ],
-      "to_location": [
-        41.8881,
-        -87.63980000000001
-      ]
-    },
-    {
-      "activity_type": "work",
-      "start_time": "14:01",
-      "end_time": "15:01",
-      "description": "Complete additional work tasks before finishing the day.",
-      "location_name": "Workplace",
-      "location_type": "workplace",
-      "transport_mode": "No need to travel",
-      "distance": 0,
-      "travel_time": 0,
-      "coordinates": [
-        41.8881,
-        -87.63980000000001
-      ]
-    },
-    {
-      "activity_type": "commuting",
-      "start_time": "15:01",
-      "end_time": "15:31",
-      "description": "Commute back home.",
+      "start_time": "06:26",
+      "end_time": "07:00",
+      "description": "Having a healthy breakfast at home, including oatmeal and fruit.",
       "location_name": "Home",
-      "location_type": "transit_station",
-      "transport_mode": "driving",
-      "distance": 12.421946885924385,
-      "travel_time": 27,
+      "location_type": "home",
+      "transport_mode": "walking",
+      "distance": 0.34086081161233556,
+      "travel_time": 6,
       "coordinates": [
-        41.776951,
-        -87.623216
-      ],
-      "from_location": [
-        41.8881,
-        -87.63980000000001
-      ],
-      "to_location": [
         41.776951,
         -87.623216
       ]
     },
     {
       "activity_type": "leisure",
-      "start_time": "15:31",
-      "end_time": "18:00",
-      "description": "Relaxing time at home, reading or watching TV.",
+      "start_time": "07:00",
+      "end_time": "09:00",
+      "description": "Relaxing and reading a book while enjoying a cup of tea at home.",
       "location_name": "Home",
       "location_type": "home",
       "transport_mode": "No need to travel",
@@ -170,10 +48,130 @@
       ]
     },
     {
+      "activity_type": "errands",
+      "start_time": "09:00",
+      "end_time": "09:30",
+      "description": "Running a quick errand to the local bank to handle some personal finances.",
+      "location_name": "Neighborhood Walking Path",
+      "location_type": "bank",
+      "transport_mode": "walking",
+      "distance": 0.7110765796800463,
+      "travel_time": 11,
+      "coordinates": [
+        41.77060272904059,
+        -87.62432293428093
+      ]
+    },
+    {
+      "activity_type": "errands",
+      "start_time": "09:30",
+      "end_time": "10:00",
+      "description": "Picking up groceries from the supermarket for the week\u2019s meals.",
+      "location_name": "Nearby location",
+      "location_type": "grocery_store",
+      "transport_mode": "walking",
+      "distance": 0.19273637298546636,
+      "travel_time": 4,
+      "coordinates": [
+        41.769808798392745,
+        -87.62638408540822
+      ]
+    },
+    {
+      "activity_type": "leisure",
+      "start_time": "10:00",
+      "end_time": "12:00",
+      "description": "Watching a documentary at home while enjoying a coffee break.",
+      "location_name": "Home",
+      "location_type": "home",
+      "transport_mode": "walking",
+      "distance": 0.8358653749896444,
+      "travel_time": 12,
+      "coordinates": [
+        41.776951,
+        -87.623216
+      ]
+    },
+    {
       "activity_type": "dining",
+      "start_time": "12:00",
+      "end_time": "12:45",
+      "description": "Having lunch at a nearby cafe, enjoying a sandwich and salad.",
+      "location_name": "Amer\u2019s Deli",
+      "location_type": "cafe",
+      "transport_mode": "walking",
+      "distance": 0.4545427168146241,
+      "travel_time": 7,
+      "coordinates": [
+        41.773021,
+        -87.624741
+      ]
+    },
+    {
+      "activity_type": "recreation",
+      "start_time": "12:45",
+      "end_time": "14:00",
+      "description": "Visiting the park for a leisurely walk and some fresh air.",
+      "location_name": "Nearby Walking Path",
+      "location_type": "park",
+      "transport_mode": "walking",
+      "distance": 0.3494005616866121,
+      "travel_time": 6,
+      "coordinates": [
+        41.7701659645243,
+        -87.62297647951915
+      ]
+    },
+    {
+      "activity_type": "leisure",
+      "start_time": "14:00",
+      "end_time": "15:30",
+      "description": "Engaging in a creative hobby like painting or sketching at home.",
+      "location_name": "Home",
+      "location_type": "home",
+      "transport_mode": "walking",
+      "distance": 0.7538694334604542,
+      "travel_time": 11,
+      "coordinates": [
+        41.776951,
+        -87.623216
+      ]
+    },
+    {
+      "activity_type": "social",
+      "start_time": "15:30",
+      "end_time": "17:00",
+      "description": "Meeting a friend at their home for a casual catch-up.",
+      "location_name": "Home",
+      "location_type": "friend_home",
+      "transport_mode": "No need to travel",
+      "distance": 0,
+      "travel_time": 0,
+      "coordinates": [
+        41.776951,
+        -87.623216
+      ]
+    },
+    {
+      "activity_type": "dining",
+      "start_time": "17:00",
+      "end_time": "18:00",
+      "description": "Having an early dinner at home, preparing a homemade pasta dish.",
+      "location_name": "Home",
+      "location_type": "home",
+      "transport_mode": "No need to travel",
+      "distance": 0,
+      "travel_time": 0,
+      "coordinates": [
+        41.776951,
+        -87.623216
+      ]
+    },
+    {
+      "activity_type": "leisure",
       "start_time": "18:00",
-      "end_time": "18:45",
-      "description": "Dinner at home.",
+      "end_time": "20:00",
+      "description": "Watching a movie at home to wind down for the evening.",
       "location_name": "Home",
       "location_type": "home",
       "transport_mode": "No need to travel",
@@ -186,9 +184,9 @@
     },
     {
       "activity_type": "sleep",
-      "start_time": "18:45",
+      "start_time": "20:00",
       "end_time": "05:26",
-      "description": "Sleep for the night.",
+      "description": "Getting a restful night's sleep to recharge for the next day.",
       "location_name": "Home",
       "location_type": "home",
       "transport_mode": "No need to travel",

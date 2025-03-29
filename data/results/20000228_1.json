@@ -5,11 +5,11 @@
     "name": "Person-20000228-1",
     "gender": "unknown",
     "age": 0,
-    "income": 50000,
+    "income": 150000,
     "education": "unknown",
     "home": [
-      0,
-      0
+      41.776951,
+      -87.623216
     ],
     "work": [
       0,
@@ -24,12 +24,8 @@
     {
       "date": "2025-02-04",
       "day_of_week": "Tuesday"
-    },
-    {
-      "date": "2025-02-05",
-      "day_of_week": "Wednesday"
     }
   ],
-  "total_days_saved": 3,
+  "total_days_saved": 2,
   "days_used_for_llm_context": 2
 }

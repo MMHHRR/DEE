@@ -153,6 +153,9 @@ class Persona:
             home_location = location_df[(location_df['sampno'] == household_id) & (location_df['loctype'] == 1)]
             work_location = location_df[(location_df['sampno'] == household_id) & (location_df['loctype'] == 2)]
             
+            # 设置工作状态标记
+            self.has_job = not work_location.empty
+            
             # Extract home coordinates
             if not home_location.empty and 'latitude' in home_location.columns and 'longitude' in home_location.columns:
                 home_lat = home_location.iloc[0]['latitude']
@@ -322,8 +325,8 @@ class Persona:
                 self.home = (41.8781, -87.6298)
                 self.current_location = self.home
                 
-            if self.work == (0, 0):
-                # Work location a bit away from home
+            if self.work == (0, 0) and self.has_job:
+                # Work location a bit away from home, only if has job
                 self.work = (41.8781 + 0.01, -87.6298 - 0.01)
             
             return len(self.memory.days) > 0

@@ -12,18 +12,11 @@ from config import (
     LLM_MODEL,
     LLM_TEMPERATURE,
     LLM_MAX_TOKENS,
-    ACTIVITY_TYPES,
-    LOCATION_TYPES,
     ACTIVITY_GENERATION_PROMPT,
-    ACTIVITY_REFINEMENT_PROMPT,
-    TRANSPORTATION_REFINEMENT_PROMPT,
     DEEPBRICKS_API_KEY,
-    DEEPBRICKS_BASE_URL,
-    TRANSPORT_MODES,
-    BATCH_PROCESSING,
-    BATCH_SIZE
+    DEEPBRICKS_BASE_URL
 )
-from utils import cached, get_day_of_week, normalize_transport_mode, calculate_distance, estimate_travel_time, time_to_minutes, generate_random_location_near
+from utils import cached, get_day_of_week, calculate_distance, estimate_travel_time,generate_random_location_near
 
 # Create OpenAI client
 client = openai.OpenAI(
@@ -69,7 +62,7 @@ class Activity:
         
         # Try LLM summary for each day
         for day in memory.days:
-            # 过滤掉凌晨3点的数据
+            # Filter out 3 AM data
             filtered_activities = [activity for activity in day['activities'] if activity.get('start_time') != '03:00']
             day['activities'] = filtered_activities
             try:
@@ -148,7 +141,7 @@ class Activity:
                     {"role": "system", "content": "You are a helpful assistant."},
                     {"role": "user", "content": f"Please summarize the following activities for the day in a concise, coherent paragraph: {activities_json}"}
                 ],
-                max_tokens=150,
+                max_tokens=100,  # Reduced for faster response
                 temperature=self.temperature
             )
             
@@ -242,19 +235,23 @@ class Activity:
                 
                 # 确定描述中是否提到了从家到工作的通勤
                 from_home_to_work = False
-                if any(f"from {hi}" in desc for hi in home_indicators) and any(f"to {wi}" in desc for wi in work_indicators):
-                    from_home_to_work = True
-                # 处理"去上班"这种形式的描述
-                elif any(wi in desc for wi in work_indicators) and not any(f"from {wi}" in desc for wi in work_indicators):
-                    from_home_to_work = True
+                # 只有当用户有工作时才考虑通勤
+                if getattr(persona, 'has_job', True):
+                    if any(f"from {hi}" in desc for hi in home_indicators) and any(f"to {wi}" in desc for wi in work_indicators):
+                        from_home_to_work = True
+                    # 处理"去上班"这种形式的描述
+                    elif any(wi in desc for wi in work_indicators) and not any(f"from {wi}" in desc for wi in work_indicators):
+                        from_home_to_work = True
                 
                 # 确定描述中是否提到了从工作到家的通勤
                 from_work_to_home = False
-                if any(f"from {wi}" in desc for wi in work_indicators) and any(f"to {hi}" in desc for hi in home_indicators):
-                    from_work_to_home = True
-                # 处理"回家"这种形式的描述
-                elif any(hi in desc for hi in home_indicators) and not any(f"from {hi}" in desc for hi in home_indicators):
-                    from_work_to_home = True
+                # 只有当用户有工作时才考虑通勤
+                if getattr(persona, 'has_job', True):
+                    if any(f"from {wi}" in desc for wi in work_indicators) and any(f"to {hi}" in desc for hi in home_indicators):
+                        from_work_to_home = True
+                    # 处理"回家"这种形式的描述
+                    elif any(hi in desc for hi in home_indicators) and not any(f"from {hi}" in desc for hi in home_indicators):
+                        from_work_to_home = True
                 
                 # 从家到工作场所
                 if from_home_to_work:
@@ -342,7 +339,7 @@ class Activity:
                     activity['location_type'] == 'workplace' or 
                     'at work' in activity['description'].lower() or 
                     'at office' in activity['description'].lower() or
-                    'at the office' in activity['description'].lower()):
+                    'at the office' in activity['description'].lower()) and getattr(persona, 'has_job', True):  # 确保用户有工作
                 activity['coordinates'] = persona.work
                 
                 # 计算从当前位置到工作地点的距离
@@ -405,33 +402,33 @@ class Activity:
                 'run' in activity['description'].lower() or
                 ('exercise' in activity['description'].lower() and 'neighborhood' in activity['description'].lower())):
                 
-                # 为散步活动生成一个在周边的随机位置，而不是在家里
+                # 为散步活动生成一个在周边的步行道路上的位置，而不是在家里
                 if current_location == persona.home:
-                    # 生成在家附近0.5-1公里范围内的随机位置
+                    # 使用改进的函数生成在家附近0.5-1公里范围内的道路上的随机位置
                     neighborhood_location = generate_random_location_near(persona.home, max_distance_km=0.8)
                     activity['coordinates'] = neighborhood_location
                     activity['distance'] = calculate_distance(current_location, neighborhood_location)
                     activity['travel_time'] = estimate_travel_time(current_location, neighborhood_location, 'walking')[0]
                     activity['transport_mode'] = 'walking'  # 这种活动通常是步行的
-                    activity['location_name'] = 'Neighborhood'
+                    activity['location_name'] = 'Neighborhood Walking Path'
                     current_location = neighborhood_location
                 elif current_location == persona.work:
-                    # 生成在工作地附近0.3-0.8公里范围内的随机位置
+                    # 使用改进的函数生成在工作地附近0.3-0.8公里范围内的道路上的随机位置
                     workplace_area_location = generate_random_location_near(persona.work, max_distance_km=0.6)
                     activity['coordinates'] = workplace_area_location
                     activity['distance'] = calculate_distance(current_location, workplace_area_location)
                     activity['travel_time'] = estimate_travel_time(current_location, workplace_area_location, 'walking')[0]
                     activity['transport_mode'] = 'walking'  # 这种活动通常是步行的
-                    activity['location_name'] = 'Work Area'
+                    activity['location_name'] = 'Work Area Walking Path'
                     current_location = workplace_area_location
                 else:
-                    # 如果当前不在家也不在工作地，就在当前位置附近生成一个随机位置
+                    # 如果当前不在家也不在工作地，就在当前位置附近生成一个道路上的随机位置
                     nearby_location = generate_random_location_near(current_location, max_distance_km=0.5)
                     activity['coordinates'] = nearby_location
                     activity['distance'] = calculate_distance(current_location, nearby_location)
                     activity['travel_time'] = estimate_travel_time(current_location, nearby_location, 'walking')[0]
                     activity['transport_mode'] = 'walking'  # 这种活动通常是步行的
-                    activity['location_name'] = 'Nearby Area'
+                    activity['location_name'] = 'Nearby Walking Path'
                     current_location = nearby_location
                 
                 enhanced_activities.append(activity)
@@ -637,6 +634,14 @@ class Activity:
     def _generate_activities_with_llm(self, persona, date, day_of_week, memory_patterns=None, is_weekend=False):
         """Generate activities using LLM, with error handling and retry mechanism"""
                 
+        # 获取personas的工作状态
+        has_job = getattr(persona, 'has_job', True)  # 默认为True，兼容旧数据
+        
+        # 构建提示，添加工作状态信息
+        job_info = ""
+        if not has_job:
+            job_info = "\nIMPORTANT: This person DOES NOT HAVE A JOB. Do not generate any work-related activities. Focus on activities such as job searching, hobbies, errands, or leisure activities instead."
+        
         prompt = ACTIVITY_GENERATION_PROMPT.format(
             gender=persona.gender,
             age=persona.age,
@@ -649,7 +654,7 @@ class Activity:
             home_location=persona.home,
             work_location=persona.work,
             memory_patterns=memory_patterns
-        )
+        ) + job_info
 
         try:
             # Generate activities using LLM

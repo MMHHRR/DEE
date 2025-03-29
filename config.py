@@ -19,10 +19,10 @@ USE_DEEPBRICKS_API = True  # Always use DeepBricks API
 # LLM Configuration
 LLM_MODEL = "gpt-4o-mini"
 LLM_TEMPERATURE = 0.7
-LLM_MAX_TOKENS = 500
+LLM_MAX_TOKENS = 400
 
 # Simulation Parameters
-NUM_DAYS_TO_SIMULATE = 3
+NUM_DAYS_TO_SIMULATE = 2
 SIMULATION_START_DATE = "2025-02-03"
 USE_GOOGLE_MAPS = True  # If False, will use OSM
 MEMORY_DAYS = 2  # Number of days to keep in memory
@@ -110,7 +110,7 @@ You are simulating the daily activity schedule for a person with the following c
 - Work location: {work_location}
 - Memory patterns: {memory_patterns}
 
-Based on this information, generate a realistic daily schedule for this person, from morning to evening. Include at least 4-6 activities throughout the day, including mandatory activities (like working, eating, sleeping) and discretionary activities. MAKE SURE the time is continuous and there is no blank window.
+Based on this information, generate a realistic daily schedule for this person, from morning to evening. Include at least 4-6 activities throughout the day start at home, including mandatory activities (like working, eating, sleeping) and discretionary activities. MUST consider the memory patterns, MAKE SURE the time is continuous and there is no blank window.
 
 IMPORTANT RULES FOR ACTIVITY TYPES:
 - "sleep": ONLY for sleeping activities (night sleep, naps)

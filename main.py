@@ -160,6 +160,8 @@ def simulate_persona(persona_data, num_days=7, start_date=None, memory_days=2, h
                 
                 if persona.load_historical_data(household_id=household_id, person_id=person_id):
                     print(f"Successfully loaded historical data for household ID {household_id}, person ID {person_id}")
+                    # 在加载历史数据后，更新memory中的persona信息，确保最新的家庭坐标被使用
+                    memory.initialize_persona(persona)
                 else:
                     print(f"Failed to load historical data for household ID {household_id}, person ID {person_id}")
 

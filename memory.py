@@ -6,7 +6,7 @@ Records daily mobility trajectories and activities.
 import os
 import json
 from config import RESULTS_DIR
-from utils import get_day_of_week, visualize_trajectory
+from utils import get_day_of_week
 
 class Memory:
     """
@@ -349,15 +349,25 @@ class Memory:
         
         # Track the last known location for each day
         last_coords = {}  # day_index -> (lat, lon)
-        
+
         # Process each day in memory
         for day_index, day in enumerate(self.days, 1):
-            date = day['date']
-            # Initialize last known coordinates for this day to home location
+            
+            # 记录每天的第一个活动
+            is_first_activity_of_day = True
+            
+            # 获取home位置的坐标
+            home_lat, home_lon = 0, 0
             if self.persona_info and 'home' in self.persona_info and self.persona_info['home']:
-                home_coords = self.persona_info['home']
-                if isinstance(home_coords, (list, tuple)) and len(home_coords) >= 2:
-                    last_coords[day_index] = home_coords
+                home_info = self.persona_info['home']
+                # 处理home是字典的情况
+                if isinstance(home_info, dict) and 'coordinates' in home_info:
+                    home_coords = home_info.get('coordinates')
+                    if home_coords and isinstance(home_coords, (list, tuple)) and len(home_coords) >= 2:
+                        home_lat, home_lon = home_coords[0], home_coords[1]
+                # 处理home直接是坐标元组的情况
+                elif isinstance(home_info, (list, tuple)) and len(home_info) >= 2:
+                    home_lat, home_lon = home_info[0], home_info[1]
                     
             # Process each activity for this day
             for activity in day['activities']:
@@ -425,6 +435,10 @@ class Memory:
                     if isinstance(prev_coords, (list, tuple)) and len(prev_coords) >= 2:
                         start_lat, start_lon = prev_coords[0], prev_coords[1]
                 
+                # 如果是每天的第一个活动且没有起始坐标，使用home的坐标
+                if is_first_activity_of_day and (start_lat == 0 and start_lon == 0) and (home_lat != 0 and home_lon != 0):
+                    start_lat, start_lon = home_lat, home_lon
+                
                 # For travel activities, try to get explicitly defined end coordinates
                 if 'to_location' in activity and activity['to_location']:
                     # Use explicit to_location if available
@@ -433,8 +447,10 @@ class Memory:
                         end_lat, end_lon = to_loc[0], to_loc[1]
                 
                 # If we don't have start coordinates but have end coordinates, and this is not the first activity
-                if (start_lat == 0 and start_lon == 0) and (end_lat != 0 and end_lon != 0) and day_index in last_coords:
-                    start_lat, start_lon = last_coords[day_index]
+                if (start_lat == 0 and start_lon == 0) and (end_lat != 0 and end_lon != 0):
+                    if day_index in last_coords:
+                        # 使用上一个活动的位置作为起点
+                        start_lat, start_lon = last_coords[day_index]
                 
                 # Update last known coordinates for next activity
                 if end_lat != 0 and end_lon != 0:
@@ -461,6 +477,9 @@ class Memory:
                 }
                 
                 rows.append(row)
+                
+                # 第一个活动处理完毕后，更新标志
+                is_first_activity_of_day = False
         
         # Create DataFrame and save to CSV
         if rows:
