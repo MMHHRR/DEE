@@ -13,6 +13,12 @@ import matplotlib.pyplot as plt
 import numpy as np
 import argparse
 import gc
+import concurrent.futures
+from functools import partial
+import time
+import threading
+import queue
+from threading import Semaphore, Lock
 
 from config import (
     RESULTS_DIR,
@@ -22,7 +28,8 @@ from config import (
     PERSON_CSV_PATH,
     LOCATION_CSV_PATH,
     GPS_PLACE_CSV_PATH,
-    HOUSEHOLD_CSV_PATH
+    HOUSEHOLD_CSV_PATH,
+    BATCH_SIZE
 )
 from persona import Persona
 from activity import Activity
@@ -224,8 +231,8 @@ def main(args=None):
                               help='Start date (YYYY-MM-DD)')
             parser.add_argument('--output', type=str, default=RESULTS_DIR,
                               help='Output directory')
-            parser.add_argument('--workers', type=int, default=1,
-                              help='Number of parallel workers (currently not used)')
+            parser.add_argument('--workers', type=int, default=4,
+                              help='Number of parallel workers')
             parser.add_argument('--memory_days', type=int, default=MEMORY_DAYS,
                               help='Number of days to keep in memory')
             parser.add_argument('--summary', action='store_true', default=True,
@@ -234,6 +241,12 @@ def main(args=None):
                               help='Compress output files')
             parser.add_argument('--household_ids', type=str, default='',
                               help='Comma-separated list of household IDs to simulate (optional)')
+            parser.add_argument('--max_concurrent_llm', type=int, default=5, 
+                              help='Maximum number of concurrent LLM requests')
+            parser.add_argument('--batch_size', type=int, default=BATCH_SIZE,
+                              help='Number of simulations to batch process')
+            parser.add_argument('--llm_rate_limit', type=float, default=0.5,
+                              help='Minimum seconds between LLM requests to avoid rate limiting')
             
             args = parser.parse_args()
         
@@ -255,52 +268,139 @@ def main(args=None):
         if not household_person_pairs:
             print("No valid household-person pairs found, cannot proceed with simulation")
             return {}
-            
+        
+        # Create a rate limiting semaphore for LLM API calls
+        llm_semaphore = Semaphore(args.max_concurrent_llm)
+        rate_limit_lock = Lock()
+        last_request_time = [time.time() - args.llm_rate_limit]  # Use list for mutable reference
+        
+        # Patch Activity.generate_daily_schedule to implement rate limiting
+        original_generate_daily_schedule = Activity.generate_daily_schedule
+        
+        def rate_limited_generate_daily_schedule(self, *method_args, **kwargs):
+            with llm_semaphore:
+                # Apply rate limiting
+                with rate_limit_lock:
+                    time_since_last = time.time() - last_request_time[0]
+                    if time_since_last < args.llm_rate_limit:  # Use the command line args object
+                        sleep_time = args.llm_rate_limit - time_since_last
+                        time.sleep(sleep_time)
+                    last_request_time[0] = time.time()
+                
+                # Call original method
+                return original_generate_daily_schedule(self, *method_args, **kwargs)
+        
+        # Apply the patch
+        Activity.generate_daily_schedule = rate_limited_generate_daily_schedule
+        
         # Simulate each household-person pair
         results = {}
+        results_lock = Lock()  # Lock for thread-safe results dictionary updates
         
-        # Sequential processing for each household-person pair
-        for household_id, person_id in tqdm(household_person_pairs, desc="Simulating household-person pairs"):
-            # Create a basic persona for each household-person pair
-            persona_data = {
-                'id': f"{household_id}_{person_id}",
-                'name': f"Person-{household_id}-{person_id}"
-            }
+        # Define worker function for parallel processing
+        def process_household_person_pair(pair, args_dict):
+            household_id, person_id = pair
+            try:
+                # Create a basic persona for each household-person pair
+                persona_data = {
+                    'id': f"{household_id}_{person_id}",
+                    'name': f"Person-{household_id}-{person_id}"
+                }
+                
+                # Simulate persona with specified household and person IDs
+                memory = simulate_persona(
+                    persona_data, 
+                    num_days=args_dict['days'], 
+                    start_date=args_dict['start_date'],
+                    memory_days=args_dict['memory_days'],
+                    household_id=household_id,
+                    person_id=person_id
+                )
+                
+                if memory:
+                    pair_id = f"{household_id}_{person_id}"
+                    
+                    # Save activity data
+                    output_file = os.path.join(args_dict['output'], f"{pair_id}.json")
+                    memory.save_to_file(output_file)
+                    
+                    # Save activity data to CSV format
+                    memory.save_to_csv(output_dir=args_dict['output'], persona_id=person_id)
+                    
+                    # Compress data if needed
+                    if args_dict['compress']:
+                        try:
+                            compress_trajectory_data(output_file, method='gzip')
+                        except Exception as e:
+                            print(f"Error compressing data: {e}")
+                    
+                    # Thread-safe results update
+                    with results_lock:
+                        # Update progress information
+                        print(f"✓ Completed household {household_id}, person {person_id}")
+                        return pair_id, memory
+                return None
+            except Exception as e:
+                print(f"Error processing household {household_id}, person {person_id}: {e}")
+                traceback.print_exc()
+                return None
+        
+        # Prepare arguments for worker function
+        args_dict = {
+            'days': args.days,
+            'start_date': args.start_date,
+            'memory_days': args.memory_days,
+            'output': args.output,
+            'compress': args.compress
+        }
+        
+        # Determine number of workers
+        workers = min(args.workers, len(household_person_pairs))
+        workers = max(1, workers)  # Ensure at least 1 worker
+        
+        # Process in batches to avoid memory issues and improve throughput
+        def process_batches():
+            total_pairs = len(household_person_pairs)
+            batch_size = min(args.batch_size, total_pairs)
             
-            # Simulate persona with specified household and person IDs
-            memory = simulate_persona(
-                persona_data, 
-                num_days=args.days, 
-                start_date=args.start_date,
-                memory_days=args.memory_days,
-                household_id=household_id,
-                person_id=person_id
-            )
-            
-            if memory:
-                pair_id = f"{household_id}_{person_id}"
-                results[pair_id] = memory
+            for i in range(0, total_pairs, batch_size):
+                batch = household_person_pairs[i:i + batch_size]
+                print(f"\nProcessing batch {i//batch_size + 1}/{(total_pairs + batch_size - 1)//batch_size} " 
+                      f"({len(batch)} household-person pairs)")
                 
-                # Save activity data
-                output_file = os.path.join(args.output, f"{pair_id}.json")
-                memory.save_to_file(output_file)
-                print(f"Saved activity data for household {household_id}, person {person_id} to {output_file}")
+                # Use ThreadPoolExecutor for IO-bound operations (better for API calls)
+                with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as executor:
+                    # Submit all tasks in this batch
+                    futures = {executor.submit(process_household_person_pair, pair, args_dict): pair 
+                              for pair in batch}
+                    
+                    # Process results as they complete
+                    for future in tqdm(concurrent.futures.as_completed(futures), 
+                                      total=len(futures), 
+                                      desc="Processing pairs"):
+                        pair = futures[future]
+                        result = future.result()
+                        if result:
+                            pair_id, memory = result
+                            with results_lock:
+                                results[pair_id] = memory
                 
-                # Save activity data to CSV format
-                memory.save_to_csv(output_dir=args.output, persona_id=person_id)
-                
-                # Compress data if needed
-                if args.compress:
-                    try:
-                        compress_trajectory_data(output_file, method='gzip')
-                    except Exception as e:
-                        print(f"Error compressing data: {e}")
+                # Explicit garbage collection between batches
+                gc.collect()
+        
+        # Start batch processing
+        print(f"Starting simulation with {workers} parallel workers, " 
+              f"max {args.max_concurrent_llm} concurrent LLM requests, "
+              f"and {args.batch_size} simulations per batch")
+        process_batches()
         
         # Generate summary report
         if args.summary:
             summary_file = generate_summary_report(results, args.output)
             print(f"Generated summary report: {summary_file}")
             
+        # Restore original method
+        Activity.generate_daily_schedule = original_generate_daily_schedule
         
         print(f"Completed simulation for {len(household_person_pairs)} household-person pairs")
         return results
