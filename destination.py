@@ -103,6 +103,10 @@ class Destination:
                 available_minutes
             )
 
+            print('---------------------------------------')    
+            print(location, details)
+            print('---------------------------------------')
+
             # Step 4: 确保距离被正确计算
             if 'distance' not in details or not isinstance(details['distance'], (int, float)):
                 details['distance'] = calculate_distance(current_location, location)
@@ -1227,3 +1231,140 @@ class Destination:
         lon2 = math.degrees(lon2)
         
         return (lat2, lon2)
+
+    def _determine_transport_mode(self, persona, activity_type, available_minutes, distance, memory_patterns=None):
+        """
+        Determine suitable transportation mode based on persona, activity, and distance.
+        
+        Args:
+            persona: Character object
+            activity_type: Activity type
+            available_minutes: Available time (minutes)
+            distance: Distance in kilometers
+            memory_patterns: Historical memory patterns (optional)
+            
+        Returns:
+            str: Transportation mode ('walking', 'driving', 'public_transit', 'cycling', 'rideshare')
+        """
+        # Try LLM-based determination
+        transport_mode = self._determine_transport_mode_with_llm(
+            persona, 
+            activity_type, 
+            available_minutes, 
+            distance, 
+            memory_patterns
+        )
+        return transport_mode
+    
+    def _determine_transport_mode_with_llm(self, persona, activity_type, available_minutes, distance, memory_patterns):
+        """Use LLM to determine the most appropriate transport mode"""
+        try:
+            # For very short distances, use heuristic directly without calling LLM
+            if distance < 0.3:  # Less than 300 meters
+                return 'walking'
+                
+            # Prepare prompt inputs
+            prompt = self._prepare_transport_mode_prompt(
+                persona, 
+                activity_type, 
+                available_minutes, 
+                distance, 
+                memory_patterns
+            )
+            
+            # Call LLM
+            response = client.chat.completions.create(
+                model=self.model,
+                messages=[{"role": "user", "content": prompt}],
+                temperature=self.temperature,
+                max_tokens=20,  # Only need a short answer
+            )
+            
+            # Get and normalize response
+            transport_mode = self._normalize_transport_mode(response.choices[0].message.content)
+            return transport_mode
+            
+        except Exception as e:
+            print(f"LLM transport mode determination failed: {str(e)}")
+            # Fall back to simple heuristic determination
+            return self._determine_transport_mode_heuristic(distance)
+    
+    def _prepare_transport_mode_prompt(self, persona, activity_type, available_minutes, distance, memory_patterns):
+        """Prepare the prompt for transport mode determination"""
+        try:
+            # Prepare historical preference data
+            pattern_str = "No historical data"
+            if memory_patterns and 'transport_modes' in memory_patterns:
+                pattern_items = []
+                for mode, count in memory_patterns['transport_modes'].items():
+                    if mode and mode != 'unknown':
+                        pattern_items.append(f"{mode}({count} times)")
+                if pattern_items:
+                    pattern_str = ", ".join(pattern_items)
+            
+            # Prepare persona traits
+            traits = []
+            if hasattr(persona, 'traits'):
+                traits.extend(persona.traits)
+            traits_str = ", ".join(traits) if traits else "No special traits"
+            
+            # Ensure all parameters are valid
+            gender = getattr(persona, 'gender', 'unknown')
+            age = getattr(persona, 'age', 30)
+            education = getattr(persona, 'education', 'unknown')
+            occupation = getattr(persona, 'occupation', 'unknown')
+            
+            # Get household income safely
+            try:
+                household_income = persona.get_household_income()
+            except Exception:
+                household_income = 50000  # Default value
+            
+            # Format distance value
+            distance_str = f"{float(distance):.1f}" if isinstance(distance, (int, float)) else "1.0"
+            
+            # Build and return prompt
+            return TRANSPORT_MODE_PROMPT.format(
+                gender=gender,
+                age=age,
+                education=education,
+                occupation=occupation,
+                household_income=household_income,
+                traits=traits_str,
+                activity=activity_type,
+                minutes=available_minutes,
+                distance=distance_str,
+                patterns=pattern_str
+            )
+        except Exception as e:
+            print(f"Error preparing transport mode prompt: {str(e)}")
+            # Return simplified prompt
+            return f"What transportation mode should be used for a {activity_type} activity that is {distance:.1f}km away?"
+    
+    def _normalize_transport_mode(self, transport_mode_text):
+        """Normalize transport mode text to standard categories"""
+        transport_mode = transport_mode_text.strip().lower()
+        
+        if 'walk' in transport_mode:
+            return 'walking'
+        elif 'cycl' in transport_mode or 'bike' in transport_mode:
+            return 'cycling'
+        elif 'bus' in transport_mode or 'train' in transport_mode or 'transit' in transport_mode:
+            return 'public_transit'
+        elif 'car' in transport_mode or 'driv' in transport_mode:
+            return 'driving'
+        elif 'taxi' in transport_mode or 'uber' in transport_mode or 'lyft' in transport_mode or 'ride' in transport_mode:
+            return 'rideshare'
+        else:
+            return 'walking'  # Default to walking
+    
+    def _determine_transport_mode_heuristic(self, distance):
+        """Determine transport mode based on simple distance heuristics"""
+        if distance < 1:
+            return 'walking'
+        elif distance < 3:
+            return 'cycling'
+        elif distance < 10:
+            return 'public_transit'
+        else:
+            return 'driving'

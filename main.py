@@ -247,7 +247,7 @@ def main(args=None):
                               help='Number of simulations to batch process')
             parser.add_argument('--llm_rate_limit', type=float, default=0.5,
                               help='Minimum seconds between LLM requests to avoid rate limiting')
-            parser.add_argument('--no_threading', action='store_true', default=False,
+            parser.add_argument('--no_threading', action='store_true', default=True,
                               help='Disable multi-threading for debugging (runs in single thread)')
             
             args = parser.parse_args()
