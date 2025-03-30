@@ -1,0 +1,186 @@
+{
+  "date": "2025-03-11",
+  "day_of_week": "Tuesday",
+  "activities": [
+    {
+      "activity_type": "leisure",
+      "start_time": "05:26",
+      "end_time": "06:26",
+      "description": "Starting the day with a relaxing moment, enjoying some coffee and reading a book.",
+      "location_name": "Home",
+      "location_type": "home",
+      "transport_mode": "No need to travel",
+      "distance": 0,
+      "travel_time": 0,
+      "coordinates": [
+        41.776951,
+        -87.623216
+      ]
+    },
+    {
+      "activity_type": "recreation",
+      "start_time": "06:26",
+      "end_time": "07:26",
+      "description": "Engaging in a home workout session to stay active and energized.",
+      "location_name": "Home",
+      "location_type": "home",
+      "transport_mode": "No need to travel",
+      "distance": 0,
+      "travel_time": 0,
+      "coordinates": [
+        41.776951,
+        -87.623216
+      ]
+    },
+    {
+      "activity_type": "dining",
+      "start_time": "07:26",
+      "end_time": "08:06",
+      "description": "Having breakfast with a healthy meal to fuel the morning.",
+      "location_name": "Home",
+      "location_type": "home",
+      "transport_mode": "No need to travel",
+      "distance": 0,
+      "travel_time": 0,
+      "coordinates": [
+        41.776951,
+        -87.623216
+      ]
+    },
+    {
+      "activity_type": "leisure",
+      "start_time": "08:06",
+      "end_time": "10:06",
+      "description": "Working on personal projects, such as a hobby or side interests.",
+      "location_name": "Home",
+      "location_type": "home",
+      "transport_mode": "No need to travel",
+      "distance": 0,
+      "travel_time": 0,
+      "coordinates": [
+        41.776951,
+        -87.623216
+      ]
+    },
+    {
+      "activity_type": "shopping",
+      "start_time": "12:40",
+      "end_time": "13:23",
+      "description": "Going out for grocery shopping at a nearby supermarket.",
+      "location_name": "Christian Love Baptist Church",
+      "location_type": "grocery_store",
+      "transport_mode": "walking",
+      "distance": 0.43848358173636826,
+      "travel_time": 7,
+      "coordinates": [
+        41.7808672,
+        -87.6225495
+      ]
+    },
+    {
+      "activity_type": "errands",
+      "start_time": "13:23",
+      "end_time": "14:07",
+      "description": "Quick stop at the bank to manage some financial tasks.",
+      "location_name": "Christian Love Baptist Church",
+      "location_type": "bank",
+      "transport_mode": "walking",
+      "distance": 0.0,
+      "travel_time": 2,
+      "coordinates": [
+        41.7808672,
+        -87.6225495
+      ]
+    },
+    {
+      "activity_type": "leisure",
+      "start_time": "14:07",
+      "end_time": "15:07",
+      "description": "Relaxing at home with some TV time or listening to music.",
+      "location_name": "Home",
+      "location_type": "home",
+      "transport_mode": "walking",
+      "distance": 0.43848358173636826,
+      "travel_time": 7,
+      "coordinates": [
+        41.776951,
+        -87.623216
+      ]
+    },
+    {
+      "activity_type": "dining",
+      "start_time": "15:07",
+      "end_time": "15:47",
+      "description": "Enjoying a light lunch at home to recharge for the afternoon.",
+      "location_name": "Home",
+      "location_type": "home",
+      "transport_mode": "No need to travel",
+      "distance": 0,
+      "travel_time": 0,
+      "coordinates": [
+        41.776951,
+        -87.623216
+      ]
+    },
+    {
+      "activity_type": "leisure",
+      "start_time": "15:47",
+      "end_time": "17:47",
+      "description": "Engaging in creative activities like drawing or crafting.",
+      "location_name": "Home",
+      "location_type": "home",
+      "transport_mode": "No need to travel",
+      "distance": 0,
+      "travel_time": 0,
+      "coordinates": [
+        41.776951,
+        -87.623216
+      ]
+    },
+    {
+      "activity_type": "dining",
+      "start_time": "17:47",
+      "end_time": "18:27",
+      "description": "Preparing and enjoying dinner at home.",
+      "location_name": "Home",
+      "location_type": "home",
+      "transport_mode": "No need to travel",
+      "distance": 0,
+      "travel_time": 0,
+      "coordinates": [
+        41.776951,
+        -87.623216
+      ]
+    },
+    {
+      "activity_type": "leisure",
+      "start_time": "18:27",
+      "end_time": "20:27",
+      "description": "Spending time on a hobby or personal development activity.",
+      "location_name": "Home",
+      "location_type": "home",
+      "transport_mode": "No need to travel",
+      "distance": 0,
+      "travel_time": 0,
+      "coordinates": [
+        41.776951,
+        -87.623216
+      ]
+    },
+    {
+      "activity_type": "sleep",
+      "start_time": "20:27",
+      "end_time": "05:26",
+      "description": "Going to bed to rest and recharge for the next day.",
+      "location_name": "Home",
+      "location_type": "home",
+      "transport_mode": "No need to travel",
+      "distance": 0,
+      "travel_time": 0,
+      "coordinates": [
+        41.776951,
+        -87.623216
+      ]
+    }
+  ]
+}

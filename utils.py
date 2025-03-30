@@ -551,6 +551,9 @@ def generate_random_location_near(center, max_distance_km=5.0, max_attempts=10, 
     Returns:
         tuple: (lat, lon) of random location
     """
+    # 限制最大距离为更小的范围，不超过原始值的一半
+    max_distance_km = min(max_distance_km, 2.5)
+    
     # If validation is not needed, directly use geometric algorithm to generate a random point
     if not validate:
         return _generate_random_point_geometrically(center, max_distance_km)
@@ -560,8 +563,9 @@ def generate_random_location_near(center, max_distance_km=5.0, max_attempts=10, 
     
     # Method 1: Use OSM Overpass API to get real POI points
     try:
-        # Add some randomness to the search radius, but not exceeding max distance
-        search_radius = int(random.uniform(0.3, 1.0) * max_distance_km * 1000)
+        # 限制搜索半径，避免Bad Request错误并使范围更小
+        # 将随机搜索半径限制在最大1000米内
+        search_radius = int(min(1000, random.uniform(0.2, 0.6) * max_distance_km * 1000))
         
         # Randomly select OSM tag to ensure randomness and diversity
         osm_tags = [

@@ -1,0 +1,156 @@
+{
+  "date": "2025-03-15",
+  "day_of_week": "Saturday",
+  "activities": [
+    {
+      "activity_type": "leisure",
+      "start_time": "05:26",
+      "end_time": "06:26",
+      "description": "Morning relaxation with coffee, reading a book in the living room.",
+      "location_name": "Home",
+      "location_type": "home",
+      "transport_mode": "No need to travel",
+      "distance": 0,
+      "travel_time": 0,
+      "coordinates": [
+        41.776951,
+        -87.623216
+      ]
+    },
+    {
+      "activity_type": "recreation",
+      "start_time": "06:26",
+      "end_time": "07:26",
+      "description": "Morning jog in the neighborhood park for fitness.",
+      "location_name": "Neighborhood Walking Path",
+      "location_type": "park",
+      "transport_mode": "walking",
+      "distance": 0.058272454846902834,
+      "travel_time": 3,
+      "coordinates": [
+        41.77737691038515,
+        -87.62362528444612
+      ]
+    },
+    {
+      "activity_type": "dining",
+      "start_time": "07:26",
+      "end_time": "08:06",
+      "description": "Having breakfast at home, preparing a healthy meal.",
+      "location_name": "Home",
+      "location_type": "home",
+      "transport_mode": "walking",
+      "distance": 0.058272454846902834,
+      "travel_time": 3,
+      "coordinates": [
+        41.776951,
+        -87.623216
+      ]
+    },
+    {
+      "activity_type": "shopping",
+      "start_time": "12:40",
+      "end_time": "13:23",
+      "description": "Shopping for groceries at a local store, picking up essentials.",
+      "location_name": "New Food Mart",
+      "location_type": "grocery_store",
+      "transport_mode": "walking",
+      "distance": 0.7653146601745443,
+      "travel_time": 11,
+      "coordinates": [
+        41.7803559,
+        -87.615213
+      ]
+    },
+    {
+      "activity_type": "errands",
+      "start_time": "13:23",
+      "end_time": "13:53",
+      "description": "Quick stop at the bank to handle some financial transactions.",
+      "location_name": "Church of God",
+      "location_type": "bank",
+      "transport_mode": "walking",
+      "distance": 0.9415019119297316,
+      "travel_time": 13,
+      "coordinates": [
+        41.7728119,
+        -87.6100488
+      ]
+    },
+    {
+      "activity_type": "leisure",
+      "start_time": "15:01",
+      "end_time": "16:01",
+      "description": "Watching a movie at home, relaxing on the couch.",
+      "location_name": "Home",
+      "location_type": "home",
+      "transport_mode": "walking",
+      "distance": 1.1873596933634105,
+      "travel_time": 16,
+      "coordinates": [
+        41.776951,
+        -87.623216
+      ]
+    },
+    {
+      "activity_type": "social",
+      "start_time": "16:02",
+      "end_time": "18:02",
+      "description": "Meeting a friend at a local cafe for coffee and chat.",
+      "location_name": "Greenline Coffee",
+      "location_type": "cafe",
+      "transport_mode": "walking",
+      "distance": 1.1348527534746713,
+      "travel_time": 16,
+      "coordinates": [
+        41.7837978,
+        -87.6130835
+      ]
+    },
+    {
+      "activity_type": "dining",
+      "start_time": "18:02",
+      "end_time": "18:42",
+      "description": "Dinner at home, preparing a home-cooked meal.",
+      "location_name": "Home",
+      "location_type": "home",
+      "transport_mode": "walking",
+      "distance": 1.1348527534746713,
+      "travel_time": 16,
+      "coordinates": [
+        41.776951,
+        -87.623216
+      ]
+    },
+    {
+      "activity_type": "leisure",
+      "start_time": "19:00",
+      "end_time": "20:30",
+      "description": "Relaxing with a book or watching TV in the living room.",
+      "location_name": "Home",
+      "location_type": "home",
+      "transport_mode": "No need to travel",
+      "distance": 0,
+      "travel_time": 0,
+      "coordinates": [
+        41.776951,
+        -87.623216
+      ]
+    },
+    {
+      "activity_type": "sleep",
+      "start_time": "23:30",
+      "end_time": "05:26",
+      "description": "Night sleep to rest for the next day.",
+      "location_name": "Home",
+      "location_type": "home",
+      "transport_mode": "No need to travel",
+      "distance": 0,
+      "travel_time": 0,
+      "coordinates": [
+        41.776951,
+        -87.623216
+      ]
+    }
+  ]
+}

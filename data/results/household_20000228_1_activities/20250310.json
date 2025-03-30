@@ -1,0 +1,276 @@
+{
+  "date": "2025-03-10",
+  "day_of_week": "Monday",
+  "activities": [
+    {
+      "activity_type": "leisure",
+      "start_time": "05:26",
+      "end_time": "06:26",
+      "description": "Start the day with some relaxing activities, like reading or watching a TV show to ease into the morning.",
+      "location_name": "Home",
+      "location_type": "home",
+      "transport_mode": "No need to travel",
+      "distance": 0,
+      "travel_time": 0,
+      "coordinates": [
+        41.776951,
+        -87.623216
+      ]
+    },
+    {
+      "activity_type": "dining",
+      "start_time": "06:26",
+      "end_time": "07:00",
+      "description": "Prepare and enjoy a light breakfast at home to energize for the day ahead.",
+      "location_name": "Home",
+      "location_type": "home",
+      "transport_mode": "No need to travel",
+      "distance": 0,
+      "travel_time": 0,
+      "coordinates": [
+        41.776951,
+        -87.623216
+      ]
+    },
+    {
+      "activity_type": "leisure",
+      "start_time": "07:00",
+      "end_time": "08:30",
+      "description": "Engage in a hobby or personal project like drawing, crafting, or writing.",
+      "location_name": "Home",
+      "location_type": "home",
+      "transport_mode": "No need to travel",
+      "distance": 0,
+      "travel_time": 0,
+      "coordinates": [
+        41.776951,
+        -87.623216
+      ]
+    },
+    {
+      "activity_type": "errands",
+      "start_time": "08:30",
+      "end_time": "09:30",
+      "description": "Go out for some errands, such as visiting the post office and the bank.",
+      "location_name": "Saint Benedict School",
+      "location_type": "other",
+      "transport_mode": "walking",
+      "distance": 0.9165634731578345,
+      "travel_time": 13,
+      "coordinates": [
+        41.7750338,
+        -87.6339386
+      ]
+    },
+    {
+      "activity_type": "shopping",
+      "start_time": "09:30",
+      "end_time": "10:13",
+      "description": "Visit a nearby grocery store for shopping, picking up essential items.",
+      "location_name": "Saint Benedict School",
+      "location_type": "grocery_store",
+      "transport_mode": "walking",
+      "distance": 0.0,
+      "travel_time": 2,
+      "coordinates": [
+        41.7750338,
+        -87.6339386
+      ]
+    },
+    {
+      "activity_type": "dining",
+      "start_time": "10:13",
+      "end_time": "11:00",
+      "description": "Stop at a local caf\u00e9 for a mid-morning snack and coffee.",
+      "location_name": "Saint Benedict School",
+      "location_type": "cafe",
+      "transport_mode": "walking",
+      "distance": 0.0,
+      "travel_time": 2,
+      "coordinates": [
+        41.7750338,
+        -87.6339386
+      ]
+    },
+    {
+      "activity_type": "leisure",
+      "start_time": "11:00",
+      "end_time": "12:00",
+      "description": "Take some time to relax, either by reading a book or enjoying music.",
+      "location_name": "Home",
+      "location_type": "home",
+      "transport_mode": "walking",
+      "distance": 0.9165634731578345,
+      "travel_time": 13,
+      "coordinates": [
+        41.776951,
+        -87.623216
+      ]
+    },
+    {
+      "activity_type": "shopping",
+      "start_time": "12:40",
+      "end_time": "13:23",
+      "description": "Head to a commercial service location for some shopping, buying clothes or household items.",
+      "location_name": "New Food Mart",
+      "location_type": "retail_store",
+      "transport_mode": "walking",
+      "distance": 0.7653146601745443,
+      "travel_time": 11,
+      "coordinates": [
+        41.7803559,
+        -87.615213
+      ]
+    },
+    {
+      "activity_type": "errands",
+      "start_time": "13:23",
+      "end_time": "13:29",
+      "description": "Quickly visit another store to pick up an item or two.",
+      "location_name": "MLK Jr Dr & 63rd St",
+      "location_type": "retail_store",
+      "transport_mode": "walking",
+      "distance": 0.06228705128308994,
+      "travel_time": 3,
+      "coordinates": [
+        41.7800791,
+        -87.6158646
+      ]
+    },
+    {
+      "activity_type": "dining",
+      "start_time": "13:29",
+      "end_time": "14:00",
+      "description": "Have lunch at home, preparing a fresh and nutritious meal.",
+      "location_name": "Home",
+      "location_type": "home",
+      "transport_mode": "walking",
+      "distance": 0.7030276213333667,
+      "travel_time": 10,
+      "coordinates": [
+        41.776951,
+        -87.623216
+      ]
+    },
+    {
+      "activity_type": "leisure",
+      "start_time": "14:00",
+      "end_time": "15:00",
+      "description": "Spend some time on a hobby or activity like cooking or sketching.",
+      "location_name": "Home",
+      "location_type": "home",
+      "transport_mode": "No need to travel",
+      "distance": 0,
+      "travel_time": 0,
+      "coordinates": [
+        41.776951,
+        -87.623216
+      ]
+    },
+    {
+      "activity_type": "recreation",
+      "start_time": "15:01",
+      "end_time": "16:01",
+      "description": "Go for a walk in a nearby park to get some fresh air and exercise.",
+      "location_name": "Neighborhood Walking Path",
+      "location_type": "park",
+      "transport_mode": "walking",
+      "distance": 0.18774393194789674,
+      "travel_time": 4,
+      "coordinates": [
+        41.777607,
+        -87.6252972
+      ]
+    },
+    {
+      "activity_type": "healthcare",
+      "start_time": "16:02",
+      "end_time": "16:45",
+      "description": "Attend a scheduled doctor's appointment for a routine check-up.",
+      "location_name": "Saint Benedict School",
+      "location_type": "clinic",
+      "transport_mode": "walking",
+      "distance": 0.7732083928979032,
+      "travel_time": 11,
+      "coordinates": [
+        41.7750338,
+        -87.6339386
+      ]
+    },
+    {
+      "activity_type": "leisure",
+      "start_time": "16:45",
+      "end_time": "18:00",
+      "description": "Relax and watch TV or enjoy a hobby at home.",
+      "location_name": "Home",
+      "location_type": "home",
+      "transport_mode": "walking",
+      "distance": 0.9165634731578345,
+      "travel_time": 13,
+      "coordinates": [
+        41.776951,
+        -87.623216
+      ]
+    },
+    {
+      "activity_type": "dining",
+      "start_time": "18:00",
+      "end_time": "19:00",
+      "description": "Prepare and enjoy dinner at home, perhaps trying a new recipe.",
+      "location_name": "Home",
+      "location_type": "home",
+      "transport_mode": "No need to travel",
+      "distance": 0,
+      "travel_time": 0,
+      "coordinates": [
+        41.776951,
+        -87.623216
+      ]
+    },
+    {
+      "activity_type": "social",
+      "start_time": "19:00",
+      "end_time": "21:00",
+      "description": "Invite friends over for a casual evening, enjoying conversation and games.",
+      "location_name": "Home",
+      "location_type": "home",
+      "transport_mode": "No need to travel",
+      "distance": 0,
+      "travel_time": 0,
+      "coordinates": [
+        41.776951,
+        -87.623216
+      ]
+    },
+    {
+      "activity_type": "leisure",
+      "start_time": "21:00",
+      "end_time": "22:30",
+      "description": "Unwind by watching a movie or listening to music to end the day.",
+      "location_name": "Home",
+      "location_type": "home",
+      "transport_mode": "No need to travel",
+      "distance": 0,
+      "travel_time": 0,
+      "coordinates": [
+        41.776951,
+        -87.623216
+      ]
+    },
+    {
+      "activity_type": "sleep",
+      "start_time": "22:30",
+      "end_time": "05:26",
+      "description": "Get a good night's rest to recharge for the next day.",
+      "location_name": "Home",
+      "location_type": "home",
+      "transport_mode": "No need to travel",
+      "distance": 0,
+      "travel_time": 0,
+      "coordinates": [
+        41.776951,
+        -87.623216
+      ]
+    }
+  ]
+}

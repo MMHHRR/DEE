@@ -248,7 +248,7 @@ def main(args=None):
             parser.add_argument('--llm_rate_limit', type=float, default=0.5,
                               help='Minimum seconds between LLM requests to avoid rate limiting')
             parser.add_argument('--no_threading', action='store_true', default=True,
-                              help='Disable multi-threading for debugging (runs in single thread)')
+                              help='Disable multi-threading for debugging (runs in single thread)') ##True是单线程，False是多线程
             
             args = parser.parse_args()
         

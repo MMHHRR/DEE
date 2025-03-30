@@ -305,7 +305,7 @@ class Memory:
                 with open(day_file, 'w', encoding='utf-8') as f:
                     json.dump(day_data, f, indent=2)
                 
-            print(f"Memory data saved to {file_path} with all {len(self.days)} daily activities in {daily_dir}")
+            # print(f"Memory data saved to {file_path} with all {len(self.days)} daily activities in {daily_dir}")
             
         except Exception as e:
             print(f"Error saving memory data: {e}")
@@ -496,7 +496,7 @@ class Memory:
             csv_path = os.path.join(output_dir, f"household_{household_id}_persona_{persona_id}_activities.csv")
             df[columns].to_csv(csv_path, index=False)
             
-            print(f"Saved {len(rows)} activity records to {csv_path}")
+            # print(f"Saved {len(rows)} activity records to {csv_path}")
             return csv_path
         else:
             print("No activities to save to CSV")

@@ -1,0 +1,171 @@
+{
+  "date": "2025-03-14",
+  "day_of_week": "Friday",
+  "activities": [
+    {
+      "activity_type": "leisure",
+      "start_time": "05:26",
+      "end_time": "06:26",
+      "description": "Relaxing morning routine, such as reading, journaling, or watching TV.",
+      "location_name": "Home",
+      "location_type": "home",
+      "transport_mode": "No need to travel",
+      "distance": 0,
+      "travel_time": 0,
+      "coordinates": [
+        41.776951,
+        -87.623216
+      ]
+    },
+    {
+      "activity_type": "dining",
+      "start_time": "06:26",
+      "end_time": "07:06",
+      "description": "Breakfast at home, enjoying a healthy meal.",
+      "location_name": "Home",
+      "location_type": "home",
+      "transport_mode": "No need to travel",
+      "distance": 0,
+      "travel_time": 0,
+      "coordinates": [
+        41.776951,
+        -87.623216
+      ]
+    },
+    {
+      "activity_type": "leisure",
+      "start_time": "07:06",
+      "end_time": "08:06",
+      "description": "Engaging in a hobby like drawing, playing a musical instrument, or writing.",
+      "location_name": "Home",
+      "location_type": "home",
+      "transport_mode": "No need to travel",
+      "distance": 0,
+      "travel_time": 0,
+      "coordinates": [
+        41.776951,
+        -87.623216
+      ]
+    },
+    {
+      "activity_type": "shopping",
+      "start_time": "12:40",
+      "end_time": "13:23",
+      "description": "Shopping for groceries at a local supermarket.",
+      "location_name": "Christian Love Baptist Church",
+      "location_type": "grocery_store",
+      "transport_mode": "walking",
+      "distance": 0.43848358173636826,
+      "travel_time": 7,
+      "coordinates": [
+        41.7808672,
+        -87.6225495
+      ]
+    },
+    {
+      "activity_type": "errands",
+      "start_time": "13:29",
+      "end_time": "13:59",
+      "description": "Quick stop at the bank to handle some financial tasks.",
+      "location_name": "Christian Love Baptist Church",
+      "location_type": "bank",
+      "transport_mode": "walking",
+      "distance": 0.0,
+      "travel_time": 2,
+      "coordinates": [
+        41.7808672,
+        -87.6225495
+      ]
+    },
+    {
+      "activity_type": "recreation",
+      "start_time": "14:07",
+      "end_time": "15:07",
+      "description": "Outdoor walk or light exercise in a nearby park.",
+      "location_name": "Nearby Walking Path",
+      "location_type": "park",
+      "transport_mode": "walking",
+      "distance": 0.12626908554514046,
+      "travel_time": 4,
+      "coordinates": [
+        41.7819237917249,
+        -87.62311007017138
+      ]
+    },
+    {
+      "activity_type": "dining",
+      "start_time": "15:07",
+      "end_time": "15:47",
+      "description": "Lunch at home, preparing a simple and nutritious meal.",
+      "location_name": "Home",
+      "location_type": "home",
+      "transport_mode": "walking",
+      "distance": 0.5523932217883857,
+      "travel_time": 9,
+      "coordinates": [
+        41.776951,
+        -87.623216
+      ]
+    },
+    {
+      "activity_type": "leisure",
+      "start_time": "15:47",
+      "end_time": "17:47",
+      "description": "Relaxing by watching a movie or TV show.",
+      "location_name": "Home",
+      "location_type": "home",
+      "transport_mode": "No need to travel",
+      "distance": 0,
+      "travel_time": 0,
+      "coordinates": [
+        41.776951,
+        -87.623216
+      ]
+    },
+    {
+      "activity_type": "social",
+      "start_time": "17:47",
+      "end_time": "19:47",
+      "description": "Visiting a friend's home for a casual dinner or chat.",
+      "location_name": "Home",
+      "location_type": "friend_home",
+      "transport_mode": "No need to travel",
+      "distance": 0,
+      "travel_time": 0,
+      "coordinates": [
+        41.776951,
+        -87.623216
+      ]
+    },
+    {
+      "activity_type": "leisure",
+      "start_time": "19:47",
+      "end_time": "20:47",
+      "description": "Enjoying some quiet time at home, reading or unwinding.",
+      "location_name": "Home",
+      "location_type": "home",
+      "transport_mode": "No need to travel",
+      "distance": 0,
+      "travel_time": 0,
+      "coordinates": [
+        41.776951,
+        -87.623216
+      ]
+    },
+    {
+      "activity_type": "sleep",
+      "start_time": "23:00",
+      "end_time": "05:26",
+      "description": "Night sleep to rest and recharge.",
+      "location_name": "Home",
+      "location_type": "home",
+      "transport_mode": "No need to travel",
+      "distance": 0,
+      "travel_time": 0,
+      "coordinates": [
+        41.776951,
+        -87.623216
+      ]
+    }
+  ]
+}

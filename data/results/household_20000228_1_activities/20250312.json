@@ -1,0 +1,239 @@
+{
+  "date": "2025-03-12",
+  "day_of_week": "Wednesday",
+  "activities": [
+    {
+      "activity_type": "sleep",
+      "start_time": "03:00",
+      "end_time": "05:26",
+      "description": "Sleeping to rest and recharge for the day.",
+      "location_name": "Home",
+      "location_type": "home",
+      "transport_mode": "No need to travel",
+      "distance": 0,
+      "travel_time": 0,
+      "coordinates": [
+        41.776951,
+        -87.623216
+      ]
+    },
+    {
+      "activity_type": "leisure",
+      "start_time": "05:26",
+      "end_time": "06:30",
+      "description": "Relaxing and enjoying some quiet time in the morning, such as reading or watching TV.",
+      "location_name": "Home",
+      "location_type": "home",
+      "transport_mode": "No need to travel",
+      "distance": 0,
+      "travel_time": 0,
+      "coordinates": [
+        41.776951,
+        -87.623216
+      ]
+    },
+    {
+      "activity_type": "dining",
+      "start_time": "06:30",
+      "end_time": "07:00",
+      "description": "Having breakfast at home.",
+      "location_name": "Home",
+      "location_type": "home",
+      "transport_mode": "No need to travel",
+      "distance": 0,
+      "travel_time": 0,
+      "coordinates": [
+        41.776951,
+        -87.623216
+      ]
+    },
+    {
+      "activity_type": "errands",
+      "start_time": "07:00",
+      "end_time": "07:24",
+      "description": "Running a quick errand to the post office for mailing a package.",
+      "location_name": "Neighborhood Walking Path",
+      "location_type": "post_office",
+      "transport_mode": "walking",
+      "distance": 0.15636683425810416,
+      "travel_time": 4,
+      "coordinates": [
+        41.7766677,
+        -87.6250583
+      ]
+    },
+    {
+      "activity_type": "shopping",
+      "start_time": "12:40",
+      "end_time": "13:23",
+      "description": "Shopping for groceries and personal items at a local store.",
+      "location_name": "Citgo",
+      "location_type": "grocery_store",
+      "transport_mode": "walking",
+      "distance": 0.6799228886495612,
+      "travel_time": 10,
+      "coordinates": [
+        41.7795866,
+        -87.632247
+      ]
+    },
+    {
+      "activity_type": "recreation",
+      "start_time": "13:23",
+      "end_time": "14:40",
+      "description": "Going for a walk in the park for fresh air and exercise.",
+      "location_name": "Nearby Walking Path",
+      "location_type": "park",
+      "transport_mode": "walking",
+      "distance": 0.22112213115568435,
+      "travel_time": 5,
+      "coordinates": [
+        41.780358,
+        -87.629795
+      ]
+    },
+    {
+      "activity_type": "dining",
+      "start_time": "14:40",
+      "end_time": "15:01",
+      "description": "Having lunch at home after the walk.",
+      "location_name": "Home",
+      "location_type": "home",
+      "transport_mode": "walking",
+      "distance": 0.6651022251165765,
+      "travel_time": 10,
+      "coordinates": [
+        41.776951,
+        -87.623216
+      ]
+    },
+    {
+      "activity_type": "leisure",
+      "start_time": "15:01",
+      "end_time": "16:02",
+      "description": "Engaging in a hobby like painting or playing a musical instrument.",
+      "location_name": "Home",
+      "location_type": "home",
+      "transport_mode": "No need to travel",
+      "distance": 0,
+      "travel_time": 0,
+      "coordinates": [
+        41.776951,
+        -87.623216
+      ]
+    },
+    {
+      "activity_type": "travel",
+      "start_time": "16:02",
+      "end_time": "16:08",
+      "description": "Traveling to a nearby retail store to buy some items.",
+      "location_name": "Citgo",
+      "location_type": "transit",
+      "transport_mode": "walking",
+      "distance": 0.44875752156572674,
+      "travel_time": 7,
+      "coordinates": [
+        41.7730561,
+        -87.6246512
+      ],
+      "from_location": [
+        41.776951,
+        -87.623216
+      ],
+      "to_location": [
+        41.7730561,
+        -87.6246512
+      ]
+    },
+    {
+      "activity_type": "shopping",
+      "start_time": "16:08",
+      "end_time": "16:43",
+      "description": "Shopping for clothing and accessories at a local boutique.",
+      "location_name": "Shell",
+      "location_type": "retail_store",
+      "transport_mode": "walking",
+      "distance": 0.4036787766054502,
+      "travel_time": 7,
+      "coordinates": [
+        41.7730929,
+        -87.6295061
+      ]
+    },
+    {
+      "activity_type": "dining",
+      "start_time": "16:43",
+      "end_time": "17:00",
+      "description": "Having a quick snack or coffee at a nearby caf\u00e9.",
+      "location_name": "Canaan Baptist Church",
+      "location_type": "cafe",
+      "transport_mode": "walking",
+      "distance": 0.27373589666618503,
+      "travel_time": 5,
+      "coordinates": [
+        41.7728954,
+        -87.6327878
+      ]
+    },
+    {
+      "activity_type": "leisure",
+      "start_time": "17:00",
+      "end_time": "19:00",
+      "description": "Watching a movie or a TV show at home to unwind.",
+      "location_name": "Home",
+      "location_type": "home",
+      "transport_mode": "walking",
+      "distance": 0.9144586742678261,
+      "travel_time": 13,
+      "coordinates": [
+        41.776951,
+        -87.623216
+      ]
+    },
+    {
+      "activity_type": "dining",
+      "start_time": "19:00",
+      "end_time": "19:45",
+      "description": "Preparing and having dinner at home.",
+      "location_name": "Home",
+      "location_type": "home",
+      "transport_mode": "No need to travel",
+      "distance": 0,
+      "travel_time": 0,
+      "coordinates": [
+        41.776951,
+        -87.623216
+      ]
+    },
+    {
+      "activity_type": "leisure",
+      "start_time": "19:45",
+      "end_time": "21:00",
+      "description": "Reading a book or catching up on personal projects.",
+      "location_name": "Home",
+      "location_type": "home",
+      "transport_mode": "No need to travel",
+      "distance": 0,
+      "travel_time": 0,
+      "coordinates": [
+        41.776951,
+        -87.623216
+      ]
+    },
+    {
+      "activity_type": "sleep",
+      "start_time": "21:00",
+      "end_time": "03:00",
+      "description": "Going to bed for a good night's rest.",
+      "location_name": "Home",
+      "location_type": "home",
+      "transport_mode": "No need to travel",
+      "distance": 0,
+      "travel_time": 0,
+      "coordinates": [
+        41.776951,
+        -87.623216
+      ]
+    }
+  ]
+}
