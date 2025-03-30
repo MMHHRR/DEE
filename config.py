@@ -24,7 +24,7 @@ LLM_MAX_TOKENS = 400
 # Simulation Parameters
 NUM_DAYS_TO_SIMULATE = 7
 SIMULATION_START_DATE = "2025-03-10"
-USE_GOOGLE_MAPS = True  # If False, will use OSM
+USE_GOOGLE_MAPS = False  # 设置为False，使用OSM而不是Google Maps
 MEMORY_DAYS = 2  # Number of days to keep in memory
 
 # File Paths

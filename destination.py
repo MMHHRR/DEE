@@ -10,6 +10,7 @@ import openai
 import numpy as np
 import re
 import pandas as pd
+import math
 from config import (
     GOOGLE_MAPS_API_KEY,
     LLM_MODEL,
@@ -506,8 +507,13 @@ class Destination:
                     available_minutes
                 )
             else:
-                # Fallback to random location as a simple alternative
-                return self._generate_fallback_location(max_radius, current_location, destination_type)
+                # 使用OpenStreetMap作为替代
+                return self._retrieve_location_osm(
+                    current_location,
+                    destination_type,
+                    max_radius,
+                    available_minutes
+                )
         
         except Exception as e:
             print(f"Error in _retrieve_location: {str(e)}")
@@ -712,352 +718,169 @@ class Destination:
         Returns:
             tuple: ((latitude, longitude), location_details)
         """
-        # Try with generic keywords first
-        generic_result = self._try_generic_keyword_search(current_location, destination_type, max_radius)
+        # Try with generic keywords using OSM first
+        generic_result = self._try_alternative_osm_search(current_location, destination_type, max_radius)
         if generic_result:
             return generic_result
         
         # Fall back to random location as last resort
-        random_location = generate_random_location_near(current_location, max_radius)
+        random_location = generate_random_location_near(current_location, max_radius, validate=False)
         return random_location, {
             'name': f'Nearby location', 
             'address': f'Distance: {round(calculate_distance(current_location, random_location), 1)}km'
         }
     
-    def _try_generic_keyword_search(self, current_location, destination_type, max_radius):
-        """Try search with more generic keywords when specific search fails"""
+    def _try_alternative_osm_search(self, current_location, destination_type, max_radius):
+        """
+        Try OSM search with more generic keywords when specific search fails
+        
+        Args:
+            current_location: Current location coordinates
+            destination_type: Destination type information
+            max_radius: Maximum search radius in kilometers
+            
+        Returns:
+            tuple: ((latitude, longitude), location_details) or None if search fails
+        """
         # Map of generic keywords for different activity types
         generic_keywords = {
-            'restaurant': ['restaurant', 'dining', 'food'],
-            'cafe': ['cafe', 'coffee', 'tea'],
-            'shopping': ['shopping', 'mall', 'store', 'shop'],
-            'recreation': ['park', 'recreation', 'leisure'],
-            'work': ['office', 'business', 'work'],
-            'education': ['school', 'library', 'bookstore'],
-            'leisure': ['entertainment', 'cinema', 'theater'],
-            'exercise': ['gym', 'fitness', 'sports'],
-            'errand': ['convenience', 'pharmacy', 'service']
+            'restaurant': ['amenity=restaurant', 'amenity=food'],
+            'cafe': ['amenity=cafe', 'amenity=restaurant'],
+            'shopping': ['shop', 'shop=mall', 'shop=supermarket'],
+            'recreation': ['leisure=park', 'leisure'],
+            'work': ['office', 'building=office'],
+            'education': ['amenity=school', 'amenity=library'],
+            'leisure': ['leisure', 'amenity=cinema', 'amenity=theatre'],
+            'exercise': ['leisure=fitness_centre', 'leisure=sports_centre'],
+            'errand': ['shop=convenience', 'amenity=pharmacy']
         }
         
         # Extract possible activity type from search query
         search_query = destination_type.get('search_query', '').lower()
         activity_type = None
         
-        for key, values in generic_keywords.items():
-            if any(keyword in search_query for keyword in values):
+        # Try to infer activity type from search query
+        for key in generic_keywords.keys():
+            if key in search_query:
                 activity_type = key
                 break
-        
+                
         if not activity_type:
-            return None
-            
-        # Try search with more generic keywords
-        try:
-            generic_params = {
-                'key': self.google_maps_api_key,
-                'location': f"{current_location[0]},{current_location[1]}",
-                'radius': int(max_radius * 1000 * 1.5),  # Expand search radius by 50%
-                'keyword': generic_keywords.get(activity_type, ['place'])[0]
-            }
-            
-            url = "https://maps.googleapis.com/maps/api/place/nearbysearch/json"
-            generic_response = requests.get(url, params=generic_params)
-            generic_data = generic_response.json()
-            
-            if generic_data.get('status') == 'OK' and generic_data.get('results'):
-                # Process alternative location found
-                result = generic_data['results'][0]  # Use first result
-                location = result.get('geometry', {}).get('location', {})
-                dest_coords = (location.get('lat'), location.get('lng'))
-                
-                # Calculate distance
-                distance = calculate_distance(current_location, dest_coords)
-                details = {
-                    'name': result.get('name', 'Alternative location'),
-                    'address': result.get('vicinity', 'Unknown address'),
-                    'rating': result.get('rating', 3.0),
-                    'distance': distance
-                }
-                
-                return dest_coords, details
-                
-        except Exception as e:
-            print(f"Alternative search error: {str(e)}")
-            
-        return None
-    
-    def _extract_destination_from_text(self, text):
-        """
-        Extract destination information from text when JSON parsing fails
-        
-        Args:
-            text: Text containing destination information
-            
-        Returns:
-            dict: Extracted destination information
-        """
-        try:
-            # First try to parse as JSON
-            if text.strip().startswith('{') and text.strip().endswith('}'):
-                try:
-                    json_data = json.loads(text)
-                    # 验证并规范化JSON结果
-                    result = {}
-                    if 'place_type' in json_data:
-                        result['place_type'] = str(json_data['place_type'])
-                    if 'search_query' in json_data:
-                        result['search_query'] = str(json_data['search_query'])
-                    if 'distance_preference' in json_data:
-                        try:
-                            result['distance_preference'] = float(json_data['distance_preference'])
-                        except (ValueError, TypeError):
-                            result['distance_preference'] = 5.0
-                    if 'price_level' in json_data:
-                        try:
-                            result['price_level'] = int(json_data['price_level'])
-                        except (ValueError, TypeError):
-                            result['price_level'] = 2
-                    
-                    return result
-                except json.JSONDecodeError:
-                    # If JSON parsing fails, fall back to text parsing
-                    pass
-        except Exception as e:
-            print(f"Error parsing destination as JSON: {e}")
-        
-        # Fall back to text parsing
-        destination = {}
-        lines = text.split('\n')
-        
-        # Define keys to look for
-        keys = {
-            'place_type': ['place type', 'type of place', 'destination type', 'place_type'],
-            'search_query': ['search query', 'search term', 'search for', 'keyword', 'search_query'],
-            'distance_preference': ['distance', 'how far', 'kilometers', 'miles', 'distance_preference'],
-            'price_level': ['price', 'cost', 'expensive', 'budget', 'price_level']
-        }
-        
-        # Extract information from each line
-        current_key = None
-        for line in lines:
-            line = line.strip()
-            if not line:
-                continue
-            
-            # Skip lines that are likely not relevant
-            if line.startswith('```') or line.startswith('#'):
-                continue
-                
-            # Check if this line contains any keywords
-            found_key = False
-            for key, patterns in keys.items():
-                if any(pattern.lower() in line.lower() for pattern in patterns):
-                    current_key = key
-                    found_key = True
-                    # Try to extract value from this line
-                    if ':' in line:
-                        value_part = line.split(':', 1)[1].strip()
-                        value = value_part.strip('",\'').strip()
-                        if value:
-                            destination[key] = self._process_destination_value(key, value)
-                    elif '=' in line:
-                        value_part = line.split('=', 1)[1].strip()
-                        value = value_part.strip('",\'').strip()
-                        if value:
-                            destination[key] = self._process_destination_value(key, value)
-                    break
-            
-            # If no keyword found but we have a current key, treat as continuation
-            if not found_key and current_key and current_key not in destination:
-                destination[current_key] = self._process_destination_value(current_key, line)
-        
-        # Ensure we have all required fields with default values if missing
-        if 'place_type' not in destination:
-            destination['place_type'] = 'point_of_interest'
-        if 'search_query' not in destination:
-            destination['search_query'] = 'place'
-        if 'distance_preference' not in destination:
-            destination['distance_preference'] = 5.0
-        if 'price_level' not in destination:
-            destination['price_level'] = 2
-            
-        return destination
-    
-    def _process_destination_value(self, key, value):
-        """
-        Process extracted destination values based on field type
-        
-        Args:
-            key: Field name
-            value: Extracted value
-            
-        Returns:
-            Processed value
-        """
-        if key == 'distance_preference':
-            # Try to extract numbers
-            numbers = re.findall(r'\d+\.?\d*', value)
-            if numbers:
-                return float(numbers[0])
-            return 5.0  # Default
-        
-        elif key == 'price_level':
-            # Try to map price descriptions to levels
-            value = value.lower()
-            if 'high' in value or 'expensive' in value or 'premium' in value:
-                return 4
-            elif 'mid-high' in value or 'above average' in value:
-                return 3
-            elif 'mid' in value or 'average' in value or 'moderate' in value:
-                return 2
-            elif 'low' in value or 'budget' in value or 'cheap' in value:
-                return 1
-            # Try to extract numbers
-            numbers = re.findall(r'\d+', value)
-            if numbers:
-                return min(4, max(1, int(numbers[0])))
-            return 2  # Default
-        
-        return value
-    
-    def _determine_transport_mode(self, persona, activity_type, available_minutes, distance, memory_patterns=None):
-        """
-        Determine suitable transportation mode based on persona, activity, and distance.
-        
-        Args:
-            persona: Character object
-            activity_type: Activity type
-            available_minutes: Available time (minutes)
-            distance: Distance in kilometers
-            memory_patterns: Historical memory patterns (optional)
-            
-        Returns:
-            str: Transportation mode ('walking', 'driving', 'public_transit', 'cycling', 'rideshare')
-        """
-
-        # Try LLM-based determination
-        transport_mode = self._determine_transport_mode_with_llm(
-            persona, 
-            activity_type, 
-            available_minutes, 
-            distance, 
-            memory_patterns
-        )
-        # self.transport_mode_cache[cache_key] = transport_mode
-        return transport_mode
-    
-    def _determine_transport_mode_with_llm(self, persona, activity_type, available_minutes, distance, memory_patterns):
-        """Use LLM to determine the most appropriate transport mode"""
-        try:
-            # For very short distances, use heuristic directly without calling LLM
-            if distance < 0.3:  # Less than 300 meters
-                return 'walking'
-                
-            # Prepare prompt inputs
-            prompt = self._prepare_transport_mode_prompt(
-                persona, 
-                activity_type, 
-                available_minutes, 
-                distance, 
-                memory_patterns
-            )
-            
-            # Call LLM
-            response = client.chat.completions.create(
-                model=self.model,
-                messages=[{"role": "user", "content": prompt}],
-                temperature=self.temperature,
-                max_tokens=20,  # Only need a short answer
-            )
-            
-            # Get and normalize response
-            transport_mode = self._normalize_transport_mode(response.choices[0].message.content)
-            return transport_mode
-            
-        except Exception as e:
-            print(f"LLM transport mode determination failed: {str(e)}")
-            # Fall back to simple heuristic determination
-            return self._determine_transport_mode_heuristic(distance)
-    
-    def _prepare_transport_mode_prompt(self, persona, activity_type, available_minutes, distance, memory_patterns):
-        """Prepare the prompt for transport mode determination"""
-        try:
-            # Prepare historical preference data
-            pattern_str = "No historical data"
-            if memory_patterns and 'transport_modes' in memory_patterns:
-                pattern_items = []
-                for mode, count in memory_patterns['transport_modes'].items():
-                    if mode and mode != 'unknown':
-                        pattern_items.append(f"{mode}({count} times)")
-                if pattern_items:
-                    pattern_str = ", ".join(pattern_items)
-            
-            # Prepare persona traits
-            traits = []
-            if hasattr(persona, 'traits'):
-                traits.extend(persona.traits)
-            traits_str = ", ".join(traits) if traits else "No special traits"
-            
-            # Ensure all parameters are valid
-            gender = getattr(persona, 'gender', 'unknown')
-            age = getattr(persona, 'age', 30)
-            education = getattr(persona, 'education', 'unknown')
-            occupation = getattr(persona, 'occupation', 'unknown')
-            
-            # Get household income safely
+            # If activity type still not found, use a very generic query
             try:
-                household_income = persona.get_household_income()
-            except Exception:
-                household_income = 50000  # Default value
-            
-            # Format distance value
-            distance_str = f"{float(distance):.1f}" if isinstance(distance, (int, float)) else "1.0"
-            
-            # Build and return prompt
-            return TRANSPORT_MODE_PROMPT.format(
-                gender=gender,
-                age=age,
-                education=education,
-                occupation=occupation,
-                household_income=household_income,
-                traits=traits_str,
-                activity=activity_type,
-                minutes=available_minutes,
-                distance=distance_str,
-                patterns=pattern_str
-            )
-        except Exception as e:
-            print(f"Error preparing transport mode prompt: {str(e)}")
-            # Return simplified prompt
-            return f"What transportation mode should be used for a {activity_type} activity that is {distance:.1f}km away?"
-    
-    def _normalize_transport_mode(self, transport_mode_text):
-        """Normalize transport mode text to standard categories"""
-        transport_mode = transport_mode_text.strip().lower()
-        
-        if 'walk' in transport_mode:
-            return 'walking'
-        elif 'cycl' in transport_mode or 'bike' in transport_mode:
-            return 'cycling'
-        elif 'bus' in transport_mode or 'train' in transport_mode or 'transit' in transport_mode:
-            return 'public_transit'
-        elif 'car' in transport_mode or 'driv' in transport_mode:
-            return 'driving'
-        elif 'taxi' in transport_mode or 'uber' in transport_mode or 'lyft' in transport_mode or 'ride' in transport_mode:
-            return 'rideshare'
+                # Expanded search radius
+                radius_meters = int(max_radius * 1000 * 1.5)
+                
+                # Generic OSM query
+                overpass_url = "https://overpass-api.de/api/interpreter"
+                overpass_query = f"""
+                [out:json];
+                (
+                  node[amenity](around:{radius_meters},{current_location[0]},{current_location[1]});
+                  way[amenity](around:{radius_meters},{current_location[0]},{current_location[1]});
+                );
+                out center;
+                """
+                
+                response = requests.post(overpass_url, data={"data": overpass_query})
+                data = response.json()
+                
+                if "elements" in data and len(data["elements"]) > 0:
+                    # Process first result
+                    result = data["elements"][0]
+                    
+                    # Get coordinates
+                    if "center" in result:
+                        lat = result["center"]["lat"]
+                        lng = result["center"]["lon"]
+                    elif "lat" in result and "lon" in result:
+                        lat = result["lat"]
+                        lng = result["lon"]
+                    else:
+                        return None
+                        
+                    dest_coords = (lat, lng)
+                    
+                    # Calculate distance
+                    distance = calculate_distance(current_location, dest_coords)
+                    
+                    # Get name and address
+                    tags = result.get("tags", {})
+                    name = tags.get("name", "Alternative location")
+                    
+                    details = {
+                        'name': name,
+                        'address': tags.get("addr:street", "Unknown address"),
+                        'rating': 3.0,
+                        'distance': distance
+                    }
+                    
+                    return dest_coords, details
+                    
+            except Exception as e:
+                print(f"Alternative OSM search error: {str(e)}")
+                return None
         else:
-            return 'walking'  # Default to walking
-    
-    def _determine_transport_mode_heuristic(self, distance):
-        """Determine transport mode based on simple distance heuristics"""
-        if distance < 1:
-            return 'walking'
-        elif distance < 3:
-            return 'cycling'
-        elif distance < 10:
-            return 'public_transit'
-        else:
-            return 'driving'
+            # If we have identified an activity type, use OSM with generic keywords
+            try:
+                # Get generic OSM tags for this activity type
+                osm_tags = generic_keywords.get(activity_type, ['amenity'])
+                osm_tag = osm_tags[0]  # Use first (most generic) tag
+                
+                # Expanded search radius
+                radius_meters = int(max_radius * 1000 * 1.5)
+                
+                # OSM query
+                overpass_url = "https://overpass-api.de/api/interpreter"
+                overpass_query = f"""
+                [out:json];
+                (
+                  node[{osm_tag}](around:{radius_meters},{current_location[0]},{current_location[1]});
+                  way[{osm_tag}](around:{radius_meters},{current_location[0]},{current_location[1]});
+                );
+                out center;
+                """
+                
+                response = requests.post(overpass_url, data={"data": overpass_query})
+                data = response.json()
+                
+                if "elements" in data and len(data["elements"]) > 0:
+                    # Process first result
+                    result = data["elements"][0]
+                    
+                    # Get coordinates
+                    if "center" in result:
+                        lat = result["center"]["lat"]
+                        lng = result["center"]["lon"]
+                    elif "lat" in result and "lon" in result:
+                        lat = result["lat"]
+                        lng = result["lon"]
+                    else:
+                        return None
+                        
+                    dest_coords = (lat, lng)
+                    
+                    # Calculate distance
+                    distance = calculate_distance(current_location, dest_coords)
+                    
+                    # Get name and address
+                    tags = result.get("tags", {})
+                    name = tags.get("name", "Alternative location")
+                    
+                    details = {
+                        'name': name,
+                        'address': tags.get("addr:street", "Unknown address"),
+                        'rating': self._get_venue_rating(tags, activity_type, name),
+                        'price_level': self._infer_price_level(tags, dest_coords, activity_type),
+                        'distance': distance
+                    }
+                    
+                    return dest_coords, details
+                    
+            except Exception as e:
+                print(f"Alternative OSM search error: {str(e)}")
+                
+        return None
 
     def _calculate_search_radius(self, persona, activity_type, time_window, destination_type):
         """
@@ -1091,7 +914,7 @@ class Destination:
         try:
             # Use a random location near the current location if available
             if current_location and isinstance(current_location, tuple) and len(current_location) == 2:
-                random_location = generate_random_location_near(current_location, max_radius * 0.5)
+                random_location = generate_random_location_near(current_location, max_radius * 0.5, validate=False)
                 name = f'Location for {destination_type.get("search_query", "activity")}' if destination_type else 'Fallback Location'
                 return random_location, {
                     'name': name, 
@@ -1108,3 +931,299 @@ class Destination:
         except Exception as e:
             print(f"Error generating fallback location: {str(e)}")
             return (0.0, 0.0), {'name': 'Error Location', 'address': 'Error generating location'}
+
+    def _retrieve_location_osm(self, current_location, destination_type, max_radius, available_minutes):
+        """
+        Use OpenStreetMap's Overpass API to retrieve destination locations
+        
+        Args:
+            current_location: Current location (latitude, longitude)
+            destination_type: Destination type information
+            max_radius: Maximum search radius (kilometers)
+            available_minutes: Available time (minutes)
+        
+        Returns:
+            tuple: ((latitude, longitude), location_details)
+        """
+        try:
+            # Check cache
+            cache_key = f"osm_{current_location}_{destination_type.get('search_query')}_{max_radius}"
+            cache_key = cache_key.replace(" ", "_").replace(",", "_")
+            cached_result = cache.get(cache_key)
+            if cached_result and ENABLE_CACHING:
+                return cached_result
+            
+            # Prepare Overpass API query
+            search_query = destination_type.get('search_query', 'point of interest')
+            place_type = destination_type.get('place_type', 'amenity')
+            radius_meters = int(max_radius * 1000)
+            
+            # Map Google Places API location types to OSM tags
+            osm_tag_mapping = {
+                'restaurant': 'amenity=restaurant',
+                'cafe': 'amenity=cafe',
+                'bar': 'amenity=bar',
+                'shopping_mall': 'shop=mall',
+                'grocery_store': 'shop=supermarket',
+                'park': 'leisure=park',
+                'gym': 'leisure=fitness_centre',
+                'school': 'amenity=school',
+                'university': 'amenity=university',
+                'hospital': 'amenity=hospital',
+                'cinema': 'amenity=cinema',
+                'theater': 'amenity=theatre',
+                'museum': 'tourism=museum',
+                'bank': 'amenity=bank',
+                'post_office': 'amenity=post_office',
+                'hotel': 'tourism=hotel',
+                'point_of_interest': 'amenity'
+            }
+            
+            # Get corresponding OSM tag
+            osm_tag = osm_tag_mapping.get(place_type, f"name~'{search_query}'")
+            if "=" not in osm_tag:
+                # If no exact match found, use generic query
+                osm_tag = f"name~'{search_query}'"
+            
+            # Build Overpass query
+            overpass_url = "https://overpass-api.de/api/interpreter"
+            overpass_query = f"""
+            [out:json];
+            (
+              node[{osm_tag}](around:{radius_meters},{current_location[0]},{current_location[1]});
+              way[{osm_tag}](around:{radius_meters},{current_location[0]},{current_location[1]});
+              relation[{osm_tag}](around:{radius_meters},{current_location[0]},{current_location[1]});
+            );
+            out center;
+            """
+            
+            # Send request
+            response = requests.post(overpass_url, data={"data": overpass_query})
+            response.raise_for_status()
+            data = response.json()
+            
+            # Process results
+            candidates = []
+            
+            if "elements" in data and len(data["elements"]) > 0:
+                # Process up to 5 results
+                results = data["elements"][:5]
+                price_preference = destination_type.get('price_level', 2)
+                
+                for result in results:
+                    try:
+                        # Get location coordinates
+                        if "center" in result:
+                            lat = result["center"]["lat"]
+                            lng = result["center"]["lon"]
+                        elif "lat" in result and "lon" in result:
+                            lat = result["lat"]
+                            lng = result["lon"]
+                        else:
+                            continue
+                            
+                        dest_coords = (lat, lng)
+                        
+                        # Calculate distance
+                        distance = calculate_distance(current_location, dest_coords)
+                        
+                        # Skip if location is too far
+                        estimated_time_minutes = (distance / 30) * 60
+                        if available_minutes and estimated_time_minutes > available_minutes * 0.4:
+                            continue
+                        
+                        # Get name and address
+                        tags = result.get("tags", {})
+                        name = tags.get("name", "Unnamed Location")
+                        address = tags.get("addr:street", "") + " " + tags.get("addr:housenumber", "")
+                        address = address.strip() or f"Distance: {round(distance, 1)}km"
+                        
+                        # Use intelligent inference instead of default values
+                        # Infer rating based on venue type
+                        rating = self._get_venue_rating(tags, place_type, name)
+                        
+                        # Infer price level
+                        price_level = self._infer_price_level(tags, dest_coords, place_type)
+                        
+                        # Calculate score
+                        score = self._calculate_place_score(
+                            rating=rating,
+                            distance=distance,
+                            max_distance=max_radius,
+                            price_level=price_level,
+                            price_preference=price_preference
+                        )
+                        
+                        # Add to candidate list
+                        candidates.append({
+                            'coords': dest_coords,
+                            'details': {
+                                'name': name,
+                                'address': address,
+                                'place_id': str(result.get("id", "")),
+                                'rating': rating,
+                                'price_level': price_level,
+                                'distance': distance
+                            },
+                            'score': score
+                        })
+                    except Exception as e:
+                        print(f"Error processing place result: {e}")
+                        continue
+            
+            # If no suitable locations found, try alternative search
+            if not candidates:
+                return self._try_alternative_osm_search(current_location, destination_type, max_radius)
+            
+            # Select best candidate and cache result
+            best_candidate = self._select_best_candidate(candidates)
+            result = (best_candidate['coords'], best_candidate['details'])
+            
+            if ENABLE_CACHING:
+                cache.set(cache_key, result)
+            
+            return result
+                
+        except Exception as e:
+            print(f"Error retrieving location via OSM: {str(e)}")
+            # Return random location in case of error
+            random_location = generate_random_location_near(current_location, max_radius * 0.5, validate=False)
+            return random_location, {'name': f'Random Location (OSM Error)', 'address': f'Distance: {round(calculate_distance(current_location, random_location), 1)}km'}
+
+    def _infer_price_level(self, tags, location, place_type):
+        """
+        Infer price level based on tags and geographic location
+        
+        Args:
+            tags: OSM tags
+            location: Venue location
+            place_type: Place type
+            
+        Returns:
+            int: Price level (1-4)
+        """
+        # Infer price based on place type
+        amenity = tags.get("amenity")
+        shop_type = tags.get("shop")
+        tourism = tags.get("tourism")
+        
+        # Restaurants are generally more expensive
+        if amenity in ["restaurant"]:
+            # If it's an upscale restaurant, return higher price level
+            if "cuisine" in tags and tags["cuisine"] in ["french", "japanese", "italian"]:
+                return 3
+            return 2
+        elif amenity in ["cafe", "bar"]:
+            return 2
+        elif amenity in ["fast_food"] or shop_type in ["convenience"]:
+            return 1
+        elif shop_type in ["mall", "department_store"]:
+            return 3
+        elif tourism in ["hotel"]:
+            if tags.get("stars") in ["4", "5"]:
+                return 4
+            return 3
+        
+        # Based on place type mapping (from Google Places conversion to OSM)
+        price_mapping = {
+            'restaurant': 2,
+            'cafe': 2,
+            'bar': 2,
+            'shopping_mall': 3,
+            'grocery_store': 1,
+            'retail_store': 2,
+            'cinema': 2,
+            'theater': 3,
+            'museum': 2,
+            'hotel': 3
+        }
+        
+        return price_mapping.get(place_type, 2)
+    
+    def _get_venue_rating(self, tags, place_type, name):
+        """
+        Infer rating based on venue type and name
+        
+        Args:
+            tags: OSM tags
+            place_type: Place type
+            name: Venue name
+            
+        Returns:
+            float: Rating (1.0-5.0)
+        """
+        # Infer venue type based on OSM tags
+        amenity = tags.get("amenity")
+        shop = tags.get("shop")
+        leisure = tags.get("leisure")
+        tourism = tags.get("tourism")
+        
+        # Default ratings based on venue type
+        default_ratings = {
+            'restaurant': 3.8,
+            'cafe': 3.7,
+            'park': 4.2,
+            'shopping_mall': 3.6,
+            'grocery_store': 3.5,
+            'gym': 4.0,
+            'hospital': 3.9,
+            'school': 3.8,
+            'university': 4.1,
+            'cinema': 3.9,
+            'theater': 4.0,
+            'museum': 4.3,
+            'bar': 3.6,
+            'hotel': 3.8,
+            'bank': 3.0,
+            'post_office': 3.0
+        }
+        
+        # Higher ratings for certain amenity types
+        if leisure == "park":
+            return 4.2
+        elif tourism in ["museum", "attraction"]:
+            return 4.3
+        
+        # Check for keywords in name that might indicate chains or known places
+        name_lower = name.lower()
+        chain_keywords = ["mcdonald", "starbucks", "kfc", "walmart", "subway", "carrefour"]
+        if any(keyword in name_lower for keyword in chain_keywords):
+            return 3.9
+        
+        # Return default rating
+        if amenity:
+            return default_ratings.get(amenity, 3.0)
+        elif shop:
+            return default_ratings.get(shop, 3.0)
+        
+        # Return rating based on Google Places type mapping
+        return default_ratings.get(place_type, 3.0)
+
+    def _generate_random_point_geometrically(self, center, max_distance_km):
+        """Generate a random point at a given distance from center point"""
+        # Earth radius in kilometers
+        earth_radius = 6371.0
+        
+        # Random distance within the maximum
+        distance = random.uniform(0, max_distance_km)
+        
+        # Random angle (bearing) in radians
+        bearing = random.uniform(0, 2 * math.pi)
+        
+        # Convert latitude and longitude to radians
+        lat1 = math.radians(center[0])
+        lon1 = math.radians(center[1])
+        
+        # Calculate target latitude
+        lat2 = math.asin(math.sin(lat1) * math.cos(distance / earth_radius) +
+                       math.cos(lat1) * math.sin(distance / earth_radius) * math.cos(bearing))
+        
+        # Calculate target longitude
+        lon2 = lon1 + math.atan2(math.sin(bearing) * math.sin(distance / earth_radius) * math.cos(lat1),
+                                math.cos(distance / earth_radius) - math.sin(lat1) * math.sin(lat2))
+        
+        # Convert back to degrees
+        lat2 = math.degrees(lat2)
+        lon2 = math.degrees(lon2)
+        
+        return (lat2, lon2)

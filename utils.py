@@ -540,7 +540,7 @@ def time_to_minutes(time_str):
 def generate_random_location_near(center, max_distance_km=5.0, max_attempts=10, validate=True):
     """
     Generate a random location within a specified distance from a center point,
-    using Google Maps API to ensure the location is reasonable.
+    using OpenStreetMap instead of Google Maps API to ensure the location is reasonable.
     
     Args:
         center: Center point (lat, lon)
@@ -555,49 +555,50 @@ def generate_random_location_near(center, max_distance_km=5.0, max_attempts=10, 
     if not validate:
         return _generate_random_point_geometrically(center, max_distance_km)
     
-    from config import GOOGLE_MAPS_API_KEY
     import requests
     import random
     
-    if not GOOGLE_MAPS_API_KEY:
-        print("Warning: Google Maps API key not set, cannot validate location validity")
-        return _generate_random_point_geometrically(center, max_distance_km)
-    
-    # Method 1: Use Places API to get real POI points
+    # Method 1: Use OSM Overpass API to get real POI points
     try:
         # Add some randomness to the search radius, but not exceeding max distance
         search_radius = int(random.uniform(0.3, 1.0) * max_distance_km * 1000)
         
-        # Randomly select place type to ensure randomness and diversity
-        place_types = [
-            "point_of_interest", "establishment", "street_address", 
-            "route", "intersection", "neighborhood", "store", 
-            "restaurant", "cafe", "park", "shopping_mall"
+        # Randomly select OSM tag to ensure randomness and diversity
+        osm_tags = [
+            "amenity", "shop", "tourism", "leisure", "highway", 
+            "building", "natural", "historic", "office", "public_transport"
         ]
-        place_type = random.choice(place_types)
+        selected_tag = random.choice(osm_tags)
         
-        # Build API request
-        url = "https://maps.googleapis.com/maps/api/place/nearbysearch/json"
-        params = {
-            "location": f"{center[0]},{center[1]}",
-            "radius": search_radius,
-            "type": place_type,
-            "key": GOOGLE_MAPS_API_KEY
-        }
+        # Build Overpass API query
+        overpass_url = "https://overpass-api.de/api/interpreter"
+        overpass_query = f"""
+        [out:json];
+        (
+          node[{selected_tag}](around:{search_radius},{center[0]},{center[1]});
+          way[{selected_tag}](around:{search_radius},{center[0]},{center[1]});
+        );
+        out center;
+        """
         
-        response = requests.get(url, params=params)
+        # Send request
+        response = requests.post(overpass_url, data={"data": overpass_query})
+        response.raise_for_status()
         data = response.json()
         
         # If results found
-        if data["status"] == "OK" and data["results"]:
+        if "elements" in data and data["elements"]:
             # Randomly select a result
-            result = random.choice(data["results"])
-            location = result["geometry"]["location"]
-            return (location["lat"], location["lng"])
+            result = random.choice(data["elements"])
+            if "center" in result:
+                return (result["center"]["lat"], result["center"]["lon"])
+            elif "lat" in result and "lon" in result:
+                return (result["lat"], result["lon"])
             
     except Exception as e:
-        print(f"Failed to generate random location using Places API: {e}")
+        print(f"Failed to generate random location using OSM Overpass API: {e}")
     
+    # Fallback: try with a smaller radius
     if max_distance_km > 1.0:
         return generate_random_location_near(center, max_distance_km=max_distance_km/2, 
                                            max_attempts=max_attempts, validate=validate)
