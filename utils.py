@@ -537,6 +537,7 @@ def time_to_minutes(time_str):
     except:
         return 0
 
+@cached
 def generate_random_location_near(center, max_distance_km=5.0, max_attempts=10, validate=True):
     """
     Generate a random location within a specified distance from a center point,
@@ -563,6 +564,12 @@ def generate_random_location_near(center, max_distance_km=5.0, max_attempts=10, 
     
     # Method 1: Use OSM Overpass API to get real POI points
     try:
+        # 检查是否已有相同中心点和距离的缓存结果
+        cache_key = f"random_location_{center[0]}_{center[1]}_{max_distance_km}"
+        cached_result = cache.get(cache_key)
+        if cached_result:
+            return cached_result
+            
         # 限制搜索半径，避免Bad Request错误并使范围更小
         # 将随机搜索半径限制在最大1000米内
         search_radius = int(min(1000, random.uniform(0.2, 0.6) * max_distance_km * 1000))
@@ -595,9 +602,13 @@ def generate_random_location_near(center, max_distance_km=5.0, max_attempts=10, 
             # Randomly select a result
             result = random.choice(data["elements"])
             if "center" in result:
-                return (result["center"]["lat"], result["center"]["lon"])
+                location = (result["center"]["lat"], result["center"]["lon"])
+                cache.set(cache_key, location)
+                return location
             elif "lat" in result and "lon" in result:
-                return (result["lat"], result["lon"])
+                location = (result["lat"], result["lon"])
+                cache.set(cache_key, location)
+                return location
             
     except Exception as e:
         print(f"Failed to generate random location using OSM Overpass API: {e}")
@@ -605,11 +616,11 @@ def generate_random_location_near(center, max_distance_km=5.0, max_attempts=10, 
     # Fallback: try with a smaller radius
     if max_distance_km > 1.0:
         return generate_random_location_near(center, max_distance_km=max_distance_km/2, 
-                                           max_attempts=max_attempts, validate=validate)
+                                           max_attempts=max_attempts, validate=False)
     
     # Last resort: return a simple geometric random point
-    return _generate_random_point_geometrically(center, max_distance_km * 0.5)
-
+    result = _generate_random_point_geometrically(center, max_distance_km * 0.5)
+    return result
 
 def _generate_random_point_geometrically(center, max_distance_km):
     """

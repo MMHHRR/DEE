@@ -133,7 +133,7 @@ class Destination:
             print(f"Error occurred during destination selection: {e}")
             # Generate random location as backup
             radius = min(5, available_minutes / 60)  # Simple estimate: 1 hour range 5 kilometers
-            random_location = generate_random_location_near(current_location, max_distance_km=radius)
+            random_location = generate_random_location_near(current_location, max_distance_km=radius, validate=False)
             return random_location, {"name": f"{activity_type} Location", "address": "Generated Location"}
     
     @cached
@@ -547,10 +547,6 @@ class Destination:
                 available_minutes
             )
             
-            # If no suitable location found, try alternative approach
-            if not candidates:
-                return self._try_alternative_search(current_location, destination_type, max_radius)
-            
             # Select best candidate and cache result
             best_candidate = self._select_best_candidate(candidates)
             result = (best_candidate['coords'], best_candidate['details'])
@@ -563,7 +559,7 @@ class Destination:
         except Exception as e:
             print(f"Error occurred retrieving location: {str(e)}")
             # Return random location in case of error
-            random_location = generate_random_location_near(current_location, max_radius * 0.5)
+            random_location = generate_random_location_near(current_location, max_radius * 0.5, validate=False)
             return random_location, {'name': f'Random Location (Error)', 'address': f'Distance: {round(calculate_distance(current_location, random_location), 1)}km'}
             
     def _build_location_cache_key(self, current_location, destination_type, max_radius):
@@ -705,215 +701,6 @@ class Destination:
         """Select the best candidate from a list based on score"""
         candidates.sort(key=lambda x: x['score'], reverse=True)
         return candidates[0]
-    
-    def _try_alternative_search(self, current_location, destination_type, max_radius):
-        """
-        Try alternative search approaches when primary search fails
-        
-        Args:
-            current_location: Current location coordinates
-            destination_type: Destination type information
-            max_radius: Maximum search radius in kilometers
-            
-        Returns:
-            tuple: ((latitude, longitude), location_details)
-        """
-        # Try with generic keywords using OSM first
-        generic_result = self._try_alternative_osm_search(current_location, destination_type, max_radius)
-        if generic_result:
-            return generic_result
-        
-        # Fall back to random location as last resort
-        random_location = generate_random_location_near(current_location, max_radius, validate=False)
-        return random_location, {
-            'name': f'Nearby location', 
-            'address': f'Distance: {round(calculate_distance(current_location, random_location), 1)}km'
-        }
-    
-    def _try_alternative_osm_search(self, current_location, destination_type, max_radius):
-        """
-        Try OSM search with more generic keywords when specific search fails
-        
-        Args:
-            current_location: Current location coordinates
-            destination_type: Destination type information
-            max_radius: Maximum search radius in kilometers
-            
-        Returns:
-            tuple: ((latitude, longitude), location_details)
-        """
-        # 检查是否有缓存结果
-        cache_key = f"osm_alternative_{current_location}_{destination_type.get('search_query')}_{max_radius}"
-        cache_key = cache_key.replace(" ", "_").replace(",", "_")
-        cached_result = cache.get(cache_key)
-        if cached_result and ENABLE_CACHING:
-            return cached_result
-            
-        # 为避免过多调用，直接创建随机位置作为备用方案
-        backup_location = generate_random_location_near(current_location, max_radius * 0.5, validate=False)
-        search_term = destination_type.get('search_query', 'place')
-        backup_details = {
-            'name': f"{search_term.capitalize()}",
-            'address': f"Distance: {round(calculate_distance(current_location, backup_location), 1)}km",
-            'rating': 3.0,
-            'distance': calculate_distance(current_location, backup_location)
-        }
-        
-        # Map of generic keywords for different activity types
-        generic_keywords = {
-            'restaurant': ['amenity=restaurant', 'amenity=food'],
-            'cafe': ['amenity=cafe', 'amenity=restaurant'],
-            'shopping': ['shop', 'shop=mall', 'shop=supermarket'],
-            'recreation': ['leisure=park', 'leisure'],
-            'work': ['office', 'building=office'],
-            'education': ['amenity=school', 'amenity=library'],
-            'leisure': ['leisure', 'amenity=cinema', 'amenity=theatre'],
-            'exercise': ['leisure=fitness_centre', 'leisure=sports_centre'],
-            'errand': ['shop=convenience', 'amenity=pharmacy']
-        }
-        
-        # Extract possible activity type from search query
-        search_query = destination_type.get('search_query', '').lower()
-        activity_type = None
-        
-        # Try to infer activity type from search query
-        for key in generic_keywords.keys():
-            if key in search_query:
-                activity_type = key
-                break
-                
-        try:
-            # Limit search radius to avoid Bad Request error
-            radius_meters = min(50000, int(max_radius * 1000))
-            
-            overpass_url = "https://overpass-api.de/api/interpreter"
-            
-            # Build query - use a more effective single query instead of multiple queries
-            if activity_type and activity_type in generic_keywords:
-                # Build query based on activity type
-                osm_tag = generic_keywords[activity_type][0]  # Use the first most generic tag
-            else:
-                # Use generic amenity query
-                osm_tag = "amenity"
-                
-            # Build and execute single OSM query
-            overpass_query = f"""
-            [out:json];
-            (
-              node[{osm_tag}](around:{radius_meters},{current_location[0]},{current_location[1]});
-              way[{osm_tag}](around:{radius_meters},{current_location[0]},{current_location[1]});
-            );
-            out center;
-            """
-            
-            # Execute query
-            response = requests.post(overpass_url, data={"data": overpass_query})
-            response.raise_for_status()
-            data = response.json()
-            
-            # Process query results
-            if "elements" in data and len(data["elements"]) > 0:
-                # Process first result
-                result = data["elements"][0]
-                
-                # Get coordinates
-                if "center" in result:
-                    lat = result["center"]["lat"]
-                    lng = result["center"]["lon"]
-                elif "lat" in result and "lon" in result:
-                    lat = result["lat"]
-                    lng = result["lon"]
-                else:
-                    # Invalid coordinates, use backup location
-                    if ENABLE_CACHING:
-                        cache.set(cache_key, (backup_location, backup_details))
-                    return backup_location, backup_details
-                    
-                dest_coords = (lat, lng)
-                
-                # Calculate distance
-                distance = calculate_distance(current_location, dest_coords)
-                
-                # Get name and address
-                tags = result.get("tags", {})
-                name = tags.get("name", "Unknown location")
-                
-                # Build details object
-                details = {
-                    'name': name,
-                    'address': tags.get("addr:street", "Unknown address"),
-                    'rating': self._get_venue_rating(tags, activity_type if activity_type else "place", name),
-                    'price_level': self._infer_price_level(tags, dest_coords, activity_type if activity_type else "place"),
-                    'distance': distance
-                }
-                
-                # Cache and return result
-                result = (dest_coords, details)
-                if ENABLE_CACHING:
-                    cache.set(cache_key, result)
-                return result
-            else:
-                # No result found, use backup location
-                if ENABLE_CACHING:
-                    cache.set(cache_key, (backup_location, backup_details))
-                return backup_location, backup_details
-                
-        except Exception as e:
-            print(f"Alternative OSM search error: {str(e)}")
-            # If error, return backup location
-            if ENABLE_CACHING:
-                cache.set(cache_key, (backup_location, backup_details))
-            return backup_location, backup_details
-
-    def _calculate_search_radius(self, persona, activity_type, time_window, destination_type):
-        """
-        Calculate the maximum search radius based on available time and preferences.
-        
-        Args:
-            persona: Persona object
-            activity_type: Activity type
-            time_window: Available time window in minutes
-            destination_type: Destination type information with preferences
-            
-        Returns:
-            float: Maximum search radius in kilometers
-        """
-        # Get base radius from time window
-        max_radius = self._calculate_max_radius(persona, activity_type, time_window)
-        
-        # Apply distance preference if available
-        if 'distance_preference' in destination_type:
-            # Distance preference value range 1-10, 1 means very close, 10 means can be very far
-            distance_pref = destination_type.get('distance_preference', 5)
-            # Convert distance preference to radius adjustment factor (0.5-1.5)
-            distance_factor = 0.5 + (distance_pref / 10)
-            # Adjust maximum radius
-            max_radius = max_radius * distance_factor
-            
-        return max_radius
-
-    def _generate_fallback_location(self, max_radius, current_location=None, destination_type=None):
-        """Generate a fallback location when normal methods fail"""
-        try:
-            # Use a random location near the current location if available
-            if current_location and isinstance(current_location, tuple) and len(current_location) == 2:
-                random_location = generate_random_location_near(current_location, max_radius * 0.5, validate=False)
-                name = f'Location for {destination_type.get("search_query", "activity")}' if destination_type else 'Fallback Location'
-                return random_location, {
-                    'name': name, 
-                    'address': f'Generated Location',
-                    'is_fallback': True
-                }
-            else:
-                # Complete fallback with default values
-                return (0.0, 0.0), {
-                    'name': 'Default Location',
-                    'address': 'No valid location data available',
-                    'is_fallback': True
-                }
-        except Exception as e:
-            print(f"Error generating fallback location: {str(e)}")
-            return (0.0, 0.0), {'name': 'Error Location', 'address': 'Error generating location'}
 
     def _retrieve_location_osm(self, current_location, destination_type, max_radius, available_minutes):
         """
@@ -929,54 +716,135 @@ class Destination:
             tuple: ((latitude, longitude), location_details)
         """
         try:
-            # Check cache
-            cache_key = f"osm_{current_location}_{destination_type.get('search_query')}_{max_radius}"
+            # 生成缓存键
+            search_query = destination_type.get('search_query', 'point of interest')
+            place_type = destination_type.get('place_type', 'amenity')
+            cache_key = f"osm_{current_location}_{search_query}_{max_radius}"
             cache_key = cache_key.replace(" ", "_").replace(",", "_")
+            
+            # 检查缓存
             cached_result = cache.get(cache_key)
             if cached_result and ENABLE_CACHING:
                 return cached_result
             
-            # Prepare Overpass API query
-            search_query = destination_type.get('search_query', 'point of interest')
-            place_type = destination_type.get('place_type', 'amenity')
-            # 限制搜索半径，避免Bad Request错误
-            radius_meters = min(50000, int(max_radius * 1000))
+            # 为防止API失败，准备备用位置
+            backup_location = generate_random_location_near(current_location, max_radius * 0.5, validate=False)
+            backup_details = {
+                'name': f"{search_query.capitalize()}",
+                'address': f"Distance: {round(calculate_distance(current_location, backup_location), 1)}km",
+                'rating': 3.0,
+                'price_level': 2,
+                'distance': calculate_distance(current_location, backup_location)
+            }
             
-            # Map Google Places API location types to OSM tags
+            # Limit search radius to avoid Bad Request errors
+            radius_meters = min(50000, int(max_radius * 1000))
+            price_preference = destination_type.get('price_level', 2)
+            
+            # Google Places type to OSM tag mapping
             osm_tag_mapping = {
+                # 金融服务 (Financial Services)
+                'bank': 'amenity=bank',
+                'atm': 'amenity=atm',
+                
+                # 食品购物 (Food Shopping)
+                'grocery_store': 'shop=supermarket',
+                'grocery_or_supermarket': 'shop=supermarket',
+                'bakery': 'shop=bakery',
+                'butcher': 'shop=butcher',
+                'delicatessen': 'shop=deli',
+                'fishmonger': 'shop=seafood',
+                'greengrocer': 'shop=greengrocer',
+                
+                # 餐饮场所 (Food & Drink)
                 'restaurant': 'amenity=restaurant',
                 'cafe': 'amenity=cafe',
                 'bar': 'amenity=bar',
-                'shopping_mall': 'shop=mall',
-                'grocery_store': 'shop=supermarket',
-                'park': 'leisure=park',
+                'fast_food': 'amenity=fast_food',
+                'food_court': 'amenity=food_court',
+                'pub': 'amenity=pub',
+                'ice_cream': 'amenity=ice_cream',
+                
+                # 休闲娱乐 (Leisure & Entertainment)
                 'gym': 'leisure=fitness_centre',
+                'park': 'leisure=park',
+                'cinema': 'amenity=cinema',
+                'movie_theater': 'amenity=cinema',
+                'theater': 'amenity=theatre',
+                'stadium': 'leisure=stadium',
+                'swimming_pool': 'leisure=swimming_pool',
+                'night_club': 'amenity=nightclub',
+                
+                # 文化与教育 (Culture & Education)
+                'library': 'amenity=library',
+                'museum': 'tourism=museum',
+                'art_gallery': 'tourism=gallery',
                 'school': 'amenity=school',
                 'university': 'amenity=university',
+                
+                # 医疗健康 (Healthcare)
                 'hospital': 'amenity=hospital',
-                'cinema': 'amenity=cinema',
-                'theater': 'amenity=theatre',
-                'museum': 'tourism=museum',
-                'bank': 'amenity=bank',
-                'post_office': 'amenity=post_office',
+                'doctor': 'amenity=doctors',
+                'medical_center': 'amenity=hospital',
+                'dentist': 'amenity=dentist',
+                'pharmacy': 'amenity=pharmacy',
+                'veterinary_care': 'amenity=veterinary',
+                'health': 'amenity=hospital',
+                
+                # 购物场所 (Shopping)
+                'store': 'shop=mall',
+                'shopping_mall': 'shop=mall',
+                'clothing_store': 'shop=clothes',
+                'shoe_store': 'shop=shoes',
+                'electronics_store': 'shop=electronics',
+                'hardware_store': 'shop=hardware',
+                'furniture_store': 'shop=furniture',
+                'book_store': 'shop=books',
+                'jewelry_store': 'shop=jewelry',
+                'toy_store': 'shop=toys',
+                
+                # 个人服务 (Personal Services)
+                'beauty_salon': 'shop=hairdresser',
+                'laundry': 'shop=laundry',
+                'dry_cleaning': 'shop=dry_cleaning',
+                
+                # 住宿 (Accommodation)
                 'hotel': 'tourism=hotel',
-                'point_of_interest': 'amenity'
+                'lodging': 'tourism=hotel',
+                
+                # 交通服务 (Transportation)
+                'gas': 'shop=gas',
+                'car_repair': 'shop=car_repair',
+                'car_wash': 'amenity=wash',
+                'parking': 'amenity=parking',
+                'bicycle_parking': 'amenity=bicycle_parking',
+                'bus_station': 'amenity=bus_station',
+                'train_station': 'railway=station',
+                'subway': 'railway=subway',
+                'airport': 'aeroway=aerodrome',
+                
+                # 日常便利设施 (Convenience)
+                'convenience_store': 'shop=convenience',
+                'post_office': 'amenity=post_office',
+                
+                # 公共服务 (Public Services)
+                'police': 'amenity=police',
+                'fire_station': 'amenity=fire_station',
+                'city_hall': 'amenity=townhall',
+                'courthouse': 'amenity=courthouse',
+                'embassy': 'amenity=embassy',
             }
             
-            # Get corresponding OSM tag
-            osm_tag = osm_tag_mapping.get(place_type, f"name~'{search_query}'")
-            if "=" not in osm_tag:
-                # If no exact match found, use generic query
-                osm_tag = f"name~'{search_query}'"
+            main_tag = osm_tag_mapping.get(place_type)
             
-            # Build Overpass query
+            # Build a single integrated Overpass query - includes main tag and fallback tag
             overpass_url = "https://overpass-api.de/api/interpreter"
             overpass_query = f"""
             [out:json];
             (
-              node[{osm_tag}](around:{radius_meters},{current_location[0]},{current_location[1]});
-              way[{osm_tag}](around:{radius_meters},{current_location[0]},{current_location[1]});
-              relation[{osm_tag}](around:{radius_meters},{current_location[0]},{current_location[1]});
+              // Main search tags
+              node[{main_tag}](around:{radius_meters},{current_location[0]},{current_location[1]});
+              way[{main_tag}](around:{radius_meters},{current_location[0]},{current_location[1]});
             );
             out center;
             """
@@ -990,9 +858,8 @@ class Destination:
             candidates = []
             
             if "elements" in data and len(data["elements"]) > 0:
-                # Process up to 5 results
+                # 处理最多5个结果
                 results = data["elements"][:5]
-                price_preference = destination_type.get('price_level', 2)
                 
                 for result in results:
                     try:
@@ -1018,6 +885,7 @@ class Destination:
                         
                         # Get name and address
                         tags = result.get("tags", {})
+
                         name = tags.get("name", "Unnamed Location")
                         address = tags.get("addr:street", "") + " " + tags.get("addr:housenumber", "")
                         address = address.strip() or f"Distance: {round(distance, 1)}km"
@@ -1057,7 +925,9 @@ class Destination:
             
             # If no suitable locations found, try alternative search
             if not candidates:
-                return self._try_alternative_osm_search(current_location, destination_type, max_radius)
+                if ENABLE_CACHING:
+                    cache.set(cache_key, (backup_location, backup_details))
+                return backup_location, backup_details
             
             # Select best candidate and cache result
             best_candidate = self._select_best_candidate(candidates)
@@ -1071,8 +941,9 @@ class Destination:
         except Exception as e:
             print(f"Error retrieving location via OSM: {str(e)}")
             # Return random location in case of error
-            random_location = generate_random_location_near(current_location, max_radius * 0.5, validate=False)
+            random_location = generate_random_location_near(current_location, max_radius * 0.5, validate=True)
             return random_location, {'name': f'Random Location (OSM Error)', 'address': f'Distance: {round(calculate_distance(current_location, random_location), 1)}km'}
+
 
     def _infer_price_level(self, tags, location, place_type):
         """
@@ -1482,3 +1353,53 @@ class Destination:
             return 'public_transit'
         else:
             return 'driving'
+        
+    def _calculate_search_radius(self, persona, activity_type, time_window, destination_type):
+        """
+        Calculate the maximum search radius based on available time and preferences.
+        
+        Args:
+            persona: Persona object
+            activity_type: Activity type
+            time_window: Available time window in minutes
+            destination_type: Destination type information with preferences
+            
+        Returns:
+            float: Maximum search radius in kilometers
+        """
+        # Get base radius from time window
+        max_radius = self._calculate_max_radius(persona, activity_type, time_window)
+        
+        # Apply distance preference if available
+        if 'distance_preference' in destination_type:
+            # Distance preference value range 1-10, 1 means very close, 10 means can be very far
+            distance_pref = destination_type.get('distance_preference', 5)
+            # Convert distance preference to radius adjustment factor (0.5-1.5)
+            distance_factor = 0.5 + (distance_pref / 10)
+            # Adjust maximum radius
+            max_radius = max_radius * distance_factor
+            
+        return max_radius
+
+    def _generate_fallback_location(self, max_radius, current_location=None, destination_type=None):
+        """Generate a fallback location when normal methods fail"""
+        try:
+            # Use a random location near the current location if available
+            if current_location and isinstance(current_location, tuple) and len(current_location) == 2:
+                random_location = generate_random_location_near(current_location, max_radius * 0.5, validate=False)
+                name = f'Location for {destination_type.get("search_query", "activity")}' if destination_type else 'Fallback Location'
+                return random_location, {
+                    'name': name, 
+                    'address': f'Generated Location',
+                    'is_fallback': True
+                }
+            else:
+                # Complete fallback with default values
+                return (0.0, 0.0), {
+                    'name': 'Default Location',
+                    'address': 'No valid location data available',
+                    'is_fallback': True
+                }
+        except Exception as e:
+            print(f"Error generating fallback location: {str(e)}")
+            return (0.0, 0.0), {'name': 'Error Location', 'address': 'Error generating location'}

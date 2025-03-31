@@ -5,8 +5,8 @@
     {
       "activity_type": "leisure",
       "start_time": "05:26",
-      "end_time": "06:26",
-      "description": "Relaxing morning routine, such as reading, journaling, or watching TV.",
+      "end_time": "07:06",
+      "description": "Enjoying a quiet morning reading and relaxing at home.",
       "location_name": "Home",
       "location_type": "home",
       "transport_mode": "No need to travel",
@@ -19,9 +19,9 @@
     },
     {
       "activity_type": "dining",
-      "start_time": "06:26",
-      "end_time": "07:06",
-      "description": "Breakfast at home, enjoying a healthy meal.",
+      "start_time": "07:06",
+      "end_time": "07:36",
+      "description": "Preparing and having breakfast at home.",
       "location_name": "Home",
       "location_type": "home",
       "transport_mode": "No need to travel",
@@ -33,15 +33,68 @@
       ]
     },
     {
-      "activity_type": "leisure",
-      "start_time": "07:06",
+      "activity_type": "errands",
+      "start_time": "07:36",
       "end_time": "08:06",
-      "description": "Engaging in a hobby like drawing, playing a musical instrument, or writing.",
+      "description": "Quick visit to the bank for some transactions.",
+      "location_name": "Bank",
+      "location_type": "bank",
+      "transport_mode": "walking",
+      "distance": 0.15801235658032156,
+      "travel_time": 4,
+      "coordinates": [
+        41.77820069250568,
+        -87.62230774753709
+      ]
+    },
+    {
+      "activity_type": "shopping",
+      "start_time": "08:06",
+      "end_time": "09:00",
+      "description": "Shopping for groceries at a nearby supermarket.",
+      "location_name": "Woodlawn Fresh Market",
+      "location_type": "grocery_store",
+      "transport_mode": "walking",
+      "distance": 0.7032460145877342,
+      "travel_time": 10,
+      "coordinates": [
+        41.7795833,
+        -87.614053
+      ]
+    },
+    {
+      "activity_type": "travel",
+      "start_time": "09:00",
+      "end_time": "09:06",
+      "description": "Traveling back home from the grocery store.",
+      "location_name": "Outdoor parks with walking trails and picnic areas",
+      "location_type": "transit_station",
+      "transport_mode": "walking",
+      "distance": 0.20554044079937903,
+      "travel_time": 4,
+      "coordinates": [
+        41.777847161141324,
+        -87.61319712781344
+      ],
+      "from_location": [
+        41.7795833,
+        -87.614053
+      ],
+      "to_location": [
+        41.777847161141324,
+        -87.61319712781344
+      ]
+    },
+    {
+      "activity_type": "leisure",
+      "start_time": "09:06",
+      "end_time": "12:06",
+      "description": "Spending time organizing and planning the week ahead at home.",
       "location_name": "Home",
       "location_type": "home",
-      "transport_mode": "No need to travel",
-      "distance": 0,
-      "travel_time": 0,
+      "transport_mode": "walking",
+      "distance": 0.838883865389735,
+      "travel_time": 12,
       "coordinates": [
         41.776951,
         -87.623216
@@ -49,122 +102,32 @@
     },
     {
       "activity_type": "shopping",
+      "start_time": "12:06",
+      "end_time": "12:40",
+      "description": "Traveling to a retail store for clothing shopping.",
+      "location_name": "Mall",
+      "location_type": "transit_station",
+      "transport_mode": "walking",
+      "distance": 0.36026392063737,
+      "travel_time": 6,
+      "coordinates": [
+        41.77462627669425,
+        -87.62623783117282
+      ]
+    },
+    {
+      "activity_type": "shopping",
       "start_time": "12:40",
       "end_time": "13:23",
-      "description": "Shopping for groceries at a local supermarket.",
-      "location_name": "Christian Love Baptist Church",
-      "location_type": "grocery_store",
+      "description": "Shopping for clothes at a retail store.",
+      "location_name": "Mall",
+      "location_type": "retail_store",
       "transport_mode": "walking",
-      "distance": 0.43848358173636826,
-      "travel_time": 7,
+      "distance": 1.1748498535853245,
+      "travel_time": 16,
       "coordinates": [
-        41.7808672,
-        -87.6225495
-      ]
-    },
-    {
-      "activity_type": "errands",
-      "start_time": "13:29",
-      "end_time": "13:59",
-      "description": "Quick stop at the bank to handle some financial tasks.",
-      "location_name": "Christian Love Baptist Church",
-      "location_type": "bank",
-      "transport_mode": "walking",
-      "distance": 0.0,
-      "travel_time": 2,
-      "coordinates": [
-        41.7808672,
-        -87.6225495
-      ]
-    },
-    {
-      "activity_type": "recreation",
-      "start_time": "14:07",
-      "end_time": "15:07",
-      "description": "Outdoor walk or light exercise in a nearby park.",
-      "location_name": "Nearby Walking Path",
-      "location_type": "park",
-      "transport_mode": "walking",
-      "distance": 0.12626908554514046,
-      "travel_time": 4,
-      "coordinates": [
-        41.7819237917249,
-        -87.62311007017138
-      ]
-    },
-    {
-      "activity_type": "dining",
-      "start_time": "15:07",
-      "end_time": "15:47",
-      "description": "Lunch at home, preparing a simple and nutritious meal.",
-      "location_name": "Home",
-      "location_type": "home",
-      "transport_mode": "walking",
-      "distance": 0.5523932217883857,
-      "travel_time": 9,
-      "coordinates": [
-        41.776951,
-        -87.623216
-      ]
-    },
-    {
-      "activity_type": "leisure",
-      "start_time": "15:47",
-      "end_time": "17:47",
-      "description": "Relaxing by watching a movie or TV show.",
-      "location_name": "Home",
-      "location_type": "home",
-      "transport_mode": "No need to travel",
-      "distance": 0,
-      "travel_time": 0,
-      "coordinates": [
-        41.776951,
-        -87.623216
-      ]
-    },
-    {
-      "activity_type": "social",
-      "start_time": "17:47",
-      "end_time": "19:47",
-      "description": "Visiting a friend's home for a casual dinner or chat.",
-      "location_name": "Home",
-      "location_type": "friend_home",
-      "transport_mode": "No need to travel",
-      "distance": 0,
-      "travel_time": 0,
-      "coordinates": [
-        41.776951,
-        -87.623216
-      ]
-    },
-    {
-      "activity_type": "leisure",
-      "start_time": "19:47",
-      "end_time": "20:47",
-      "description": "Enjoying some quiet time at home, reading or unwinding.",
-      "location_name": "Home",
-      "location_type": "home",
-      "transport_mode": "No need to travel",
-      "distance": 0,
-      "travel_time": 0,
-      "coordinates": [
-        41.776951,
-        -87.623216
-      ]
-    },
-    {
-      "activity_type": "sleep",
-      "start_time": "23:00",
-      "end_time": "05:26",
-      "description": "Night sleep to rest and recharge.",
-      "location_name": "Home",
-      "location_type": "home",
-      "transport_mode": "No need to travel",
-      "distance": 0,
-      "travel_time": 0,
-      "coordinates": [
-        41.776951,
-        -87.623216
+        41.771986808908665,
+        -87.6125545472664
       ]
     }
   ]

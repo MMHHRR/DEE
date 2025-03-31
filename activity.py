@@ -334,7 +334,7 @@ class Activity:
                 enhanced_activities.append(activity)
                 continue
             
-            # 3. 处理在工作场所的工作活动 - 直接使用工作场所坐标，不需要调用谷歌地图API
+            # 3. 处理在工作场所的工作活动 - 直接使用工作场所坐标
             if activity['activity_type'] == 'work' and (
                     activity['location_type'] == 'workplace' or 
                     'at work' in activity['description'].lower() or 
@@ -405,7 +405,7 @@ class Activity:
                 # 为散步活动生成一个在周边的步行道路上的位置，而不是在家里
                 if current_location == persona.home:
                     # 使用改进的函数生成在家附近0.5-1公里范围内的道路上的随机位置
-                    neighborhood_location = generate_random_location_near(persona.home, max_distance_km=0.8)
+                    neighborhood_location = generate_random_location_near(persona.home, max_distance_km=0.8, validate=False)
                     activity['coordinates'] = neighborhood_location
                     activity['distance'] = calculate_distance(current_location, neighborhood_location)
                     activity['travel_time'] = estimate_travel_time(current_location, neighborhood_location, 'walking')[0]
@@ -414,7 +414,7 @@ class Activity:
                     current_location = neighborhood_location
                 elif current_location == persona.work:
                     # 使用改进的函数生成在工作地附近0.3-0.8公里范围内的道路上的随机位置
-                    workplace_area_location = generate_random_location_near(persona.work, max_distance_km=0.6)
+                    workplace_area_location = generate_random_location_near(persona.work, max_distance_km=0.6, validate=False)
                     activity['coordinates'] = workplace_area_location
                     activity['distance'] = calculate_distance(current_location, workplace_area_location)
                     activity['travel_time'] = estimate_travel_time(current_location, workplace_area_location, 'walking')[0]
@@ -423,7 +423,7 @@ class Activity:
                     current_location = workplace_area_location
                 else:
                     # 如果当前不在家也不在工作地，就在当前位置附近生成一个道路上的随机位置
-                    nearby_location = generate_random_location_near(current_location, max_distance_km=0.5)
+                    nearby_location = generate_random_location_near(current_location, max_distance_km=0.5, validate=False)
                     activity['coordinates'] = nearby_location
                     activity['distance'] = calculate_distance(current_location, nearby_location)
                     activity['travel_time'] = estimate_travel_time(current_location, nearby_location, 'walking')[0]
@@ -437,44 +437,114 @@ class Activity:
             # 5. 处理其他活动，通过描述确定更精确的地点类型
             # 提取描述中的关键地点信息
             place_keywords = {
-                'bank': {'place_type': 'bank', 'search_query': 'bank financial institution'},
-                'grocery': {'place_type': 'grocery_or_supermarket', 'search_query': 'grocery store'},
+                # 金融服务 (Financial Services)
+                'bank': {'place_type': 'bank', 'search_query': 'bank'},
+                'atm': {'place_type': 'atm', 'search_query': 'atm'},
+                
+                # 食品购物 (Food Shopping)
+                'grocery': {'place_type': 'grocery_or_supermarket', 'search_query': 'grocery'},
                 'supermarket': {'place_type': 'grocery_or_supermarket', 'search_query': 'supermarket'},
+                'bakery': {'place_type': 'bakery', 'search_query': 'bakery'},
+                'butcher': {'place_type': 'butcher', 'search_query': 'butcher'},
+                'deli': {'place_type': 'delicatessen', 'search_query': 'deli'},
+                'seafood': {'place_type': 'fishmonger', 'search_query': 'seafood'},
+                'greengrocer': {'place_type': 'greengrocer', 'search_query': 'greengrocer'},
+                
+                # 餐饮场所 (Food & Drink)
                 'restaurant': {'place_type': 'restaurant', 'search_query': 'restaurant'},
                 'dining': {'place_type': 'restaurant', 'search_query': 'restaurant'},
                 'dinner': {'place_type': 'restaurant', 'search_query': 'restaurant'},
-                'lunch': {'place_type': 'restaurant', 'search_query': 'restaurant cafe'},
-                'breakfast': {'place_type': 'cafe', 'search_query': 'breakfast cafe'},
+                'lunch': {'place_type': 'restaurant', 'search_query': 'restaurant'},
+                'breakfast': {'place_type': 'cafe', 'search_query': 'cafe'},
                 'cafe': {'place_type': 'cafe', 'search_query': 'cafe'},
-                'coffee': {'place_type': 'cafe', 'search_query': 'coffee shop'},
-                'gym': {'place_type': 'gym', 'search_query': 'gym fitness'},
-                'fitness': {'place_type': 'gym', 'search_query': 'fitness center'},
-                'workout': {'place_type': 'gym', 'search_query': 'gym'},
-                'exercise': {'place_type': 'gym', 'search_query': 'fitness center'},
+                'coffee': {'place_type': 'cafe', 'search_query': 'cafe'},
+                'fast food': {'place_type': 'fast_food', 'search_query': 'fast_food'},
+                'food court': {'place_type': 'food_court', 'search_query': 'food_court'},
+                'pub': {'place_type': 'pub', 'search_query': 'pub'},
+                'bar': {'place_type': 'bar', 'search_query': 'bar'},
+                'ice cream': {'place_type': 'ice_cream', 'search_query': 'ice_cream'},
+                
+                # 休闲娱乐 (Leisure & Entertainment)
+                'gym': {'place_type': 'gym', 'search_query': 'fitness_centre'},
+                'fitness': {'place_type': 'gym', 'search_query': 'fitness_centre'},
+                'workout': {'place_type': 'gym', 'search_query': 'fitness_centre'},
+                'exercise': {'place_type': 'gym', 'search_query': 'fitness_centre'},
                 'park': {'place_type': 'park', 'search_query': 'park'},
                 'cinema': {'place_type': 'movie_theater', 'search_query': 'cinema'},
-                'movie': {'place_type': 'movie_theater', 'search_query': 'movie theater'},
+                'movie': {'place_type': 'movie_theater', 'search_query': 'cinema'},
+                'theatre': {'place_type': 'theatre', 'search_query': 'theatre'},
+                'sports': {'place_type': 'stadium', 'search_query': 'sports_centre'},
+                'swimming': {'place_type': 'swimming_pool', 'search_query': 'swimming_pool'},
+                'nightclub': {'place_type': 'night_club', 'search_query': 'nightclub'},
+                
+                # 文化与教育 (Culture & Education)
                 'library': {'place_type': 'library', 'search_query': 'library'},
-                'hospital': {'place_type': 'hospital', 'search_query': 'hospital'},
-                'doctor': {'place_type': 'doctor', 'search_query': 'doctor clinic'},
-                'medical': {'place_type': 'doctor', 'search_query': 'medical center'},
-                'clinic': {'place_type': 'doctor', 'search_query': 'medical clinic'},
-                'shop': {'place_type': 'store', 'search_query': 'retail store'},
-                'shopping': {'place_type': 'store', 'search_query': 'shopping retail'},
-                'mall': {'place_type': 'shopping_mall', 'search_query': 'shopping mall'},
-                'bar': {'place_type': 'bar', 'search_query': 'bar pub'},
-                'pub': {'place_type': 'bar', 'search_query': 'pub'},
+                'museum': {'place_type': 'museum', 'search_query': 'museum'},
+                'art gallery': {'place_type': 'art_gallery', 'search_query': 'gallery'},
+                'gallery': {'place_type': 'art_gallery', 'search_query': 'gallery'},
                 'school': {'place_type': 'school', 'search_query': 'school'},
                 'university': {'place_type': 'university', 'search_query': 'university'},
                 'college': {'place_type': 'university', 'search_query': 'college'},
-                'hair': {'place_type': 'beauty_salon', 'search_query': 'hair salon'},
-                'salon': {'place_type': 'beauty_salon', 'search_query': 'beauty salon'},
-                'barber': {'place_type': 'beauty_salon', 'search_query': 'barber shop'},
-                'grocery store': {'place_type': 'grocery_or_supermarket', 'search_query': 'grocery store'},
-                'convenience store': {'place_type': 'convenience_store', 'search_query': 'convenience store'},
-                'gas station': {'place_type': 'gas_station', 'search_query': 'gas station'},
-                'pharmacy': {'place_type': 'pharmacy', 'search_query': 'pharmacy drugstore'},
-                'drugstore': {'place_type': 'pharmacy', 'search_query': 'drugstore'},
+                
+                # 医疗健康 (Healthcare)
+                'hospital': {'place_type': 'hospital', 'search_query': 'hospital'},
+                'doctor': {'place_type': 'doctor', 'search_query': 'clinic'},
+                'medical': {'place_type': 'medical_center', 'search_query': 'hospital'},
+                'clinic': {'place_type': 'doctor', 'search_query': 'clinic'},
+                'dentist': {'place_type': 'dentist', 'search_query': 'dentist'},
+                'pharmacy': {'place_type': 'pharmacy', 'search_query': 'chemist'},
+                'drugstore': {'place_type': 'pharmacy', 'search_query': 'chemist'},
+                'veterinary': {'place_type': 'veterinary_care', 'search_query': 'veterinary'},
+                
+                # 购物场所 (Shopping)
+                'shop': {'place_type': 'store', 'search_query': 'mall'},
+                'shopping': {'place_type': 'store', 'search_query': 'mall'},
+                'mall': {'place_type': 'shopping_mall', 'search_query': 'mall'},
+                'clothing': {'place_type': 'clothing_store', 'search_query': ' mall'},
+                'shoes': {'place_type': 'shoe_store', 'search_query': 'shoes'},
+                'electronics': {'place_type': 'electronics_store', 'search_query': 'electronics'},
+                'hardware': {'place_type': 'hardware_store', 'search_query': 'hardware'},
+                'furniture': {'place_type': 'furniture_store', 'search_query': 'furniture'},
+                'bookstore': {'place_type': 'book_store', 'search_query': 'books'},
+                'jewelry': {'place_type': 'jewelry_store', 'search_query': 'jewelry'},
+                'toys': {'place_type': 'toy_store', 'search_query': 'toys'},
+                
+                # 个人服务 (Personal Services)
+                'hair': {'place_type': 'beauty_salon', 'search_query': 'beauty'},
+                'salon': {'place_type': 'beauty_salon', 'search_query': 'beauty'},
+                'barber': {'place_type': 'beauty_salon', 'search_query': 'beauty'},
+                'spa': {'place_type': 'spa', 'search_query': 'beauty'},
+                'laundry': {'place_type': 'laundry', 'search_query': 'laundry'},
+                'dry cleaning': {'place_type': 'dry_cleaning', 'search_query': 'dry_cleaning'},
+                
+                # 住宿 (Accommodation)
+                'hotel': {'place_type': 'lodging', 'search_query': 'hotel'},
+                'motel': {'place_type': 'lodging', 'search_query': 'motel'},
+                'hostel': {'place_type': 'lodging', 'search_query': 'hostel'},
+                'guest house': {'place_type': 'lodging', 'search_query': 'guest_house'},
+                
+                # 交通服务 (Transportation)
+                'gas station': {'place_type': 'gas_station', 'search_query': 'gas'},
+                'car repair': {'place_type': 'car_repair', 'search_query': 'car_repair'},
+                'car wash': {'place_type': 'car_wash', 'search_query': 'car_wash'},
+                'parking': {'place_type': 'parking', 'search_query': 'parking'},
+                'bike parking': {'place_type': 'bicycle_parking', 'search_query': 'bicycle_parking'},
+                'bus station': {'place_type': 'bus_station', 'search_query': 'bus_station'},
+                'train station': {'place_type': 'train_station', 'search_query': 'station'},
+                'subway': {'place_type': 'subway_station', 'search_query': 'subway'},
+                'airport': {'place_type': 'airport', 'search_query': 'aerodrome'},
+                
+                # 日常便利设施 (Convenience)
+                'grocery store': {'place_type': 'grocery_or_supermarket', 'search_query': 'retail'},
+                'convenience store': {'place_type': 'convenience_store', 'search_query': 'convenience'},
+                'post office': {'place_type': 'post_office', 'search_query': 'post_office'},
+                
+                # 公共服务 (Public Services)
+                'police': {'place_type': 'police', 'search_query': 'police'},
+                'fire station': {'place_type': 'fire_station', 'search_query': 'fire_station'},
+                'town hall': {'place_type': 'city_hall', 'search_query': 'government'},
+                'courthouse': {'place_type': 'courthouse', 'search_query': 'courthouse'},
+                'embassy': {'place_type': 'embassy', 'search_query': 'diplomatic'},
             }
             
             # 检查描述中是否包含关键场所
@@ -515,52 +585,6 @@ class Activity:
                     if location_type_override:
                         break
             
-            # 对于特定类型的活动，增加特定地点的匹配可能性
-            if not location_type_override:
-                activity_specific_places = {
-                    'dining': {'place_type': 'restaurant', 'search_query': 'restaurant cafe'},
-                    'shopping': {'place_type': 'store', 'search_query': 'shopping retail'},
-                    'recreation': {'place_type': 'park', 'search_query': 'park recreation area'},
-                    'leisure': {'place_type': 'point_of_interest', 'search_query': 'entertainment venue'},
-                    'healthcare': {'place_type': 'doctor', 'search_query': 'doctor medical center'},
-                    'education': {'place_type': 'school', 'search_query': 'education school'},
-                    'social': {'place_type': 'bar', 'search_query': 'social venue cafe'},
-                    'errands': {'place_type': 'store', 'search_query': 'convenience services'}
-                }
-                
-                if activity['activity_type'] in activity_specific_places:
-                    location_type_override = activity_specific_places[activity['activity_type']]['place_type']
-                    search_query_override = activity_specific_places[activity['activity_type']]['search_query']
-            
-            # 使用location_type字段作为备选
-            if not location_type_override and activity['location_type'] and activity['location_type'] != 'other':
-                # 地点类型映射
-                location_type_map = {
-                    'bank': {'place_type': 'bank', 'search_query': 'bank'},
-                    'restaurant': {'place_type': 'restaurant', 'search_query': 'restaurant'},
-                    'cafe': {'place_type': 'cafe', 'search_query': 'cafe'},
-                    'gym': {'place_type': 'gym', 'search_query': 'gym'},
-                    'park': {'place_type': 'park', 'search_query': 'park'},
-                    'store': {'place_type': 'store', 'search_query': 'store'},
-                    'shopping_mall': {'place_type': 'shopping_mall', 'search_query': 'shopping mall'},
-                    'hospital': {'place_type': 'hospital', 'search_query': 'hospital'},
-                    'doctor': {'place_type': 'doctor', 'search_query': 'doctor clinic'},
-                    'school': {'place_type': 'school', 'search_query': 'school'},
-                    'university': {'place_type': 'university', 'search_query': 'university'},
-                    'library': {'place_type': 'library', 'search_query': 'library'},
-                    'bar': {'place_type': 'bar', 'search_query': 'bar pub'},
-                    'beauty_salon': {'place_type': 'beauty_salon', 'search_query': 'beauty salon'},
-                    'pharmacy': {'place_type': 'pharmacy', 'search_query': 'pharmacy'}
-                }
-                
-                if activity['location_type'] in location_type_map:
-                    location_type_override = location_type_map[activity['location_type']]['place_type']
-                    search_query_override = location_type_map[activity['location_type']]['search_query']
-                else:
-                    # 默认使用location_type作为搜索词
-                    location_type_override = 'point_of_interest'
-                    search_query_override = activity['location_type']
-            
             # 调用目标选择器获取目的地信息
             destination_params = {}
             if location_type_override:
@@ -582,7 +606,7 @@ class Activity:
                 memory_patterns,
                 location_type_override=destination_params if destination_params else None
             )
-            
+
             # 更新活动信息
             activity['coordinates'] = location
             activity['distance'] = details.get('distance', 0)

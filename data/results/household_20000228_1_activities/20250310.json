@@ -3,10 +3,25 @@
   "day_of_week": "Monday",
   "activities": [
     {
+      "activity_type": "sleep",
+      "start_time": "00:00",
+      "end_time": "05:26",
+      "description": "Resting to recharge energy for the day ahead.",
+      "location_name": "Home",
+      "location_type": "home",
+      "transport_mode": "No need to travel",
+      "distance": 0,
+      "travel_time": 0,
+      "coordinates": [
+        41.776951,
+        -87.623216
+      ]
+    },
+    {
       "activity_type": "leisure",
       "start_time": "05:26",
-      "end_time": "06:26",
-      "description": "Start the day with some relaxing activities, like reading or watching a TV show to ease into the morning.",
+      "end_time": "07:26",
+      "description": "Watching TV and enjoying a quiet morning at home.",
       "location_name": "Home",
       "location_type": "home",
       "transport_mode": "No need to travel",
@@ -19,24 +34,9 @@
     },
     {
       "activity_type": "dining",
-      "start_time": "06:26",
-      "end_time": "07:00",
-      "description": "Prepare and enjoy a light breakfast at home to energize for the day ahead.",
-      "location_name": "Home",
-      "location_type": "home",
-      "transport_mode": "No need to travel",
-      "distance": 0,
-      "travel_time": 0,
-      "coordinates": [
-        41.776951,
-        -87.623216
-      ]
-    },
-    {
-      "activity_type": "leisure",
-      "start_time": "07:00",
-      "end_time": "08:30",
-      "description": "Engage in a hobby or personal project like drawing, crafting, or writing.",
+      "start_time": "07:26",
+      "end_time": "08:06",
+      "description": "Preparing and enjoying breakfast with a cup of coffee.",
       "location_name": "Home",
       "location_type": "home",
       "transport_mode": "No need to travel",
@@ -49,227 +49,77 @@
     },
     {
       "activity_type": "errands",
-      "start_time": "08:30",
-      "end_time": "09:30",
-      "description": "Go out for some errands, such as visiting the post office and the bank.",
-      "location_name": "Saint Benedict School",
-      "location_type": "other",
-      "transport_mode": "walking",
-      "distance": 0.9165634731578345,
-      "travel_time": 13,
-      "coordinates": [
-        41.7750338,
-        -87.6339386
-      ]
-    },
-    {
-      "activity_type": "shopping",
-      "start_time": "09:30",
-      "end_time": "10:13",
-      "description": "Visit a nearby grocery store for shopping, picking up essential items.",
-      "location_name": "Saint Benedict School",
+      "start_time": "08:06",
+      "end_time": "08:30",
+      "description": "Quick trip to the local grocery store for essentials.",
+      "location_name": "Retail",
       "location_type": "grocery_store",
       "transport_mode": "walking",
-      "distance": 0.0,
-      "travel_time": 2,
+      "distance": 0.11687466832341149,
+      "travel_time": 3,
       "coordinates": [
-        41.7750338,
-        -87.6339386
-      ]
-    },
-    {
-      "activity_type": "dining",
-      "start_time": "10:13",
-      "end_time": "11:00",
-      "description": "Stop at a local caf\u00e9 for a mid-morning snack and coffee.",
-      "location_name": "Saint Benedict School",
-      "location_type": "cafe",
-      "transport_mode": "walking",
-      "distance": 0.0,
-      "travel_time": 2,
-      "coordinates": [
-        41.7750338,
-        -87.6339386
+        41.77722567430746,
+        -87.62457303241831
       ]
     },
     {
       "activity_type": "leisure",
-      "start_time": "11:00",
-      "end_time": "12:00",
-      "description": "Take some time to relax, either by reading a book or enjoying music.",
+      "start_time": "08:30",
+      "end_time": "11:30",
+      "description": "Reading and enjoying a quiet morning at home.",
       "location_name": "Home",
       "location_type": "home",
       "transport_mode": "walking",
-      "distance": 0.9165634731578345,
-      "travel_time": 13,
+      "distance": 0.11687466832341149,
+      "travel_time": 3,
       "coordinates": [
         41.776951,
         -87.623216
+      ]
+    },
+    {
+      "activity_type": "shopping",
+      "start_time": "11:30",
+      "end_time": "12:13",
+      "description": "Visiting a nearby shopping mall to browse and shop.",
+      "location_name": "Mall",
+      "location_type": "shopping_mall",
+      "transport_mode": "walking",
+      "distance": 0.36026392063737,
+      "travel_time": 6,
+      "coordinates": [
+        41.77462627669425,
+        -87.62623783117282
+      ]
+    },
+    {
+      "activity_type": "dining",
+      "start_time": "12:13",
+      "end_time": "12:40",
+      "description": "Having lunch at a cafe in the shopping mall.",
+      "location_name": "Restaurant",
+      "location_type": "cafe",
+      "transport_mode": "walking",
+      "distance": 0.11724097283116783,
+      "travel_time": 3,
+      "coordinates": [
+        41.77565115503924,
+        -87.62590026513918
       ]
     },
     {
       "activity_type": "shopping",
       "start_time": "12:40",
       "end_time": "13:23",
-      "description": "Head to a commercial service location for some shopping, buying clothes or household items.",
-      "location_name": "New Food Mart",
+      "description": "Continuing shopping for clothing and accessories.",
+      "location_name": "Mall",
       "location_type": "retail_store",
       "transport_mode": "walking",
-      "distance": 0.7653146601745443,
-      "travel_time": 11,
+      "distance": 0.4839669551608086,
+      "travel_time": 8,
       "coordinates": [
-        41.7803559,
-        -87.615213
-      ]
-    },
-    {
-      "activity_type": "errands",
-      "start_time": "13:23",
-      "end_time": "13:29",
-      "description": "Quickly visit another store to pick up an item or two.",
-      "location_name": "MLK Jr Dr & 63rd St",
-      "location_type": "retail_store",
-      "transport_mode": "walking",
-      "distance": 0.06228705128308994,
-      "travel_time": 3,
-      "coordinates": [
-        41.7800791,
-        -87.6158646
-      ]
-    },
-    {
-      "activity_type": "dining",
-      "start_time": "13:29",
-      "end_time": "14:00",
-      "description": "Have lunch at home, preparing a fresh and nutritious meal.",
-      "location_name": "Home",
-      "location_type": "home",
-      "transport_mode": "walking",
-      "distance": 0.7030276213333667,
-      "travel_time": 10,
-      "coordinates": [
-        41.776951,
-        -87.623216
-      ]
-    },
-    {
-      "activity_type": "leisure",
-      "start_time": "14:00",
-      "end_time": "15:00",
-      "description": "Spend some time on a hobby or activity like cooking or sketching.",
-      "location_name": "Home",
-      "location_type": "home",
-      "transport_mode": "No need to travel",
-      "distance": 0,
-      "travel_time": 0,
-      "coordinates": [
-        41.776951,
-        -87.623216
-      ]
-    },
-    {
-      "activity_type": "recreation",
-      "start_time": "15:01",
-      "end_time": "16:01",
-      "description": "Go for a walk in a nearby park to get some fresh air and exercise.",
-      "location_name": "Neighborhood Walking Path",
-      "location_type": "park",
-      "transport_mode": "walking",
-      "distance": 0.18774393194789674,
-      "travel_time": 4,
-      "coordinates": [
-        41.777607,
-        -87.6252972
-      ]
-    },
-    {
-      "activity_type": "healthcare",
-      "start_time": "16:02",
-      "end_time": "16:45",
-      "description": "Attend a scheduled doctor's appointment for a routine check-up.",
-      "location_name": "Saint Benedict School",
-      "location_type": "clinic",
-      "transport_mode": "walking",
-      "distance": 0.7732083928979032,
-      "travel_time": 11,
-      "coordinates": [
-        41.7750338,
-        -87.6339386
-      ]
-    },
-    {
-      "activity_type": "leisure",
-      "start_time": "16:45",
-      "end_time": "18:00",
-      "description": "Relax and watch TV or enjoy a hobby at home.",
-      "location_name": "Home",
-      "location_type": "home",
-      "transport_mode": "walking",
-      "distance": 0.9165634731578345,
-      "travel_time": 13,
-      "coordinates": [
-        41.776951,
-        -87.623216
-      ]
-    },
-    {
-      "activity_type": "dining",
-      "start_time": "18:00",
-      "end_time": "19:00",
-      "description": "Prepare and enjoy dinner at home, perhaps trying a new recipe.",
-      "location_name": "Home",
-      "location_type": "home",
-      "transport_mode": "No need to travel",
-      "distance": 0,
-      "travel_time": 0,
-      "coordinates": [
-        41.776951,
-        -87.623216
-      ]
-    },
-    {
-      "activity_type": "social",
-      "start_time": "19:00",
-      "end_time": "21:00",
-      "description": "Invite friends over for a casual evening, enjoying conversation and games.",
-      "location_name": "Home",
-      "location_type": "home",
-      "transport_mode": "No need to travel",
-      "distance": 0,
-      "travel_time": 0,
-      "coordinates": [
-        41.776951,
-        -87.623216
-      ]
-    },
-    {
-      "activity_type": "leisure",
-      "start_time": "21:00",
-      "end_time": "22:30",
-      "description": "Unwind by watching a movie or listening to music to end the day.",
-      "location_name": "Home",
-      "location_type": "home",
-      "transport_mode": "No need to travel",
-      "distance": 0,
-      "travel_time": 0,
-      "coordinates": [
-        41.776951,
-        -87.623216
-      ]
-    },
-    {
-      "activity_type": "sleep",
-      "start_time": "22:30",
-      "end_time": "05:26",
-      "description": "Get a good night's rest to recharge for the next day.",
-      "location_name": "Home",
-      "location_type": "home",
-      "transport_mode": "No need to travel",
-      "distance": 0,
-      "travel_time": 0,
-      "coordinates": [
-        41.776951,
-        -87.623216
+        41.779824634099704,
+        -87.62422705954117
       ]
     }
   ]

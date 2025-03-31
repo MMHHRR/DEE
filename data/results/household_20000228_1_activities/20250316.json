@@ -5,8 +5,8 @@
     {
       "activity_type": "leisure",
       "start_time": "05:26",
-      "end_time": "06:06",
-      "description": "Morning routine with light reading and coffee to start the day.",
+      "end_time": "07:06",
+      "description": "Enjoyed reading and listening to music at home.",
       "location_name": "Home",
       "location_type": "home",
       "transport_mode": "No need to travel",
@@ -19,9 +19,69 @@
     },
     {
       "activity_type": "dining",
-      "start_time": "06:06",
-      "end_time": "06:36",
-      "description": "Breakfast at home, enjoying a simple meal of eggs and toast.",
+      "start_time": "07:06",
+      "end_time": "07:36",
+      "description": "Prepared and had breakfast at home.",
+      "location_name": "Home",
+      "location_type": "home",
+      "transport_mode": "No need to travel",
+      "distance": 0,
+      "travel_time": 0,
+      "coordinates": [
+        41.776951,
+        -87.623216
+      ]
+    },
+    {
+      "activity_type": "errands",
+      "start_time": "07:36",
+      "end_time": "08:00",
+      "description": "Quick trip to the bank for some transactions.",
+      "location_name": "Bank",
+      "location_type": "bank",
+      "transport_mode": "walking",
+      "distance": 0.11687466832341149,
+      "travel_time": 3,
+      "coordinates": [
+        41.77722567430746,
+        -87.62457303241831
+      ]
+    },
+    {
+      "activity_type": "shopping",
+      "start_time": "08:00",
+      "end_time": "08:43",
+      "description": "Grocery shopping for the week at the local supermarket.",
+      "location_name": "Grocery",
+      "location_type": "grocery_store",
+      "transport_mode": "walking",
+      "distance": 0.27624699372700384,
+      "travel_time": 5,
+      "coordinates": [
+        41.77953818322452,
+        -87.62334984158385
+      ]
+    },
+    {
+      "activity_type": "leisure",
+      "start_time": "08:43",
+      "end_time": "10:43",
+      "description": "Watched a movie at home and relaxed.",
+      "location_name": "Home",
+      "location_type": "home",
+      "transport_mode": "walking",
+      "distance": 0.287571161103077,
+      "travel_time": 5,
+      "coordinates": [
+        41.776951,
+        -87.623216
+      ]
+    },
+    {
+      "activity_type": "dining",
+      "start_time": "10:43",
+      "end_time": "11:13",
+      "description": "Prepared and enjoyed a light lunch at home.",
       "location_name": "Home",
       "location_type": "home",
       "transport_mode": "No need to travel",
@@ -34,243 +94,32 @@
     },
     {
       "activity_type": "recreation",
-      "start_time": "06:36",
-      "end_time": "07:36",
-      "description": "Morning jog around the neighborhood park for some exercise.",
+      "start_time": "11:13",
+      "end_time": "12:13",
+      "description": "Took a walk in the nearby park for exercise.",
       "location_name": "Neighborhood Walking Path",
       "location_type": "park",
       "transport_mode": "walking",
-      "distance": 0.30121414749368863,
-      "travel_time": 6,
-      "coordinates": [
-        41.7774036,
-        -87.6267882
-      ]
-    },
-    {
-      "activity_type": "leisure",
-      "start_time": "07:36",
-      "end_time": "09:36",
-      "description": "Relaxing and watching TV at home, catching up on a series.",
-      "location_name": "Home",
-      "location_type": "home",
-      "transport_mode": "walking",
-      "distance": 0.30121414749368863,
-      "travel_time": 6,
-      "coordinates": [
-        41.776951,
-        -87.623216
-      ]
-    },
-    {
-      "activity_type": "errands",
-      "start_time": "09:36",
-      "end_time": "10:36",
-      "description": "Run errands, visit the bank for a quick transaction.",
-      "location_name": "Neighborhood Walking Path",
-      "location_type": "bank",
-      "transport_mode": "walking",
-      "distance": 0.46406559657616836,
-      "travel_time": 8,
-      "coordinates": [
-        41.7748324,
-        -87.6280269
-      ]
-    },
-    {
-      "activity_type": "shopping",
-      "start_time": "10:36",
-      "end_time": "11:16",
-      "description": "Shopping for groceries at the local grocery store.",
-      "location_name": "Saint Benedict School",
-      "location_type": "grocery_store",
-      "transport_mode": "walking",
-      "distance": 0.4920197326015457,
-      "travel_time": 8,
-      "coordinates": [
-        41.7750338,
-        -87.6339386
-      ]
-    },
-    {
-      "activity_type": "dining",
-      "start_time": "11:16",
-      "end_time": "12:16",
-      "description": "Lunch at home, preparing a fresh salad and sandwich.",
-      "location_name": "Home",
-      "location_type": "home",
-      "transport_mode": "walking",
-      "distance": 0.9165634731578345,
-      "travel_time": 13,
-      "coordinates": [
-        41.776951,
-        -87.623216
-      ]
-    },
-    {
-      "activity_type": "leisure",
-      "start_time": "12:16",
-      "end_time": "13:16",
-      "description": "Reading a book and relaxing at home.",
-      "location_name": "Home",
-      "location_type": "home",
-      "transport_mode": "No need to travel",
-      "distance": 0,
-      "travel_time": 0,
-      "coordinates": [
-        41.776951,
-        -87.623216
-      ]
-    },
-    {
-      "activity_type": "travel",
-      "start_time": "13:16",
-      "end_time": "13:22",
-      "description": "Traveling to the nearby shopping mall for some light shopping.",
-      "location_name": "Citgo",
-      "location_type": "transit_station",
-      "transport_mode": "walking",
-      "distance": 0.44875752156572674,
-      "travel_time": 7,
-      "coordinates": [
-        41.7730561,
-        -87.6246512
-      ],
-      "from_location": [
-        41.776951,
-        -87.623216
-      ],
-      "to_location": [
-        41.7730561,
-        -87.6246512
-      ]
-    },
-    {
-      "activity_type": "shopping",
-      "start_time": "13:22",
-      "end_time": "14:22",
-      "description": "Shopping at the mall, browsing clothing stores.",
-      "location_name": "Pinkie April Snow Enterprises",
-      "location_type": "shopping_mall",
-      "transport_mode": "walking",
-      "distance": 1.3113740511103524,
-      "travel_time": 18,
-      "coordinates": [
-        41.765014,
-        -87.6131042
-      ]
-    },
-    {
-      "activity_type": "dining",
-      "start_time": "14:22",
-      "end_time": "15:22",
-      "description": "Snack break at a cafe inside the mall, having coffee and dessert.",
-      "location_name": "Cafe",
-      "location_type": "cafe",
-      "transport_mode": "walking",
-      "distance": 0.6445773949093361,
+      "distance": 0.6541471981727595,
       "travel_time": 10,
       "coordinates": [
-        41.76207039853123,
-        -87.60642395267162
-      ]
-    },
-    {
-      "activity_type": "travel",
-      "start_time": "15:22",
-      "end_time": "15:32",
-      "description": "Returning home from the mall.",
-      "location_name": "Firehouse Bakery & Grill",
-      "location_type": "transit_station",
-      "transport_mode": "walking",
-      "distance": 0.37490717301027443,
-      "travel_time": 6,
-      "coordinates": [
-        41.7587178,
-        -87.6069477
-      ],
-      "from_location": [
-        41.76207039853123,
-        -87.60642395267162
-      ],
-      "to_location": [
-        41.7587178,
-        -87.6069477
-      ]
-    },
-    {
-      "activity_type": "leisure",
-      "start_time": "15:32",
-      "end_time": "16:32",
-      "description": "Watching a movie at home, enjoying some downtime.",
-      "location_name": "Home",
-      "location_type": "home",
-      "transport_mode": "walking",
-      "distance": 2.4353778531379624,
-      "travel_time": 31,
-      "coordinates": [
-        41.776951,
-        -87.623216
+        41.77188090460316,
+        -87.61921256961853
       ]
     },
     {
       "activity_type": "errands",
-      "start_time": "16:32",
-      "end_time": "17:02",
-      "description": "Quick trip to the post office to mail a letter.",
-      "location_name": "Christian Love Baptist Church",
+      "start_time": "12:13",
+      "end_time": "12:37",
+      "description": "Stopped at the post office to send a package.",
+      "location_name": "The UPS Store",
       "location_type": "post_office",
       "transport_mode": "walking",
-      "distance": 0.43848358173636826,
-      "travel_time": 7,
+      "distance": 1.5294075076575209,
+      "travel_time": 20,
       "coordinates": [
-        41.7808672,
-        -87.6225495
-      ]
-    },
-    {
-      "activity_type": "dining",
-      "start_time": "17:02",
-      "end_time": "18:02",
-      "description": "Dinner at home, preparing a hearty meal of pasta and vegetables.",
-      "location_name": "Home",
-      "location_type": "home",
-      "transport_mode": "walking",
-      "distance": 0.43848358173636826,
-      "travel_time": 7,
-      "coordinates": [
-        41.776951,
-        -87.623216
-      ]
-    },
-    {
-      "activity_type": "leisure",
-      "start_time": "18:02",
-      "end_time": "20:02",
-      "description": "Relaxing at home, playing a video game or working on a hobby.",
-      "location_name": "Home",
-      "location_type": "home",
-      "transport_mode": "No need to travel",
-      "distance": 0,
-      "travel_time": 0,
-      "coordinates": [
-        41.776951,
-        -87.623216
-      ]
-    },
-    {
-      "activity_type": "sleep",
-      "start_time": "20:02",
-      "end_time": "05:26",
-      "description": "Night sleep to rest and recharge for the next day.",
-      "location_name": "Home",
-      "location_type": "home",
-      "transport_mode": "No need to travel",
-      "distance": 0,
-      "travel_time": 0,
-      "coordinates": [
-        41.776951,
-        -87.623216
+        41.7805882,
+        -87.6049618
       ]
     }
   ]
