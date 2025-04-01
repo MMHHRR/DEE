@@ -1,6 +1,6 @@
 # LLM-based Mobility Simulation
 
-This project simulates human daily mobility patterns using LLM (Large Language Model) for activity generation and trajectory planning.
+This project simulates human daily mobility patterns using LLM (Large Language Model) for activity generation.
 
 ## Overview
 
@@ -10,11 +10,9 @@ The simulation creates realistic daily activity schedules and travel patterns fo
 
 ## Key Features
 
-- Person-centric simulation with demographic attributes
+- Person-centric simulation with demographic attributes and historical mobility patterns
 - LLM-based activity scheduling and destination selection
 - Realistic travel patterns with various transportation modes
-- Visualization of daily trajectories
-- Historical data loading from CSV files (optional)
 
 ## Project Structure
 
@@ -36,7 +34,11 @@ DEEPBRICKS_API_KEY=your_openai_api_key
 DEEPBRICKS_BASE_URL=https://api.openai.com/v1
 ```
 
-2. Customize persona data in `data/personas.json`
+2. Chicago travel data in `data/....csv`
+- `data/gps_place.csv` mobility history
+- `data/household.csv` houshold income
+- `data/location_new.csv` location types (updated)
+- `data/person.csv` demographic attribute
 
 3. Run the simulation:
 ```
@@ -51,28 +53,21 @@ See `requirements.txt` for dependencies. Main requirements:
 - Python 3.8+
 - OpenAI API (or compatible)
 - GeoPy
-- Folium (for visualization)
 - Matplotlib
 - Pandas
 
 ## Configuration
 
 You can modify simulation parameters in `config.py`:
-- Number of days to simulate
-- Starting date
-- Activity types and transportation modes
-- LLM model settings
-- Prompt templates
+- Number of days to simulate (def=7days)
+- Number of days to memory (def=2days)
+- LLM model settings (model, maxtoken, temprature)
+- Prompt templates (IMPORTANT)
 
 ## TODO List
-📌实现大规模LLM-Based Agent日程模拟（约4S每天日程）  
-📌与芝加哥出行数据进行对齐（对个体的历史移动进行分析）     
-🔴需要检查一下memory对历史pattern是否正确输入（***）    
-🔴实现轨迹计算并保存+道路感知？（会增加运算时间）（***）    
-🔴整合暴露计算？（需要考虑shap文件结合+暴露计算（涉及时间加权等内容））（***）     
-🔴模拟加速，加入缓存和并行（**）
+- Construct the evaluation metric (IMPORTANT)
+- Compare to different model (Statistic Distribution)
+- Add green exposure calculation (shp file need)
+- Writing paper (ASAP)
 
-
-## License
-
-[Your license information]
+## Paper Coming Soon🤗
