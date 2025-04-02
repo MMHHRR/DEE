@@ -846,7 +846,7 @@ class Destination:
                         
                         # Skip if location is too far
                         estimated_time_minutes = (distance / 30) * 60
-                        if available_minutes and estimated_time_minutes > available_minutes * 0.4:
+                        if available_minutes and estimated_time_minutes > available_minutes * 0.5:
                             continue
                         
                         # Get name and address
@@ -935,17 +935,17 @@ class Destination:
             price_preference = 2
             
         # Normalize rating (40%)
-        rating_factor = (min(5.0, max(1.0, rating)) / 5.0) * 0.4
+        rating_factor = (min(5.0, max(1.0, rating)) / 5.0) * 0.3
         
         # Distance factor (20%) - 使用钟形曲线，不再单纯偏好最短距离
         # 钟形曲线中心设在max_distance的1/3处，这样中等距离会得到最高分
         optimal_distance = max_distance / 3
         distance_variance = (max_distance / 2) ** 2
-        distance_factor = math.exp(-((distance - optimal_distance) ** 2) / (2 * distance_variance)) * 0.2
+        distance_factor = math.exp(-((distance - optimal_distance) ** 2) / (2 * distance_variance)) * 0.4
         
         # Price match (40%) - 价格等级与偏好匹配程度
         price_match = 1 - (abs(price_level - price_preference) / 4)
-        price_factor = max(0, price_match) * 0.4
+        price_factor = max(0, price_match) * 0.3
         
         return rating_factor + distance_factor + price_factor
 

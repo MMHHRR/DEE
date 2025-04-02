@@ -61,17 +61,13 @@ class Activity:
             'travel_times': {},        # Travel times for different activities
             'activity_durations': {},  # Duration of different activities
             'distances': {},           # Travel distances
-            'transport_modes': {},     # Transport mode preferences
-            'analyzed_dates': []       # 记录分析了哪些日期的活动
+            'transport_modes': {}     # Transport mode preferences
         }
         
         # Try LLM summary for each day in the recent days only
         for day_index, day in enumerate(recent_days):
             # Record the analyzed date
             date = day.get('date', 'unknown')
-            
-            if date not in patterns['analyzed_dates']:
-                patterns['analyzed_dates'].append(date)
                 
             filtered_activities = []
             
@@ -150,7 +146,84 @@ class Activity:
                     else:
                         patterns['transport_modes'][mode] += 1
         
-        return patterns
+        # Clean the memory patterns to remove empty values and zero values before returning
+        return self._clean_memory_patterns(patterns)
+        
+    def _clean_memory_patterns(self, patterns):
+        """
+        Clean memory patterns by removing empty values and zero values.
+        Round decimal values to 3 decimal places for better readability.
+        
+        Args:
+            patterns: Dictionary containing memory patterns
+            
+        Returns:
+            dict: Cleaned memory patterns dictionary
+        """
+        cleaned_patterns = {}
+        
+        # Process each key in the patterns dictionary
+        for key, value in patterns.items():
+            if isinstance(value, dict):
+                # Clean nested dictionaries
+                cleaned_dict = {}
+                for k, v in value.items():
+                    # Skip empty values and zero values
+                    if v and v != 0:
+                        cleaned_dict[k] = v
+                if cleaned_dict:
+                    cleaned_patterns[key] = cleaned_dict
+            elif isinstance(value, list):
+                # Clean lists based on the key type
+                if key == 'summaries':
+                    # For summaries, keep non-empty strings
+                    cleaned_list = [item for item in value if item]
+                else:
+                    # For other lists, remove zeros and empty values
+                    cleaned_list = []
+                    for item in value:
+                        if item and item != 0:
+                            # Round float values to 3 decimal places if it's in the distances dictionary
+                            if key == 'distances' and isinstance(item, float):
+                                item = round(item, 3)
+                            cleaned_list.append(item)
+                
+                if cleaned_list:
+                    cleaned_patterns[key] = cleaned_list
+            elif value and value != 0:
+                # Keep non-empty and non-zero scalar values
+                cleaned_patterns[key] = value
+        
+        # Special handling for nested dictionaries with lists that might contain zeros
+        if 'distances' in cleaned_patterns:
+            distances = cleaned_patterns['distances']
+            for activity_type, distance_list in list(distances.items()):
+                # Round all values to 3 decimal places and remove zeros
+                rounded_distances = [round(d, 3) for d in distance_list if d > 0]
+                if rounded_distances:
+                    distances[activity_type] = rounded_distances
+                else:
+                    del distances[activity_type]
+                    
+        if 'travel_times' in cleaned_patterns:
+            travel_times = cleaned_patterns['travel_times']
+            for activity_type, time_list in list(travel_times.items()):
+                # Remove all zero values
+                filtered_times = [t for t in time_list if t > 0]
+                if filtered_times:
+                    travel_times[activity_type] = filtered_times
+                else:
+                    del travel_times[activity_type]
+        
+        # Make sure we're not storing any activity types with empty lists
+        for dict_key in ['time_preferences', 'travel_times', 'activity_durations', 'distances']:
+            if dict_key in cleaned_patterns:
+                nested_dict = cleaned_patterns[dict_key]
+                for activity_type in list(nested_dict.keys()):
+                    if not nested_dict[activity_type]:
+                        del nested_dict[activity_type]
+        
+        return cleaned_patterns
 
     def _generate_activities_summary(self, activities, persona=None):
         """
@@ -202,6 +275,10 @@ class Activity:
         memory_patterns = None
         if hasattr(persona, 'memory') and persona.memory and persona.memory.days:
             memory_patterns = self.analyze_memory_patterns(persona.memory, persona)
+
+        print('--------------------------------')
+        print(memory_patterns)
+        print('--------------------------------')
         
         # Check if it's a weekend, get weekend/weekday activity preferences from history
         day_of_week = get_day_of_week(date)
@@ -210,9 +287,9 @@ class Activity:
         # Stage 1: Generate basic activities with LLM
         basic_activities = self._generate_activities_with_llm(persona, date, day_of_week, memory_patterns, is_weekend)
 
-        print('--------------------------------')
-        print(basic_activities)
-        print('--------------------------------')
+        # print('--------------------------------')
+        # print(basic_activities)
+        # print('--------------------------------')
         
         # Initialize destination selector if needed
         if not hasattr(self, 'destination_selector'):

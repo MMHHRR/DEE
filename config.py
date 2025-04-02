@@ -112,12 +112,12 @@ You are simulating the daily activity schedule for a person with the following c
 
 Based on this information, generate a realistic daily schedule for this person, MUST START from 00:00 to END at 23:59. Include at least 3-5 activities (MUST NOT to exceed 8 activities) throughout the day start at home, including mandatory activities (like working, dining, sleeping) and discretionary activities. MUST consider the memory patterns, MAKE SURE the time is continuous and there is no blank window.
 
-IMPORTANT RULES FOR DIVERSEACTIVITY DURATIONS (BASED ON Memory Patterns: 'activity_durations'):
+IMPORTANT FOR DIVERSE ACTIVITY DURATIONS (BASED ON Memory Patterns: 'activity_durations'):
 - Short activities (15-30 minutes)
 - Medium duration activities (30-60 minutes)
 - Long duration activities (60-120 minutes or more)
 
-IMPORTANT RULES FOR DIVERSE LOCATION DISTANCES (BASED ON Memory Patterns: 'distances'):
+IMPORTANT FOR DIVERSE DISTANCES (BASED ON Memory Patterns: 'distances'):
 - Short distance travel (≤2 km)
 - Medium distance travel (2-10 km)
 - Long distance travel (≥10 km or more)
@@ -204,7 +204,7 @@ Based on this information, especially considering the historical behavior patter
 3. Distance preference (on a scale of 1-10, where 1 means very close to current location and 10 means can be quite far)
 4. Any specific features or amenities this person would look for
 
-IMPORTANT RULES FOR DIVERSE DISTANCES PREFERENCE (BASED ON MEMORY PATTERNS):
+IMPORTANT FOR DIVERSE DISTANCES PREFERENCE  (BASED ON Memory Patterns: 'distances'):
 - Short distance travel (≤2 km): 1-3
 - Medium distance travel (2-10 km): 4-7
 - Long distance travel (≥10 km): 8-10
