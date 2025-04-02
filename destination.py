@@ -479,10 +479,14 @@ class Destination:
         """
         try:
             # Validate inputs
-            if not current_location or not isinstance(current_location, tuple) or len(current_location) != 2:
+            if not current_location or not isinstance(current_location, (tuple, list)) or len(current_location) != 2:
                 print(f"Invalid current_location format: {current_location}, using fallback")
                 # Use a default location if the input is invalid
                 return self._generate_fallback_location(max_radius)
+            
+            # Convert list to tuple if needed for consistency
+            if isinstance(current_location, list):
+                current_location = tuple(current_location)
                 
             # Verify destination_type is a valid dictionary
             if not destination_type or not isinstance(destination_type, dict):

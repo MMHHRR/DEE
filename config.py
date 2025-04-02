@@ -18,8 +18,8 @@ USE_DEEPBRICKS_API = True  # Always use DeepBricks API
 
 # LLM Configuration
 LLM_MODEL = "gpt-4o-mini"
-LLM_TEMPERATURE = 0.7
-LLM_MAX_TOKENS = 800
+LLM_TEMPERATURE = 0.5
+LLM_MAX_TOKENS = 650
 
 # Simulation Parameters
 NUM_DAYS_TO_SIMULATE = 3
@@ -110,17 +110,17 @@ You are simulating the daily activity schedule for a person with the following c
 - Work location: {work_location}
 - Memory patterns: {memory_patterns}
 
-Based on this information, generate a realistic daily schedule for this person, from morning to evening. Include at least 3-5 activities throughout the day start at home, including mandatory activities (like working, dining, sleeping) and discretionary activities. MUST consider the memory patterns, MAKE SURE the time is continuous and there is no blank window.
+Based on this information, generate a realistic daily schedule for this person, MUST START from 00:00 to END at 23:59. Include at least 3-5 activities (MUST NOT to exceed 8 activities) throughout the day start at home, including mandatory activities (like working, dining, sleeping) and discretionary activities. MUST consider the memory patterns, MAKE SURE the time is continuous and there is no blank window.
 
-IMPORTANT RULES FOR DIVERSEACTIVITY DURATIONS (BASED ON MEMORY PATTERNS):
+IMPORTANT RULES FOR DIVERSEACTIVITY DURATIONS (BASED ON Memory Patterns: 'activity_durations'):
 - Short activities (15-30 minutes)
-- Medium duration activities (1-3 hours)
-- Long duration activities (4+ hours)
+- Medium duration activities (30-60 minutes)
+- Long duration activities (60-120 minutes or more)
 
-IMPORTANT RULES FOR DIVERSE TRAVEL DISTANCES (BASED ON MEMORY PATTERNS):
+IMPORTANT RULES FOR DIVERSE LOCATION DISTANCES (BASED ON Memory Patterns: 'distances'):
 - Short distance travel (≤2 km)
 - Medium distance travel (2-10 km)
-- Long distance travel (≥10 km)
+- Long distance travel (≥10 km or more)
 
 IMPORTANT RULES FOR ACTIVITY TYPES:
 - "sleep": ONLY for sleeping activities (night sleep, naps)

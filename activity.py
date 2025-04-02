@@ -37,11 +37,11 @@ class Activity:
         self.activity_queue = []  # For batch processing of activities
         self.config = config  # Store config for destination selector
     
-    @cached
     def analyze_memory_patterns(self, memory, persona=None):
         """
         Analyze the activity patterns in the historical memory.
         Try to use LLM summary first, fallback to basic statistics if LLM fails.
+        Only analyze the most recent memory_days days of data, not all historical data.
         
         Args:
             memory: Memory object, containing historical activity records
@@ -50,6 +50,10 @@ class Activity:
         Returns:
             dict: Dictionary containing activity pattern analysis results
         """
+        # Only analyze the most recent memory_days days of data, not all historical data.
+        memory_days_limit = memory.memory_days
+        recent_days = memory.days[-memory_days_limit:] if len(memory.days) > memory_days_limit else memory.days
+        
         patterns = {
             'summaries': [],  # LLM generated summaries
             'frequent_locations': {},  # Frequent locations (fallback)
@@ -57,13 +61,29 @@ class Activity:
             'travel_times': {},        # Travel times for different activities
             'activity_durations': {},  # Duration of different activities
             'distances': {},           # Travel distances
-            'transport_modes': {}      # Transport mode preferences
+            'transport_modes': {},     # Transport mode preferences
+            'analyzed_dates': []       # 记录分析了哪些日期的活动
         }
         
-        # Try LLM summary for each day
-        for day in memory.days:
-            # Filter out 3 AM data
-            filtered_activities = [activity for activity in day['activities'] if activity.get('start_time') != '03:00']
+        # Try LLM summary for each day in the recent days only
+        for day_index, day in enumerate(recent_days):
+            # Record the analyzed date
+            date = day.get('date', 'unknown')
+            
+            if date not in patterns['analyzed_dates']:
+                patterns['analyzed_dates'].append(date)
+                
+            filtered_activities = []
+            
+            for activity in day['activities']:
+                # Skip 3 AM data and 24-hour activities
+                actdur = activity.get('actdur', 0)
+                arrtime = activity.get('arrtime', '')
+                start_time = activity.get('start_time', '')
+                
+                if (actdur != 1440 and arrtime != '03:00') and (start_time != '03:00'):
+                    filtered_activities.append(activity)
+            
             day['activities'] = filtered_activities
             try:
                 summary = self._generate_activities_summary(filtered_activities)
@@ -72,52 +92,58 @@ class Activity:
             except Exception as e:
                 print(f"LLM summary generation failed: {e}")
 
-            # 无论LLM是否成功,都收集统计信息
+            # Collect statistics regardless of whether LLM summary succeeded
             for activity in filtered_activities:
-                # 收集位置频率
-                location = activity.get('location_type', 'unknown')
-                if location in patterns['frequent_locations']:
-                    patterns['frequent_locations'][location] += 1
+                # Collect location frequency
+                location_type = activity.get('location_type', 'unknown')
+                if location_type in patterns['frequent_locations']:
+                    patterns['frequent_locations'][location_type] += 1
                 else:
-                    patterns['frequent_locations'][location] = 1
-                    
-                activity_type = activity.get('activity_type')
-                start_time = activity.get('start_time')
+                    patterns['frequent_locations'][location_type] = 1
                 
-                # 收集时间偏好
+                # Get activity type - handle both formats (CSV and LLM generated)
+                activity_type = activity.get('activity_type', activity.get('actype', 'unknown'))
+                
+                # Get start time - handle both formats
+                start_time = activity.get('start_time', activity.get('arrtime', ''))
+                
+                # Collect time preferences
                 if activity_type not in patterns['time_preferences']:
                     patterns['time_preferences'][activity_type] = []
-                patterns['time_preferences'][activity_type].append(start_time)
+                if start_time:
+                    patterns['time_preferences'][activity_type].append(start_time)
                 
-                # 收集行程时间
-                travel_time = activity.get('travel_time', 0)
+                # Collect travel times - handle both formats
+                travel_time = activity.get('travel_time', activity.get('travtime', 0))
                 if activity_type not in patterns['travel_times']:
                     patterns['travel_times'][activity_type] = []
                 patterns['travel_times'][activity_type].append(travel_time)
                 
-                # 收集活动持续时间
-                duration = activity.get('activity_duration', 0)
+                # Collect activity durations - handle both formats
+                duration = activity.get('activity_duration', activity.get('actdur', 0))
+                if not duration and 'start_time' in activity and 'end_time' in activity:
+                    # Calculate duration if start and end times are available
+                    try:
+                        from utils import time_difference_minutes
+                        duration = time_difference_minutes(activity['start_time'], activity['end_time'])
+                    except:
+                        duration = 0
+                
                 if activity_type not in patterns['activity_durations']:
                     patterns['activity_durations'][activity_type] = []
                 patterns['activity_durations'][activity_type].append(duration)
-                if duration > 240:  # 4小时以上的活动
-                    for _ in range(3):
-                        patterns['activity_durations'][activity_type].append(duration)
                 
-                # 收集距离信息
+                # Collect distance information - handle both formats
                 distance = activity.get('distance', 0)
                 if activity_type not in patterns['distances']:
                     patterns['distances'][activity_type] = []
-                # 只添加非负的距离值
+                # Only add non-negative distance values
                 if distance >= 0:
                     patterns['distances'][activity_type].append(distance)
-                if distance > 10:  # 10公里以上的出行
-                    for _ in range(3):
-                        patterns['distances'][activity_type].append(distance)
                 
-                # 收集交通方式
-                mode = activity.get('transport_mode', 'unknown')
-                # 只记录非None的交通方式
+                # Collect transport modes - handle both formats
+                mode = activity.get('transport_mode', activity.get('transportmode', 'unknown'))
+                # Only record non-None transport modes
                 if mode is not None and mode != 'unknown':
                     if mode not in patterns['transport_modes']:
                         patterns['transport_modes'][mode] = 1
@@ -145,7 +171,7 @@ class Activity:
                 model=self.model,
                 messages=[
                     {"role": "system", "content": "You are a helpful assistant."},
-                    {"role": "user", "content": f"Please summarize the following activities for the day in a concise, coherent paragraph: {activities_json}"}
+                    {"role": "user", "content": f"Please summarize the following activities for the day in a concise, coherent paragraph, MUST NOT to exceed 100 words: {activities_json}"}
                 ],
                 max_tokens=100,  # Reduced for faster response
                 temperature=self.temperature
@@ -157,7 +183,6 @@ class Activity:
             print(f"Error generating LLM summary: {e}")
             return "Unable to generate activity summary."
     
-    @cached
     def generate_daily_schedule(self, persona, date):
         """
         Generate a daily schedule for a given persona using a three-stage approach:
@@ -185,9 +210,9 @@ class Activity:
         # Stage 1: Generate basic activities with LLM
         basic_activities = self._generate_activities_with_llm(persona, date, day_of_week, memory_patterns, is_weekend)
 
-        # print('--------------------------------')
-        # print(basic_activities)
-        # print('--------------------------------')
+        print('--------------------------------')
+        print(basic_activities)
+        print('--------------------------------')
         
         # Initialize destination selector if needed
         if not hasattr(self, 'destination_selector'):
@@ -202,6 +227,10 @@ class Activity:
 
         # Stage 2: Calculate actual destinations and distances
         activities_with_destinations = self._add_destinations_and_distances(persona, basic_activities, date, day_of_week, memory_patterns)
+
+        # print('--------------------------------')
+        # print(activities_with_destinations)
+        # print('--------------------------------')
 
         return activities_with_destinations
         
@@ -702,11 +731,50 @@ class Activity:
             # Extract activities from the response
             activities = self._extract_activities_from_text(response.choices[0].message.content)
 
+            # Normalize activities to ensure they start at 00:00 and end at 23:59
+            activities = self._normalize_daily_activities(activities)
+
             return activities
             
         except Exception as e:
             print(f"Error generating activities: {e}")
             return self._generate_default_activities(persona)
+    
+    def _normalize_daily_activities(self, activities):
+        """
+        Ensure that the day's activities start at 00:00 and end at 23:59.
+        
+        Args:
+            activities: List of activity dictionaries
+            
+        Returns:
+            list: Normalized list of activities
+        """
+        if not activities:
+            return activities
+            
+        # Sort activities by start time
+        activities = sorted(activities, key=lambda x: x['start_time'])
+        
+        # Check if the first activity starts at 00:00
+        if activities[0]['start_time'] != '00:00':
+            # Adjust the first activity to start at 00:00
+            activities[0]['start_time'] = '00:00'
+        
+        # Check if the last activity ends at 23:59
+        last_activity = activities[-1]
+        if last_activity['end_time'] != '23:59':
+            # Add a new activity from the last activity's end time to 23:59
+            new_activity = {
+                'activity_type': 'leisure',
+                'start_time': last_activity['end_time'],
+                'end_time': '23:59',
+                'description': 'Relaxing at home before bedtime.',
+                'location_type': 'home'
+            }
+            activities.append(new_activity)
+        
+        return activities
     
     def _format_time(self, time_str):
         """
@@ -963,10 +1031,10 @@ class Activity:
             list: List of default activities
         """
         # Basic schedule
-        return [
+        default_activities = [
             {
                 'activity_type': 'sleep',
-                'start_time': '03:00',
+                'start_time': '00:00',
                 'end_time': '08:00',
                 'description': 'Sleeping at home',
                 'location_type': 'home'
@@ -988,8 +1056,11 @@ class Activity:
             {
                 'activity_type': 'sleep',
                 'start_time': '22:00',
-                'end_time': '27:00',
+                'end_time': '23:59',
                 'description': 'Sleeping at home',
                 'location_type': 'home'
             }
         ]
+        
+        # Normalize the default activities to ensure they start at 00:00 and end at 23:59
+        return self._normalize_daily_activities(default_activities)

@@ -230,7 +230,7 @@ class Persona:
                         elif loc_type == 3:
                             location_type = "school"
                         elif loc_type == 4:
-                            location_type = "transit"
+                            location_type = "transit station"
                         elif loc_type == 5:
                             location_type = "Residential & Community"
                         elif loc_type == 6:
@@ -412,7 +412,7 @@ class Persona:
             return "home"
         elif location_type == "work":
             return "work"
-        elif location_type == "transit":
+        elif location_type == "transit Station":
             return "travel"
         elif location_type == "Education & Culture":
             return "education"

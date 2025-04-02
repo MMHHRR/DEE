@@ -160,20 +160,41 @@ def simulate_persona(persona_data, num_days=7, start_date=None, memory_days=2, h
         memory = Memory(persona.id, memory_days=memory_days)
         memory.initialize_persona(persona)
         
+        # Assign the memory object to persona, ensuring the same memory object is always used
+        persona.memory = memory
+        
         # Try to load historical data if CSV files exist
         try:
             if os.path.exists(PERSON_CSV_PATH) and os.path.exists(LOCATION_CSV_PATH) and os.path.exists(GPS_PLACE_CSV_PATH) and os.path.exists(HOUSEHOLD_CSV_PATH):
-                print(f"Attempting to load historical data for {persona.name}...")
                 
                 if persona.load_historical_data(household_id=household_id, person_id=person_id):
                     print(f"Successfully loaded historical data for household ID {household_id}, person ID {person_id}")
-                    # 在加载历史数据后，更新memory中的persona信息，确保最新的家庭坐标被使用
+                    
+                    # Merge the days data from load_historical_data into our memory
+                    if hasattr(persona, 'memory') and persona.memory and persona.memory.days:
+                        # Save the original CSV loaded days data
+                        csv_loaded_days = persona.memory.days
+                        
+                        # If the CSV loaded memory is not the same object as our memory
+                        if id(persona.memory) != id(memory):                            
+                            # Merge the CSV loaded days data into our memory
+                            memory.days.extend(csv_loaded_days)
+                            memory.initialize_persona(persona)
+                            persona.memory = memory
+                            
+                        else:
+                            print("CSV data already in the same memory object")
+                    else:
+                        print("No historical days loaded from CSV")
+                        
+                    # Update the persona information in memory, ensuring the latest household coordinates are used
                     memory.initialize_persona(persona)
                 else:
                     print(f"Failed to load historical data for household ID {household_id}, person ID {person_id}")
 
         except Exception as load_error:
             print(f"Error loading historical data: {load_error}")
+            traceback.print_exc()
         
         # Generate date range for simulation
         date_range = generate_date_range(start_date, num_days)
@@ -189,7 +210,7 @@ def simulate_persona(persona_data, num_days=7, start_date=None, memory_days=2, h
     except Exception as e:
         print(f"Error in persona simulation: {e}")
         traceback.print_exc()
-        return None    
+        return None
 
 
 def load_household_ids():
