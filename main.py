@@ -245,6 +245,8 @@ def main(args=None):
                               help='Maximum number of concurrent LLM requests')
             parser.add_argument('--batch_size', type=int, default=BATCH_SIZE,
                               help='Number of simulations to batch process')
+            parser.add_argument('--max_batches', type=int, default=10,
+                              help='Maximum number of batches to process (None for all)')
             parser.add_argument('--llm_rate_limit', type=float, default=0.5,
                               help='Minimum seconds between LLM requests to avoid rate limiting')
             parser.add_argument('--no_threading', action='store_true', default=True,
@@ -364,10 +366,23 @@ def main(args=None):
         def process_batches():
             total_pairs = len(household_person_pairs)
             batch_size = min(args.batch_size, total_pairs)
+            total_batches = (total_pairs + batch_size - 1) // batch_size
             
+            # Limit number of batches if requested
+            if args.max_batches is not None:
+                max_batches = min(args.max_batches, total_batches)
+                print(f"Limiting processing to {max_batches} batches out of {total_batches} total")
+            else:
+                max_batches = total_batches
+            
+            batch_counter = 0
             for i in range(0, total_pairs, batch_size):
+                if batch_counter >= max_batches:
+                    print(f"Reached maximum number of batches ({max_batches}), stopping.")
+                    break
+                    
                 batch = household_person_pairs[i:i + batch_size]
-                print(f"\nProcessing batch {i//batch_size + 1}/{(total_pairs + batch_size - 1)//batch_size} " 
+                print(f"\nProcessing batch {batch_counter + 1}/{max_batches} " 
                       f"({len(batch)} household-person pairs)")
                 
                 if args.no_threading:
@@ -397,6 +412,7 @@ def main(args=None):
                                 with results_lock:
                                     results[pair_id] = memory
                 
+                batch_counter += 1
                 # Explicit garbage collection between batches
                 gc.collect()
         
@@ -416,7 +432,7 @@ def main(args=None):
         # Restore original method
         Activity.generate_daily_schedule = original_generate_daily_schedule
         
-        print(f"Completed simulation for {len(household_person_pairs)} household-person pairs")
+        print(f"Completed simulation for {len(results)} household-person pairs")
         return results
         
     except Exception as e:

@@ -100,6 +100,9 @@ class Activity:
                 if activity_type not in patterns['activity_durations']:
                     patterns['activity_durations'][activity_type] = []
                 patterns['activity_durations'][activity_type].append(duration)
+                if duration > 240:  # 4小时以上的活动
+                    for _ in range(3):
+                        patterns['activity_durations'][activity_type].append(duration)
                 
                 # 收集距离信息
                 distance = activity.get('distance', 0)
@@ -108,6 +111,9 @@ class Activity:
                 # 只添加非负的距离值
                 if distance >= 0:
                     patterns['distances'][activity_type].append(distance)
+                if distance > 10:  # 10公里以上的出行
+                    for _ in range(3):
+                        patterns['distances'][activity_type].append(distance)
                 
                 # 收集交通方式
                 mode = activity.get('transport_mode', 'unknown')
@@ -178,6 +184,10 @@ class Activity:
         
         # Stage 1: Generate basic activities with LLM
         basic_activities = self._generate_activities_with_llm(persona, date, day_of_week, memory_patterns, is_weekend)
+
+        # print('--------------------------------')
+        # print(basic_activities)
+        # print('--------------------------------')
         
         # Initialize destination selector if needed
         if not hasattr(self, 'destination_selector'):

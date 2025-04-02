@@ -659,44 +659,6 @@ class Destination:
             
         return candidates
         
-    def _calculate_place_score(self, rating, distance, max_distance, price_level, price_preference):
-        """
-        Calculate a comprehensive score for a place based on rating, distance and price match
-        
-        Args:
-            rating: Place rating (1-5)
-            distance: Distance in kilometers
-            max_distance: Maximum search radius
-            price_level: Place price level (1-4)
-            price_preference: User price preference (1-4)
-            
-        Returns:
-            float: Score value
-        """
-        # Ensure parameters are valid
-        if not isinstance(rating, (int, float)):
-            rating = 3.0
-        if not isinstance(distance, (int, float)):
-            distance = max_distance / 2  # Default to middle of search radius
-        if not isinstance(max_distance, (int, float)) or max_distance <= 0:
-            max_distance = 5.0
-        if not isinstance(price_level, (int, float)):
-            price_level = 2
-        if not isinstance(price_preference, (int, float)):
-            price_preference = 2
-            
-        # Normalize rating (40%)
-        rating_factor = (min(5.0, max(1.0, rating)) / 5.0) * 0.4
-        
-        # Distance factor (40%) - 越近越好
-        distance_factor = max(0, 1 - (distance / max_distance)) * 0.3
-        
-        # Price match (20%) - 价格等级与偏好匹配程度
-        price_match = 1 - (abs(price_level - price_preference) / 4)
-        price_factor = max(0, price_match) * 0.3
-        
-        return rating_factor + distance_factor + price_factor
-        
     def _select_best_candidate(self, candidates):
         """Select the best candidate from a list based on score"""
         candidates.sort(key=lambda x: x['score'], reverse=True)
@@ -890,12 +852,9 @@ class Destination:
                         address = tags.get("addr:street", "") + " " + tags.get("addr:housenumber", "")
                         address = address.strip() or f"Distance: {round(distance, 1)}km"
                         
-                        # Use intelligent inference instead of default values
-                        # Infer rating based on venue type
-                        rating = self._get_venue_rating(tags, place_type, name)
-                        
-                        # Infer price level
-                        price_level = self._infer_price_level(tags, dest_coords, place_type)
+                        # 使用固定默认值替代推断的评分和价格
+                        rating = 4.5
+                        price_level = 2
                         
                         # Calculate score
                         score = self._calculate_place_score(
@@ -945,114 +904,46 @@ class Destination:
             return random_location, {'name': f'Random Location (OSM Error)', 'address': f'Distance: {round(calculate_distance(current_location, random_location), 1)}km'}
 
 
-    def _infer_price_level(self, tags, location, place_type):
+    def _calculate_place_score(self, rating, distance, max_distance, price_level, price_preference):
         """
-        Infer price level based on tags and geographic location
+        Calculate a comprehensive score for a place based on rating, distance and price match
         
         Args:
-            tags: OSM tags
-            location: Venue location
-            place_type: Place type
+            rating: Place rating (1-5)
+            distance: Distance in kilometers
+            max_distance: Maximum search radius
+            price_level: Place price level (1-4)
+            price_preference: User price preference (1-4)
             
         Returns:
-            int: Price level (1-4)
+            float: Score value
         """
-        # Infer price based on place type
-        amenity = tags.get("amenity")
-        shop_type = tags.get("shop")
-        tourism = tags.get("tourism")
-        
-        # Restaurants are generally more expensive
-        if amenity in ["restaurant"]:
-            # If it's an upscale restaurant, return higher price level
-            if "cuisine" in tags and tags["cuisine"] in ["french", "japanese", "italian"]:
-                return 3
-            return 2
-        elif amenity in ["cafe", "bar"]:
-            return 2
-        elif amenity in ["fast_food"] or shop_type in ["convenience"]:
-            return 1
-        elif shop_type in ["mall", "department_store"]:
-            return 3
-        elif tourism in ["hotel"]:
-            if tags.get("stars") in ["4", "5"]:
-                return 4
-            return 3
-        
-        # Based on place type mapping (from Google Places conversion to OSM)
-        price_mapping = {
-            'restaurant': 2,
-            'cafe': 2,
-            'bar': 2,
-            'shopping_mall': 3,
-            'grocery_store': 1,
-            'retail_store': 2,
-            'cinema': 2,
-            'theater': 3,
-            'museum': 2,
-            'hotel': 3
-        }
-        
-        return price_mapping.get(place_type, 2)
-    
-    def _get_venue_rating(self, tags, place_type, name):
-        """
-        Infer rating based on venue type and name
-        
-        Args:
-            tags: OSM tags
-            place_type: Place type
-            name: Venue name
+        # Ensure parameters are valid
+        if not isinstance(rating, (int, float)):
+            rating = 3.0
+        if not isinstance(distance, (int, float)):
+            distance = max_distance / 2  # Default to middle of search radius
+        if not isinstance(max_distance, (int, float)) or max_distance <= 0:
+            max_distance = 5.0
+        if not isinstance(price_level, (int, float)):
+            price_level = 2
+        if not isinstance(price_preference, (int, float)):
+            price_preference = 2
             
-        Returns:
-            float: Rating (1.0-5.0)
-        """
-        # Infer venue type based on OSM tags
-        amenity = tags.get("amenity")
-        shop = tags.get("shop")
-        leisure = tags.get("leisure")
-        tourism = tags.get("tourism")
+        # Normalize rating (40%)
+        rating_factor = (min(5.0, max(1.0, rating)) / 5.0) * 0.4
         
-        # Default ratings based on venue type
-        default_ratings = {
-            'restaurant': 3.8,
-            'cafe': 3.7,
-            'park': 4.2,
-            'shopping_mall': 3.6,
-            'grocery_store': 3.5,
-            'gym': 4.0,
-            'hospital': 3.9,
-            'school': 3.8,
-            'university': 4.1,
-            'cinema': 3.9,
-            'theater': 4.0,
-            'museum': 4.3,
-            'bar': 3.6,
-            'hotel': 3.8,
-            'bank': 3.0,
-            'post_office': 3.0
-        }
+        # Distance factor (20%) - 使用钟形曲线，不再单纯偏好最短距离
+        # 钟形曲线中心设在max_distance的1/3处，这样中等距离会得到最高分
+        optimal_distance = max_distance / 3
+        distance_variance = (max_distance / 2) ** 2
+        distance_factor = math.exp(-((distance - optimal_distance) ** 2) / (2 * distance_variance)) * 0.2
         
-        # Higher ratings for certain amenity types
-        if leisure == "park":
-            return 4.2
-        elif tourism in ["museum", "attraction"]:
-            return 4.3
+        # Price match (40%) - 价格等级与偏好匹配程度
+        price_match = 1 - (abs(price_level - price_preference) / 4)
+        price_factor = max(0, price_match) * 0.4
         
-        # Check for keywords in name that might indicate chains or known places
-        name_lower = name.lower()
-        chain_keywords = ["mcdonald", "starbucks", "kfc", "walmart", "subway", "carrefour"]
-        if any(keyword in name_lower for keyword in chain_keywords):
-            return 3.9
-        
-        # Return default rating
-        if amenity:
-            return default_ratings.get(amenity, 3.0)
-        elif shop:
-            return default_ratings.get(shop, 3.0)
-        
-        # Return rating based on Google Places type mapping
-        return default_ratings.get(place_type, 3.0)
+        return rating_factor + distance_factor + price_factor
 
     def _generate_random_point_geometrically(self, center, max_distance_km):
         """Generate a random point at a given distance from center point"""
