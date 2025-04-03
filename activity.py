@@ -275,10 +275,6 @@ class Activity:
         memory_patterns = None
         if hasattr(persona, 'memory') and persona.memory and persona.memory.days:
             memory_patterns = self.analyze_memory_patterns(persona.memory, persona)
-
-        print('--------------------------------')
-        print(memory_patterns)
-        print('--------------------------------')
         
         # Check if it's a weekend, get weekend/weekday activity preferences from history
         day_of_week = get_day_of_week(date)
@@ -286,10 +282,6 @@ class Activity:
         
         # Stage 1: Generate basic activities with LLM
         basic_activities = self._generate_activities_with_llm(persona, date, day_of_week, memory_patterns, is_weekend)
-
-        # print('--------------------------------')
-        # print(basic_activities)
-        # print('--------------------------------')
         
         # Initialize destination selector if needed
         if not hasattr(self, 'destination_selector'):
@@ -304,10 +296,6 @@ class Activity:
 
         # Stage 2: Calculate actual destinations and distances
         activities_with_destinations = self._add_destinations_and_distances(persona, basic_activities, date, day_of_week, memory_patterns)
-
-        # print('--------------------------------')
-        # print(activities_with_destinations)
-        # print('--------------------------------')
 
         return activities_with_destinations
         
@@ -427,7 +415,9 @@ class Activity:
                         activity['start_time'],
                         day_of_week,
                         self._calculate_available_time(activities, i),
-                        memory_patterns
+                        memory_patterns,
+                        None,  # location_type_override
+                        None   # search_query_override
                     )
                     
                     activity['coordinates'] = location
@@ -615,6 +605,7 @@ class Activity:
                 # 购物场所 (Shopping)
                 'shop': {'place_type': 'store', 'search_query': 'mall'},
                 'shopping': {'place_type': 'store', 'search_query': 'mall'},
+                'shopping mall': {'place_type': 'store', 'search_query': 'mall'},
                 'mall': {'place_type': 'shopping_mall', 'search_query': 'mall'},
                 'clothing': {'place_type': 'clothing_store', 'search_query': ' mall'},
                 'shoes': {'place_type': 'shoe_store', 'search_query': 'shoes'},
@@ -701,17 +692,93 @@ class Activity:
                     if location_type_override:
                         break
             
-            # 调用目标选择器获取目的地信息
-            destination_params = {}
-            if location_type_override:
-                destination_params = {
-                    'place_type': location_type_override,
-                    'search_query': search_query_override,
-                    'distance_preference': 3,  # 默认中等距离偏好
-                    'price_level': 2  # 默认中等价格水平
+            # 如果仍未匹配到关键词，尝试从活动类型和描述进一步分析
+            if not location_type_override:
+                # 活动类型到可能场所的映射
+                activity_to_place_mapping = {
+                    'shopping': {'place_type': 'store', 'search_query': 'shop'},
+                    'dining': {'place_type': 'restaurant', 'search_query': 'restaurant'},
+                    'socializing': {'place_type': 'cafe', 'search_query': 'cafe'},
+                    'exercise': {'place_type': 'gym', 'search_query': 'fitness_centre'},
+                    'education': {'place_type': 'library', 'search_query': 'library'},
+                    'health': {'place_type': 'doctor', 'search_query': 'clinic'},
+                    'leisure': {'place_type': 'park', 'search_query': 'park'},
+                    'entertainment': {'place_type': 'movie_theater', 'search_query': 'cinema'}
                 }
-                # print(f"为活动类型 {activity['activity_type']} 确定了地点类型: {location_type_override}, 搜索词: {search_query_override}")
                 
+                # 从活动类型推断
+                act_type = activity.get('activity_type', '').lower()
+                if act_type in activity_to_place_mapping:
+                    location_type_override = activity_to_place_mapping[act_type]['place_type']
+                    search_query_override = activity_to_place_mapping[act_type]['search_query']
+                
+                # 进一步分析描述中的词语，捕获可能的场所信息
+                if not location_type_override:
+                    # 提取描述中的名词短语，可能是场所名称
+                    place_indicators = [
+                        ('store', 'shop'), ('market', 'market'), ('center', 'center'),
+                        ('place', 'place'), ('area', 'area'), ('building', 'building'),
+                        ('complex', 'complex'), ('venue', 'venue'), ('facility', 'facility')
+                    ]
+                    
+                    # 检查是否有指示地点的词语
+                    for indicator, query in place_indicators:
+                        if indicator in description:
+                            # 提取包含指示词的短语
+                            phrases = re.findall(r'\b\w+\s+' + indicator + r'\b|\b' + indicator + r'\s+\w+\b', description)
+                            if phrases:
+                                # 使用发现的短语作为搜索查询
+                                location_type_override = 'point_of_interest'
+                                search_query_override = phrases[0]
+                                break
+            
+            # 如果所有尝试都失败，才使用默认值
+            if not location_type_override or not search_query_override:
+                # 根据描述中的动词推断可能的场所类型
+                activity_verbs = {
+                    'eat': {'place_type': 'restaurant', 'search_query': 'restaurant'},
+                    'dine': {'place_type': 'restaurant', 'search_query': 'restaurant'},
+                    'drink': {'place_type': 'cafe', 'search_query': 'cafe'},
+                    'shop': {'place_type': 'store', 'search_query': 'shop'},
+                    'buy': {'place_type': 'store', 'search_query': 'shop'},
+                    'purchase': {'place_type': 'store', 'search_query': 'shop'},
+                    'workout': {'place_type': 'gym', 'search_query': 'fitness_centre'},
+                    'exercise': {'place_type': 'gym', 'search_query': 'fitness_centre'},
+                    'train': {'place_type': 'gym', 'search_query': 'fitness_centre'},
+                    'visit': {'place_type': 'point_of_interest', 'search_query': 'attraction'},
+                    'meet': {'place_type': 'cafe', 'search_query': 'cafe'},
+                    'study': {'place_type': 'library', 'search_query': 'library'},
+                    'watch': {'place_type': 'movie_theater', 'search_query': 'cinema'},
+                    'play': {'place_type': 'park', 'search_query': 'park'}
+                }
+                
+                # 检查描述中是否包含动词
+                for verb, place_info in activity_verbs.items():
+                    if re.search(r'\b' + verb + r'(?:ing|s|ed)?\b', description):
+                        location_type_override = place_info['place_type']
+                        search_query_override = place_info['search_query']
+                        break
+            
+            # 最后的兜底方案，只有在实在无法推断的情况下使用
+            if not location_type_override or not search_query_override:
+                # 使用默认值但尝试从描述中提取更有意义的搜索词
+                location_type_override = 'point_of_interest'
+                
+                # 从描述中提取名词作为搜索词
+                words = description.split()
+                if len(words) >= 2:
+                    # 使用最长的词作为可能的搜索词，跳过常见的停用词
+                    stop_words = {'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'with', 'by', 'about', 'as', 'into', 'like', 'through', 'after', 'before', 'between', 'during', 'without', 'of', 'my', 'your', 'his', 'her', 'their', 'our', 'its', 'this', 'that', 'these', 'those'}
+                    search_terms = [word for word in words if len(word) > 3 and word not in stop_words]
+                    if search_terms:
+                        search_terms.sort(key=len, reverse=True)
+                        search_query_override = search_terms[0]
+                    else:
+                        search_query_override = 'place'
+                else:
+                    search_query_override = 'place'
+            
+            # 调用目标选择器获取目的地信息
             location, details = self.destination_selector.select_destination(
                 persona,
                 current_location,
@@ -720,7 +787,8 @@ class Activity:
                 day_of_week,
                 self._calculate_available_time(activities, i),
                 memory_patterns,
-                location_type_override=destination_params if destination_params else None
+                location_type_override,
+                search_query_override
             )
 
             # 更新活动信息

@@ -1,0 +1,90 @@
+{
+  "date": "2017-10-03",
+  "day_of_week": "Tuesday",
+  "activities": [
+    {
+      "location_type": "home",
+      "activity_type": "home",
+      "start_time": "05:26",
+      "end_time": "12:06",
+      "transport_mode": null,
+      "location": [
+        41.776951,
+        -87.623216
+      ],
+      "travel_time": 2,
+      "activity_duration": 400,
+      "distance": 0.81
+    },
+    {
+      "location_type": "Commercial Services",
+      "activity_type": "shopping",
+      "start_time": "12:40",
+      "end_time": "13:23",
+      "transport_mode": null,
+      "location": [
+        41.863139,
+        -87.672937
+      ],
+      "travel_time": 34,
+      "activity_duration": 43,
+      "distance": 6.35
+    },
+    {
+      "location_type": "transit station",
+      "activity_type": "other",
+      "start_time": "13:29",
+      "end_time": "13:37",
+      "transport_mode": null,
+      "location": [
+        41.868458,
+        -87.642965
+      ],
+      "travel_time": 6,
+      "activity_duration": 8,
+      "distance": 1.47
+    },
+    {
+      "location_type": "Commercial Services",
+      "activity_type": "shopping",
+      "start_time": "13:52",
+      "end_time": "14:01",
+      "transport_mode": null,
+      "location": [
+        41.868458,
+        -87.642965
+      ],
+      "travel_time": 15,
+      "activity_duration": 9,
+      "distance": 0.14
+    },
+    {
+      "location_type": "Commercial Services",
+      "activity_type": "shopping",
+      "start_time": "14:07",
+      "end_time": "14:41",
+      "transport_mode": null,
+      "location": [
+        41.865578,
+        -87.630568
+      ],
+      "travel_time": 5,
+      "activity_duration": 35,
+      "distance": 0.81
+    },
+    {
+      "location_type": "home",
+      "activity_type": "home",
+      "start_time": "15:01",
+      "end_time": "03:00",
+      "transport_mode": null,
+      "location": [
+        41.776951,
+        -87.623216
+      ],
+      "travel_time": 20,
+      "activity_duration": 718,
+      "distance": 5.86
+    }
+  ]
+}

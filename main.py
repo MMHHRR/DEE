@@ -267,7 +267,7 @@ def main(args=None):
             parser.add_argument('--batch_size', type=int, default=BATCH_SIZE,
                               help='Number of simulations to batch process')
             parser.add_argument('--max_batches', type=int, default=10,
-                              help='Maximum number of batches to process (None for all)')
+                              help='Maximum number of batches to process (None for all)') ##10 is processed batch
             parser.add_argument('--llm_rate_limit', type=float, default=0.5,
                               help='Minimum seconds between LLM requests to avoid rate limiting')
             parser.add_argument('--no_threading', action='store_true', default=True,
@@ -349,8 +349,8 @@ def main(args=None):
                     output_file = os.path.join(args_dict['output'], f"{pair_id}.json")
                     memory.save_to_file(output_file)
                     
-                    # Save activity data to CSV format
-                    memory.save_to_csv(output_dir=args_dict['output'], persona_id=person_id)
+                    # Save activity data to CSV format (only LLM generated days)
+                    memory.save_llm_days_to_csv(output_dir=args_dict['output'], persona_id=person_id)
                     
                     # Compress data if needed
                     if args_dict['compress']:

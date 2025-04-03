@@ -112,15 +112,13 @@ You are simulating the daily activity schedule for a person with the following c
 
 Based on this information, generate a realistic daily schedule for this person, MUST START from 00:00 to END at 23:59. Include at least 3-5 activities (MUST NOT to exceed 8 activities) throughout the day start at home, including mandatory activities (like working, dining, sleeping) and discretionary activities. MUST consider the memory patterns, MAKE SURE the time is continuous and there is no blank window.
 
-IMPORTANT FOR DIVERSE ACTIVITY DURATIONS (BASED ON Memory Patterns: 'activity_durations'):
+IMPORTANT ACTIVITY DURATION PREFERENCE BASED ON Memory Patterns: 'activity_durations':
 - Short activities (15-30 minutes)
-- Medium duration activities (30-60 minutes)
-- Long duration activities (60-120 minutes or more)
-
-IMPORTANT FOR DIVERSE DISTANCES (BASED ON Memory Patterns: 'distances'):
-- Short distance travel (≤2 km)
-- Medium distance travel (2-10 km)
-- Long distance travel (≥10 km or more)
+- Medium-short activities (30-60 minutes)
+- Medium activities (60-120 minutes)
+- Medium-long activities (120-180 minutes)
+- Long activities (180 minutes or more)
+- Super long activities (360 minutes or more)
 
 IMPORTANT RULES FOR ACTIVITY TYPES:
 - "sleep": ONLY for sleeping activities (night sleep, naps)
@@ -167,7 +165,7 @@ For each activity, specify:
 1. Activity type (MUST be one from the list above)
 2. Start time (MUST be the same as the previous activity's end time)
 3. End time (Next activity MUST start at this time)
-4. Detailed description of the activity (limited to 20 words)
+4. Detailed description of the activity (limited to 30 words)
 5. Location type (MUST be one from the location types list above)
 
 Format your response as a JSON array of activities:
@@ -188,6 +186,7 @@ DESTINATION_SELECTION_PROMPT = """
 Generate a specific destination type and preferences for a person with the following characteristics:
 - Gender: {gender}
 - Age: {age}
+- Race: {race}
 - Education: {education}
 - Occupation: {occupation}
 - Household income: ${household_income}
@@ -195,19 +194,19 @@ Generate a specific destination type and preferences for a person with the follo
 - Description: {activity_description}
 - Time of day: {time}
 - Day of week: {day_of_week}
-
 {memory_context}
 
 Based on this information, especially considering the historical behavior patterns if available, provide:
-1. A specific type of destination suitable for this activity
+1. A specific type of destination suitable for {activity_type}
 2. Price preference (budget, mid-range, upscale, or a numeric value 1-4)
 3. Distance preference (on a scale of 1-10, where 1 means very close to current location and 10 means can be quite far)
-4. Any specific features or amenities this person would look for
 
-IMPORTANT FOR DIVERSE DISTANCES PREFERENCE  (BASED ON Memory Patterns: 'distances'):
-- Short distance travel (≤2 km): 1-3
-- Medium distance travel (2-10 km): 4-7
-- Long distance travel (≥10 km): 8-10
+IMPORTANT DIVERSE DISTANCES PREFERENCE FOR {activity_type} (BASED ON Memory Patterns: 'distances'):
+- Short distance travel (≤2 km): 1-3 score
+- Medium-short distance travel (2-5 km): 4-6 score
+- Medium distance travel (5-10 km): 7-8 score
+- Medium-long distance travel (10-15 km): 9 score
+- Long distance travel (≥15 km): 10 score
 
 Format your response as a JSON object:
 {{
@@ -215,7 +214,6 @@ Format your response as a JSON object:
   "search_query": "search terms for this type of place",
   "price_level": 2,
   "distance_preference": 7,
-  "features": ["feature1", "feature2", ...]
 }}
 """
 
@@ -226,6 +224,7 @@ As a transportation expert, please select the most suitable transport mode based
 Person Information:
 - Gender: {gender}
 - Age: {age}
+- Race: {race}
 - Education: {education}
 - Occupation: {occupation}
 - Household income: ${household_income}

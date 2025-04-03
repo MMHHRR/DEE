@@ -18,6 +18,14 @@
   },
   "days_summary": [
     {
+      "date": "2017-10-03",
+      "day_of_week": "Tuesday"
+    },
+    {
+      "date": "2017-10-04",
+      "day_of_week": "Wednesday"
+    },
+    {
       "date": "2025-03-10",
       "day_of_week": "Monday"
     },
@@ -28,24 +36,8 @@
     {
       "date": "2025-03-12",
       "day_of_week": "Wednesday"
-    },
-    {
-      "date": "2025-03-13",
-      "day_of_week": "Thursday"
-    },
-    {
-      "date": "2025-03-14",
-      "day_of_week": "Friday"
-    },
-    {
-      "date": "2025-03-15",
-      "day_of_week": "Saturday"
-    },
-    {
-      "date": "2025-03-16",
-      "day_of_week": "Sunday"
     }
   ],
-  "total_days_saved": 7,
+  "total_days_saved": 5,
   "days_used_for_llm_context": 2
 }

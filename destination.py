@@ -59,7 +59,7 @@ class Destination:
         self.google_maps_cache = {}
     
     @cached
-    def select_destination(self, persona, current_location, activity_type, time, day_of_week, available_minutes, memory_patterns=None, location_type_override=None):
+    def select_destination(self, persona, current_location, activity_type, time, day_of_week, available_minutes, memory_patterns=None, location_type_override=None, search_query_override=None):
         """
         Select an appropriate destination for the given activity
         
@@ -72,6 +72,7 @@ class Destination:
             available_minutes: Available time (minutes)
             memory_patterns: Historical memory patterns for LLM analysis (optional)
             location_type_override: 根据活动描述提取的位置类型信息 (optional)
+            search_query_override: 根据活动描述提取的搜索查询信息 (optional)
         
         Returns:
             tuple: ((latitude, longitude), location_details)
@@ -79,10 +80,8 @@ class Destination:
         try:
             # Step 1: Determine appropriate destination type
             if location_type_override:
-                # 如果提供了特定地点类型覆盖信息，直接使用
-                destination_type = location_type_override
-            else:
-                # 否则使用正常逻辑确定目的地类型
+
+                # 首先获取正常的目的地类型信息
                 destination_type = self._determine_destination_type(
                     persona, 
                     {"activity_type": activity_type, "description": f"{activity_type} activity"}, 
@@ -90,11 +89,30 @@ class Destination:
                     day_of_week,
                     memory_patterns
                 )
-            
+
+                # 然后用覆盖值替换特定字段
+                destination_type['place_type'] = location_type_override
+                if search_query_override:
+                    destination_type['search_query'] = search_query_override
+            else:
+                destination_type = self._determine_destination_type(
+                    persona, 
+                    {"activity_type": activity_type, "description": f"{activity_type} activity"}, 
+                    time, 
+                    day_of_week,
+                    memory_patterns
+                )
+                
+                # 使用_process_search_query方法处理LLM返回的查询结果
+                destination_type = self._process_search_query(
+                    destination_type,
+                    f"{activity_type} activity"
+                )
+
             # Step 2: Calculate search parameters
             time_window = self._calculate_time_window(available_minutes)
             max_radius = self._calculate_search_radius(persona, activity_type, time_window, destination_type)
-            
+
             # Step 3: Find appropriate destination location
             location, details = self._retrieve_location(
                 current_location, 
@@ -158,16 +176,18 @@ class Destination:
         return available_minutes
     
     @cached
-    def _calculate_max_radius(self, persona, activity_type, time_window):
+    def _calculate_max_radius(self, persona, activity_type, time_window, destination_type=None):
         """
         Calculate the maximum search radius based on available time.
         
         Args:
-            available_minutes: 可用时间（分钟）
-            activity_type: 活动类型
+            persona: persona object
+            activity_type: activity type
+            time_window: available time (minutes)
+            destination_type: destination type information, including distance preference
         
         Returns:
-            float: 最大半径（公里）
+            float: maximum radius (kilometers)
         """
         # 1. Based on available time, the basic radius
         if time_window < 30:
@@ -183,20 +203,19 @@ class Destination:
             # Long activity, larger range
             base_radius = 4.0  # 4 kilometers range
         
-        # 2. Activity type correction
-        activity_modifiers = {
-            'shopping': 0.8,    # Shopping preference close
-            'dining': 0.7,      # Dining usually close
-            'recreation': 1.1,  # Entertainment venue medium
-            'healthcare': 1.2,  # Medical facilities may require specific location
-            'education': 1.2,   # Education venue may require specific institution
-            'social': 0.9,      # Social activity usually choose convenient location
-            'errands': 0.5      # Daily affairs try to be close
-        }
-        activity_modifier = activity_modifiers.get(activity_type.lower(), 1.0)
+        # 2. Apply distance preference from destination_type if available
+        final_radius = base_radius
+        if destination_type and 'distance_preference' in destination_type:
+            # Distance preference value range 1-10, 1 means very close, 10 means can be very far
+            distance_pref = destination_type.get('distance_preference', 5)
+            # Convert distance preference to radius adjustment factor (0.5-1.5)
+            distance_factor = 0.5 + (distance_pref / 10)
+            # Adjust base radius
+            final_radius = base_radius * distance_factor
         
-        # 3. Calculate final radius and apply upper limit
-        final_radius = min(base_radius * activity_modifier, 8.0)
+        # 3. Apply upper limit - 确保最大搜索半径为50公里
+        MAX_ALLOWED_RADIUS = 50.0  # 最大允许搜索半径为50公里
+        final_radius = min(final_radius, MAX_ALLOWED_RADIUS)
         
         # Ensure minimum radius
         return max(0.3, final_radius)
@@ -249,6 +268,7 @@ class Destination:
             # Get persona attributes safely with defaults
             gender = getattr(persona, 'gender', 'unknown')
             age = getattr(persona, 'age', 30)
+            race = getattr(persona, 'race', 'unknown')
             occupation = getattr(persona, 'occupation', 'unknown')
             education = getattr(persona, 'education', 'unknown')
             current_location = getattr(persona, 'current_location', 'unknown')
@@ -270,6 +290,7 @@ class Destination:
             enhanced_prompt = DESTINATION_SELECTION_PROMPT.format(
                 gender=gender,
                 age=age,
+                race=race,
                 household_income=household_income,
                 education=education,
                 occupation=occupation,
@@ -285,7 +306,7 @@ class Destination:
                 model=self.model,
                 messages=[{"role": "user", "content": enhanced_prompt}],
                 temperature=self.temperature,
-                max_tokens=self.max_tokens
+                max_tokens=100
             )
             
             # Extract structured data from LLM response
@@ -307,11 +328,192 @@ class Destination:
             if 'price_level' not in result:
                 result['price_level'] = 2
                 
+            # 使用关键词映射处理搜索查询
+            result = self._process_search_query(result, activity_description)
+                
             return result
             
         except Exception as llm_error:
             print(f"LLM destination type determination failed: {str(llm_error)}")
             return None
+    
+    def _process_search_query(self, destination_type, description):
+        """
+        处理搜索查询，使用关键词映射来替换不正确的查询
+        
+        Args:
+            destination_type: 目标地点类型字典
+            description: 活动描述
+            
+        Returns:
+            dict: 处理后的目标地点类型字典
+        """
+        try:
+            # 如果没有search_query或search_query包含明显的错误模式，如"Office spaces near transit stations"
+            search_query = destination_type.get('search_query', '').lower()
+            
+            # 关键词映射列表
+            place_keywords = {
+                # 金融服务 (Financial Services)
+                'bank': {'place_type': 'bank', 'search_query': 'bank'},
+                'atm': {'place_type': 'atm', 'search_query': 'atm'},
+                
+                # 食品购物 (Food Shopping)
+                'grocery': {'place_type': 'grocery_or_supermarket', 'search_query': 'grocery'},
+                'supermarket': {'place_type': 'grocery_or_supermarket', 'search_query': 'supermarket'},
+                'bakery': {'place_type': 'bakery', 'search_query': 'bakery'},
+                'butcher': {'place_type': 'butcher', 'search_query': 'butcher'},
+                'deli': {'place_type': 'delicatessen', 'search_query': 'deli'},
+                'seafood': {'place_type': 'fishmonger', 'search_query': 'seafood'},
+                'greengrocer': {'place_type': 'greengrocer', 'search_query': 'greengrocer'},
+                
+                # 餐饮场所 (Food & Drink)
+                'restaurant': {'place_type': 'restaurant', 'search_query': 'restaurant'},
+                'dining': {'place_type': 'restaurant', 'search_query': 'restaurant'},
+                'dinner': {'place_type': 'restaurant', 'search_query': 'restaurant'},
+                'lunch': {'place_type': 'restaurant', 'search_query': 'restaurant'},
+                'breakfast': {'place_type': 'cafe', 'search_query': 'cafe'},
+                'cafe': {'place_type': 'cafe', 'search_query': 'cafe'},
+                'coffee': {'place_type': 'cafe', 'search_query': 'cafe'},
+                'fast food': {'place_type': 'fast_food', 'search_query': 'fast_food'},
+                'food court': {'place_type': 'food_court', 'search_query': 'food_court'},
+                'pub': {'place_type': 'pub', 'search_query': 'pub'},
+                'bar': {'place_type': 'bar', 'search_query': 'bar'},
+                'ice cream': {'place_type': 'ice_cream', 'search_query': 'ice_cream'},
+                
+                # 休闲娱乐 (Leisure & Entertainment)
+                'gym': {'place_type': 'gym', 'search_query': 'fitness_centre'},
+                'fitness': {'place_type': 'gym', 'search_query': 'fitness_centre'},
+                'workout': {'place_type': 'gym', 'search_query': 'fitness_centre'},
+                'exercise': {'place_type': 'gym', 'search_query': 'fitness_centre'},
+                'park': {'place_type': 'park', 'search_query': 'park'},
+                'cinema': {'place_type': 'movie_theater', 'search_query': 'cinema'},
+                'movie': {'place_type': 'movie_theater', 'search_query': 'cinema'},
+                'theatre': {'place_type': 'theatre', 'search_query': 'theatre'},
+                'sports': {'place_type': 'stadium', 'search_query': 'sports_centre'},
+                'swimming': {'place_type': 'swimming_pool', 'search_query': 'swimming_pool'},
+                'nightclub': {'place_type': 'night_club', 'search_query': 'nightclub'},
+                
+                # 文化与教育 (Culture & Education)
+                'library': {'place_type': 'library', 'search_query': 'library'},
+                'museum': {'place_type': 'museum', 'search_query': 'museum'},
+                'art gallery': {'place_type': 'art_gallery', 'search_query': 'gallery'},
+                'gallery': {'place_type': 'art_gallery', 'search_query': 'gallery'},
+                'school': {'place_type': 'school', 'search_query': 'school'},
+                'university': {'place_type': 'university', 'search_query': 'university'},
+                'college': {'place_type': 'university', 'search_query': 'college'},
+                
+                # 医疗健康 (Healthcare)
+                'hospital': {'place_type': 'hospital', 'search_query': 'hospital'},
+                'doctor': {'place_type': 'doctor', 'search_query': 'clinic'},
+                'medical': {'place_type': 'medical_center', 'search_query': 'hospital'},
+                'clinic': {'place_type': 'doctor', 'search_query': 'clinic'},
+                'dentist': {'place_type': 'dentist', 'search_query': 'dentist'},
+                'pharmacy': {'place_type': 'pharmacy', 'search_query': 'chemist'},
+                'drugstore': {'place_type': 'pharmacy', 'search_query': 'chemist'},
+                'veterinary': {'place_type': 'veterinary_care', 'search_query': 'veterinary'},
+                
+                # 购物场所 (Shopping)
+                'shop': {'place_type': 'store', 'search_query': 'mall'},
+                'shopping': {'place_type': 'store', 'search_query': 'mall'},
+                'shopping mall': {'place_type': 'store', 'search_query': 'mall'},
+                'mall': {'place_type': 'shopping_mall', 'search_query': 'mall'},
+                'clothing': {'place_type': 'clothing_store', 'search_query': 'mall'},
+                'shoes': {'place_type': 'shoe_store', 'search_query': 'shoes'},
+                'electronics': {'place_type': 'electronics_store', 'search_query': 'electronics'},
+                'hardware': {'place_type': 'hardware_store', 'search_query': 'hardware'},
+                'furniture': {'place_type': 'furniture_store', 'search_query': 'furniture'},
+                'bookstore': {'place_type': 'book_store', 'search_query': 'books'},
+                'jewelry': {'place_type': 'jewelry_store', 'search_query': 'jewelry'},
+                'toys': {'place_type': 'toy_store', 'search_query': 'toys'},
+                
+                # 个人服务 (Personal Services)
+                'hair': {'place_type': 'beauty_salon', 'search_query': 'beauty'},
+                'salon': {'place_type': 'beauty_salon', 'search_query': 'beauty'},
+                'barber': {'place_type': 'beauty_salon', 'search_query': 'beauty'},
+                'spa': {'place_type': 'spa', 'search_query': 'beauty'},
+                'laundry': {'place_type': 'laundry', 'search_query': 'laundry'},
+                'dry cleaning': {'place_type': 'dry_cleaning', 'search_query': 'dry_cleaning'},
+                
+                # 住宿 (Accommodation)
+                'hotel': {'place_type': 'lodging', 'search_query': 'hotel'},
+                'motel': {'place_type': 'lodging', 'search_query': 'motel'},
+                'hostel': {'place_type': 'lodging', 'search_query': 'hostel'},
+                'guest house': {'place_type': 'lodging', 'search_query': 'guest_house'},
+                
+                # 交通服务 (Transportation)
+                'gas station': {'place_type': 'gas_station', 'search_query': 'gas'},
+                'car repair': {'place_type': 'car_repair', 'search_query': 'car_repair'},
+                'car wash': {'place_type': 'car_wash', 'search_query': 'car_wash'},
+                'parking': {'place_type': 'parking', 'search_query': 'parking'},
+                'bike parking': {'place_type': 'bicycle_parking', 'search_query': 'bicycle_parking'},
+                'bus station': {'place_type': 'bus_station', 'search_query': 'bus_station'},
+                'train station': {'place_type': 'train_station', 'search_query': 'station'},
+                'subway': {'place_type': 'subway_station', 'search_query': 'subway'},
+                'airport': {'place_type': 'airport', 'search_query': 'aerodrome'},
+                
+                # 日常便利设施 (Convenience)
+                'grocery store': {'place_type': 'grocery_or_supermarket', 'search_query': 'retail'},
+                'convenience store': {'place_type': 'convenience_store', 'search_query': 'convenience'},
+                'post office': {'place_type': 'post_office', 'search_query': 'post_office'},
+                
+                # 公共服务 (Public Services)
+                'police': {'place_type': 'police', 'search_query': 'police'},
+                'fire station': {'place_type': 'fire_station', 'search_query': 'fire_station'},
+                'town hall': {'place_type': 'city_hall', 'search_query': 'government'},
+                'courthouse': {'place_type': 'courthouse', 'search_query': 'courthouse'},
+                'embassy': {'place_type': 'embassy', 'search_query': 'diplomatic'},
+                
+                # 工作场所 (Work Places)
+                'office': {'place_type': 'point_of_interest', 'search_query': 'office_building'},
+                'workplace': {'place_type': 'point_of_interest', 'search_query': 'office_building'},
+            }
+            
+            # 检查搜索查询是否有问题（包含近乎自然语言的描述）
+            problematic_patterns = [
+                "near", "close to", "around", "spaces", "located", 
+                "looking for", "find", "searching", "seeking"
+            ]
+            
+            is_problematic = any(pattern in search_query for pattern in problematic_patterns)
+            
+            # 如果搜索查询存在问题，尝试从描述中提取关键词
+            if is_problematic or len(search_query.split()) > 3:
+                description = description.lower()
+                
+                # 首先尝试匹配多词短语
+                multi_word_keywords = [k for k in place_keywords.keys() if ' ' in k]
+                for keyword in multi_word_keywords:
+                    if keyword in description:
+                        destination_type['place_type'] = place_keywords[keyword]['place_type']
+                        destination_type['search_query'] = place_keywords[keyword]['search_query']
+                        return destination_type
+                
+                # 如果没有匹配到多词短语，再检查单词匹配
+                for keyword, place_info in place_keywords.items():
+                    if ' ' not in keyword and keyword in description:
+                        # 避免部分匹配（例如，避免将"background"匹配为"back"）
+                        word_boundaries = [' ', '.', ',', '!', '?', ';', ':', '-', '(', ')', '[', ']', '\n', '\t']
+                        
+                        # 检查关键词前后是否是单词边界或字符串的开始/结束
+                        keyword_positions = [m.start() for m in re.finditer(keyword, description)]
+                        for pos in keyword_positions:
+                            # 检查前边界
+                            before_ok = (pos == 0 or description[pos-1] in word_boundaries)
+                            # 检查后边界
+                            after_pos = pos + len(keyword)
+                            after_ok = (after_pos >= len(description) or description[after_pos] in word_boundaries)
+                            
+                            if before_ok and after_ok:
+                                destination_type['place_type'] = place_info['place_type']
+                                destination_type['search_query'] = place_info['search_query']
+                                return destination_type
+            
+            return destination_type
+            
+        except Exception as e:
+            print(f"Error processing search query: {e}")
+            return destination_type
     
     def _generate_default_destination(self, persona, activity, time, day_of_week, memory_patterns=None):
         """
@@ -500,7 +702,7 @@ class Destination:
                 
             # Validate and correct max_radius if necessary
             if not isinstance(max_radius, (int, float)) or max_radius <= 0:
-                max_radius = 2.0  # Default 2km
+                max_radius = 50.0  # Default 50km
                 
             # Select method based on configuration
             if self.use_google_maps:
@@ -581,7 +783,10 @@ class Destination:
         # Prepare parameters for Google Maps API
         search_query = destination_type.get('search_query', 'point of interest')
         place_type = destination_type.get('place_type', 'point_of_interest')
-        radius_meters = int(max_radius * 1000)
+        
+        # 确保搜索半径不超过50公里(50000米)
+        MAX_RADIUS_METERS = 50000  # 最大搜索半径50公里
+        radius_meters = min(MAX_RADIUS_METERS, int(max_radius * 1000))
         
         # Prepare API request parameters
         params = {
@@ -703,8 +908,10 @@ class Destination:
                 'distance': calculate_distance(current_location, backup_location)
             }
             
-            # Limit search radius to avoid Bad Request errors
-            radius_meters = min(50000, int(max_radius * 1000))
+            # Limit search radius to avoid Bad Request errors - 确保最大搜索半径为50公里(50000米)
+            MAX_RADIUS_METERS = 50000  # 最大搜索半径50公里
+            radius_meters = min(MAX_RADIUS_METERS, int(max_radius * 1000))
+
             price_preference = destination_type.get('price_level', 2)
             
             # Google Places type to OSM tag mapping
@@ -736,7 +943,7 @@ class Destination:
                 'park': 'leisure=park',
                 'cinema': 'amenity=cinema',
                 'movie_theater': 'amenity=cinema',
-                'theater': 'amenity=theatre',
+                'theatre': 'amenity=theatre',
                 'stadium': 'leisure=stadium',
                 'swimming_pool': 'leisure=swimming_pool',
                 'night_club': 'amenity=nightclub',
@@ -928,24 +1135,21 @@ class Destination:
         if not isinstance(distance, (int, float)):
             distance = max_distance / 2  # Default to middle of search radius
         if not isinstance(max_distance, (int, float)) or max_distance <= 0:
-            max_distance = 5.0
+            max_distance = 50.0  # 默认最大距离为50公里
         if not isinstance(price_level, (int, float)):
             price_level = 2
         if not isinstance(price_preference, (int, float)):
             price_preference = 2
             
-        # Normalize rating (40%)
-        rating_factor = (min(5.0, max(1.0, rating)) / 5.0) * 0.3
+        # Normalize rating (20%)
+        rating_factor = (min(5.0, max(1.0, rating)) / 5.0) * 0.2
         
-        # Distance factor (20%) - 使用钟形曲线，不再单纯偏好最短距离
-        # 钟形曲线中心设在max_distance的1/3处，这样中等距离会得到最高分
-        optimal_distance = max_distance / 3
-        distance_variance = (max_distance / 2) ** 2
-        distance_factor = math.exp(-((distance - optimal_distance) ** 2) / (2 * distance_variance)) * 0.4
+        # 简化距离因素计算 (60%) - 距离越近分数越高
+        distance_factor = max(0, 1 - (distance / max_distance)) * 0.6
         
-        # Price match (40%) - 价格等级与偏好匹配程度
+        # Price match (20%) - 价格等级与偏好匹配程度
         price_match = 1 - (abs(price_level - price_preference) / 4)
-        price_factor = max(0, price_match) * 0.3
+        price_factor = max(0, price_match) * 0.2
         
         return rating_factor + distance_factor + price_factor
 
@@ -1191,6 +1395,7 @@ class Destination:
             # Ensure all parameters are valid
             gender = getattr(persona, 'gender', 'unknown')
             age = getattr(persona, 'age', 30)
+            race = getattr(persona, 'race', 'unknown')
             education = getattr(persona, 'education', 'unknown')
             occupation = getattr(persona, 'occupation', 'unknown')
             
@@ -1207,6 +1412,7 @@ class Destination:
             return TRANSPORT_MODE_PROMPT.format(
                 gender=gender,
                 age=age,
+                race=race,
                 education=education,
                 occupation=occupation,
                 household_income=household_income,
@@ -1262,18 +1468,9 @@ class Destination:
         Returns:
             float: Maximum search radius in kilometers
         """
-        # Get base radius from time window
-        max_radius = self._calculate_max_radius(persona, activity_type, time_window)
+        # Get base radius from time window, passing destination_type
+        max_radius = self._calculate_max_radius(persona, activity_type, time_window, destination_type)
         
-        # Apply distance preference if available
-        if 'distance_preference' in destination_type:
-            # Distance preference value range 1-10, 1 means very close, 10 means can be very far
-            distance_pref = destination_type.get('distance_preference', 5)
-            # Convert distance preference to radius adjustment factor (0.5-1.5)
-            distance_factor = 0.5 + (distance_pref / 10)
-            # Adjust maximum radius
-            max_radius = max_radius * distance_factor
-            
         return max_radius
 
     def _generate_fallback_location(self, max_radius, current_location=None, destination_type=None):

@@ -6,7 +6,7 @@
       "activity_type": "sleep",
       "start_time": "00:00",
       "end_time": "05:26",
-      "description": "Resting to recharge energy for the day ahead.",
+      "description": "Resting and sleeping through the night.",
       "location_name": "Home",
       "location_type": "home",
       "transport_mode": "No need to travel",
@@ -20,8 +20,8 @@
     {
       "activity_type": "leisure",
       "start_time": "05:26",
-      "end_time": "07:26",
-      "description": "Watching TV and enjoying a quiet morning at home.",
+      "end_time": "06:26",
+      "description": "Reading a book and enjoying a quiet morning.",
       "location_name": "Home",
       "location_type": "home",
       "transport_mode": "No need to travel",
@@ -34,9 +34,9 @@
     },
     {
       "activity_type": "dining",
-      "start_time": "07:26",
-      "end_time": "08:06",
-      "description": "Preparing and enjoying breakfast with a cup of coffee.",
+      "start_time": "06:26",
+      "end_time": "07:06",
+      "description": "Preparing and having breakfast at home.",
       "location_name": "Home",
       "location_type": "home",
       "transport_mode": "No need to travel",
@@ -49,29 +49,67 @@
     },
     {
       "activity_type": "errands",
-      "start_time": "08:06",
-      "end_time": "08:30",
-      "description": "Quick trip to the local grocery store for essentials.",
-      "location_name": "Retail",
+      "start_time": "07:06",
+      "end_time": "07:26",
+      "description": "Quick trip to the local bank for a transaction.",
+      "location_name": "Bank",
+      "location_type": "bank",
+      "transport_mode": "walking",
+      "distance": 0.2671085754971229,
+      "travel_time": 5,
+      "coordinates": [
+        41.77926782816085,
+        -87.62235454002837
+      ]
+    },
+    {
+      "activity_type": "shopping",
+      "start_time": "07:26",
+      "end_time": "08:09",
+      "description": "Grocery shopping for weekly supplies.",
+      "location_name": "Woodlawn Fresh Market",
       "location_type": "grocery_store",
       "transport_mode": "walking",
-      "distance": 0.11687466832341149,
-      "travel_time": 3,
+      "distance": 0.6910479374662827,
+      "travel_time": 10,
       "coordinates": [
-        41.77722567430746,
-        -87.62457303241831
+        41.7795833,
+        -87.614053
+      ]
+    },
+    {
+      "activity_type": "travel",
+      "start_time": "08:09",
+      "end_time": "08:15",
+      "description": "Traveling back home from the grocery store.",
+      "location_name": "Nature parks near me for a peaceful day out",
+      "location_type": "home",
+      "transport_mode": "walking",
+      "distance": 0.2542088620406461,
+      "travel_time": 5,
+      "coordinates": [
+        41.780354871168164,
+        -87.61693177215211
+      ],
+      "from_location": [
+        41.7795833,
+        -87.614053
+      ],
+      "to_location": [
+        41.780354871168164,
+        -87.61693177215211
       ]
     },
     {
       "activity_type": "leisure",
-      "start_time": "08:30",
-      "end_time": "11:30",
-      "description": "Reading and enjoying a quiet morning at home.",
+      "start_time": "08:15",
+      "end_time": "12:06",
+      "description": "Engaging in various hobbies, including painting and crafting.",
       "location_name": "Home",
       "location_type": "home",
       "transport_mode": "walking",
-      "distance": 0.11687466832341149,
-      "travel_time": 3,
+      "distance": 0.6448956959603926,
+      "travel_time": 10,
       "coordinates": [
         41.776951,
         -87.623216
@@ -79,47 +117,85 @@
     },
     {
       "activity_type": "shopping",
-      "start_time": "11:30",
-      "end_time": "12:13",
-      "description": "Visiting a nearby shopping mall to browse and shop.",
+      "start_time": "12:06",
+      "end_time": "12:40",
+      "description": "Traveling to a nearby shopping mall for some retail therapy.",
       "location_name": "Mall",
       "location_type": "shopping_mall",
       "transport_mode": "walking",
-      "distance": 0.36026392063737,
+      "distance": 0.34989717087985406,
       "travel_time": 6,
       "coordinates": [
-        41.77462627669425,
-        -87.62623783117282
-      ]
-    },
-    {
-      "activity_type": "dining",
-      "start_time": "12:13",
-      "end_time": "12:40",
-      "description": "Having lunch at a cafe in the shopping mall.",
-      "location_name": "Restaurant",
-      "location_type": "cafe",
-      "transport_mode": "walking",
-      "distance": 0.11724097283116783,
-      "travel_time": 3,
-      "coordinates": [
-        41.77565115503924,
-        -87.62590026513918
+        41.77989207135341,
+        -87.6217078994259
       ]
     },
     {
       "activity_type": "shopping",
       "start_time": "12:40",
       "end_time": "13:23",
-      "description": "Continuing shopping for clothing and accessories.",
+      "description": "Shopping for clothes and accessories at the mall.",
       "location_name": "Mall",
-      "location_type": "retail_store",
+      "location_type": "shopping_mall",
       "transport_mode": "walking",
-      "distance": 0.4839669551608086,
+      "distance": 0.48585464268543005,
       "travel_time": 8,
       "coordinates": [
-        41.779824634099704,
-        -87.62422705954117
+        41.77834973231199,
+        -87.62717663705627
+      ]
+    },
+    {
+      "activity_type": "travel",
+      "start_time": "13:23",
+      "end_time": "13:29",
+      "description": "Quick travel to a nearby cafe for a break.",
+      "location_name": "Shopping mall near me",
+      "location_type": "cafe",
+      "transport_mode": "walking",
+      "distance": 0.2179301937762821,
+      "travel_time": 5,
+      "coordinates": [
+        41.776399651199426,
+        -87.62746651861401
+      ],
+      "from_location": [
+        41.77834973231199,
+        -87.62717663705627
+      ],
+      "to_location": [
+        41.776399651199426,
+        -87.62746651861401
+      ]
+    },
+    {
+      "activity_type": "dining",
+      "start_time": "13:29",
+      "end_time": "13:49",
+      "description": "Enjoying a light lunch at the cafe.",
+      "location_name": "Restaurant",
+      "location_type": "cafe",
+      "transport_mode": "walking",
+      "distance": 0.27100462728880703,
+      "travel_time": 5,
+      "coordinates": [
+        41.778621897333494,
+        -87.6288124891094
+      ]
+    },
+    {
+      "activity_type": "leisure",
+      "start_time": "13:49",
+      "end_time": "23:59",
+      "description": "Relaxing at home before bedtime.",
+      "location_name": "Home",
+      "location_type": "home",
+      "transport_mode": "walking",
+      "distance": 0.5009291977309417,
+      "travel_time": 8,
+      "coordinates": [
+        41.776951,
+        -87.623216
       ]
     }
   ]
