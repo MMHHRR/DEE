@@ -159,6 +159,18 @@ def load_json(file_path):
     with open(file_path, 'r', encoding='utf-8') as f:
         return json.load(f)
 
+# 自定义JSON编码器，处理NumPy数据类型
+class NumpyEncoder(json.JSONEncoder):
+    """自定义JSON编码器，可处理NumPy数据类型"""
+    def default(self, obj):
+        if isinstance(obj, np.integer):
+            return int(obj)
+        elif isinstance(obj, np.floating):
+            return float(obj)
+        elif isinstance(obj, np.ndarray):
+            return obj.tolist()
+        return super(NumpyEncoder, self).default(obj)
+
 def save_json(data, file_path):
     """
     Save data to a JSON file
@@ -169,7 +181,7 @@ def save_json(data, file_path):
     """
     os.makedirs(os.path.dirname(file_path), exist_ok=True)
     with open(file_path, 'w', encoding='utf-8') as f:
-        json.dump(data, f, indent=2)
+        json.dump(data, f, indent=2, cls=NumpyEncoder)
 
 def calculate_distance(point1, point2):
     """
@@ -538,7 +550,7 @@ def time_to_minutes(time_str):
         return 0
 
 @cached
-def generate_random_location_near(center, max_distance_km=5.0, max_attempts=10, validate=True):
+def generate_random_location_near(center, max_distance_km=50.0, max_attempts=10, validate=True):
     """
     Generate a random location within a specified distance from a center point,
     using OpenStreetMap instead of Google Maps API to ensure the location is reasonable.
@@ -552,8 +564,8 @@ def generate_random_location_near(center, max_distance_km=5.0, max_attempts=10, 
     Returns:
         tuple: (lat, lon) of random location
     """
-    # 限制最大距离为更小的范围，不超过原始值的一半
-    max_distance_km = min(max_distance_km, 2.5)
+    # 限制最大距离为50公里
+    max_distance_km = min(max_distance_km, 50.0)
     
     # If validation is not needed, directly use geometric algorithm to generate a random point
     if not validate:

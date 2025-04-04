@@ -5,6 +5,7 @@ Records daily mobility trajectories and activities.
 
 import os
 import json
+import numpy as np
 from config import RESULTS_DIR
 from utils import get_day_of_week
 
@@ -281,6 +282,21 @@ class Memory:
             daily_dir = os.path.join(base_dir, f"household_{household_id}_activities")
             os.makedirs(daily_dir, exist_ok=True)
             
+            # Convert numpy data types to Python native types
+            def convert_numpy_types(obj):
+                if isinstance(obj, dict):
+                    return {k: convert_numpy_types(v) for k, v in obj.items()}
+                elif isinstance(obj, list):
+                    return [convert_numpy_types(item) for item in obj]
+                elif isinstance(obj, np.integer):
+                    return int(obj)
+                elif isinstance(obj, np.floating):
+                    return float(obj)
+                elif isinstance(obj, np.ndarray):
+                    return convert_numpy_types(obj.tolist())
+                else:
+                    return obj
+            
             # Prepare main data - only persona info and summary of ALL days
             main_data = {
                 'persona_id': self.persona_id,
@@ -289,6 +305,9 @@ class Memory:
                 'total_days_saved': len(self.days),
                 'days_used_for_llm_context': self.memory_days
             }
+            
+            # Convert numpy types in main data
+            main_data = convert_numpy_types(main_data)
             
             # Save main data to file
             with open(file_path, 'w', encoding='utf-8') as f:
@@ -306,6 +325,9 @@ class Memory:
                     'day_of_week': day['day_of_week'],
                     'activities': day['activities']
                 }
+                
+                # Convert numpy types in day data
+                day_data = convert_numpy_types(day_data)
                 
                 with open(day_file, 'w', encoding='utf-8') as f:
                     json.dump(day_data, f, indent=2)
@@ -332,7 +354,7 @@ class Memory:
         """
         import pandas as pd
         import os
-        from utils import time_difference_minutes
+        from utils import time_difference_minutes, NumpyEncoder
         
         if output_dir is None:
             output_dir = RESULTS_DIR
@@ -350,6 +372,12 @@ class Memory:
         # Use provided persona_id or default to 1
         if persona_id is None:
             persona_id = 1
+        
+        # 确保转换为Python原生类型
+        if isinstance(household_id, np.integer):
+            household_id = int(household_id)
+        if isinstance(persona_id, np.integer):
+            persona_id = int(persona_id)
             
         # Prepare data rows for CSV
         rows = []

@@ -112,7 +112,7 @@ You are simulating the daily activity schedule for a person with the following c
 - Work location: {work_location}
 - Memory patterns: {memory_patterns}
 
-Based on this information, generate a realistic daily schedule for this person, MUST START from 00:00 to END at 23:59. Include at least 3-5 activities (MUST NOT to exceed 8 activities) throughout the day start at home, including mandatory activities (like working, dining, sleeping) and discretionary activities. MUST consider the memory patterns, MAKE SURE the time is continuous and there is no blank window.
+Based on this information, generate a realistic daily schedule for this person, MUST START from 00:00 to END at 23:59. Include at least 3-5 activities (MUST NOT to exceed 6 activities) throughout the day start at home. MUST consider the memory patterns, MAKE SURE the time is continuous and there is no blank window.
 
 IMPORTANT ACTIVITY DURATION PREFERENCE BASED ON Memory Patterns: 'activity_durations' and 'long_activities':
 - Short activities (15-30 minutes)

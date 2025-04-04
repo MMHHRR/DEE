@@ -837,10 +837,9 @@ class Destination:
                 # Calculate distance
                 distance = calculate_distance(current_location, dest_coords)
                 
-                # Skip if location is too far (rough estimate based on distance)
-                # Assuming average speed of 30km/h, estimating if we can reach in time
+                # Skip if location is too far
                 estimated_time_minutes = (distance / 30) * 60
-                if available_minutes and estimated_time_minutes > available_minutes * 0.4:
+                if available_minutes and estimated_time_minutes > available_minutes * 0.8:
                     continue
                 
                 # Get rating and price level
@@ -1060,7 +1059,7 @@ class Destination:
                         
                         # Skip if location is too far
                         estimated_time_minutes = (distance / 30) * 60
-                        if available_minutes and estimated_time_minutes > available_minutes * 0.5:
+                        if available_minutes and estimated_time_minutes > available_minutes * 0.8:
                             continue
                         
                         # Get name and address
