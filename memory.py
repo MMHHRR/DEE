@@ -47,8 +47,13 @@ class Memory:
             'name': persona.name,
             'gender': persona.gender,
             'age': persona.age,
-            'income': persona.get_household_income(),
+            'race': persona.race,
             'education': persona.education,
+            'occupation': persona.occupation,
+            'income': persona.get_household_income(),
+            'household_vehicles': persona.get_household_vehicles(),
+            'disability': persona.disability,
+            'disability_type': persona.disability_type,
             'home': persona.home,
             'work': persona.work
         }

@@ -270,7 +270,7 @@ def main(args=None):
                               help='Maximum number of batches to process (None for all)') ##10 is processed batch
             parser.add_argument('--llm_rate_limit', type=float, default=0.5,
                               help='Minimum seconds between LLM requests to avoid rate limiting')
-            parser.add_argument('--no_threading', action='store_true', default=True,
+            parser.add_argument('--no_threading', action='store_true', default=False,
                               help='Disable multi-threading for debugging (runs in single thread)') ##True是单线程，False是多线程
             
             args = parser.parse_args()
@@ -329,7 +329,14 @@ def main(args=None):
                 # Create a basic persona for each household-person pair
                 persona_data = {
                     'id': f"{household_id}_{person_id}",
-                    'name': f"Person-{household_id}-{person_id}"
+                    'name': f"Person-{household_id}-{person_id}",
+                    'gender': 'unknown',  # 将在load_historical_data中被适当更新
+                    'age': 0,             # 将在load_historical_data中被适当更新
+                    'race': 'unknown',    # 将在load_historical_data中被适当更新
+                    'education': 'unknown', # 将在load_historical_data中被适当更新
+                    'occupation': 'unknown', # 将在load_historical_data中被适当更新
+                    'household_income': 50000, # 默认值，将在load_historical_data中被适当更新
+                    'household_vehicles': 0   # 默认值，将在load_historical_data中被适当更新
                 }
                 
                 # Simulate persona with specified household and person IDs

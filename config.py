@@ -100,10 +100,12 @@ ACTIVITY_GENERATION_PROMPT = """
 You are simulating the daily activity schedule for a person with the following characteristics:
 - Gender: {gender}
 - Age: {age}
+- Race/ethnicity: {race}
 - Education: {education}
 - Occupation: {occupation}
 - Household income: ${household_income}
-- Race/ethnicity: {race}
+- Household vehicles: {household_vehicles}
+
 - Day of week: {day_of_week}
 - Date: {date}
 - Home location: {home_location}
@@ -112,7 +114,7 @@ You are simulating the daily activity schedule for a person with the following c
 
 Based on this information, generate a realistic daily schedule for this person, MUST START from 00:00 to END at 23:59. Include at least 3-5 activities (MUST NOT to exceed 8 activities) throughout the day start at home, including mandatory activities (like working, dining, sleeping) and discretionary activities. MUST consider the memory patterns, MAKE SURE the time is continuous and there is no blank window.
 
-IMPORTANT ACTIVITY DURATION PREFERENCE BASED ON Memory Patterns: 'activity_durations':
+IMPORTANT ACTIVITY DURATION PREFERENCE BASED ON Memory Patterns: 'activity_durations' and 'long_activities':
 - Short activities (15-30 minutes)
 - Medium-short activities (30-60 minutes)
 - Medium activities (60-120 minutes)
@@ -190,6 +192,7 @@ Generate a specific destination type and preferences for a person with the follo
 - Education: {education}
 - Occupation: {occupation}
 - Household income: ${household_income}
+- Household vehicles: {household_vehicles}
 - Activity: {activity_type}
 - Description: {activity_description}
 - Time of day: {time}
@@ -228,6 +231,7 @@ Person Information:
 - Education: {education}
 - Occupation: {occupation}
 - Household income: ${household_income}
+- Household vehicles: {household_vehicles}
 
 Trip Conditions:
 - Activity Type: {activity}

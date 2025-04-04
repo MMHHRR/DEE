@@ -43,6 +43,7 @@ class Persona:
         
         # Economic attributes
         self.household_income = persona_data.get('household_income', 50000)
+        self.household_vehicles = persona_data.get('household_vehicles', 0)
         
         # Current state
         self.current_location = self.home  # Start at home
@@ -92,9 +93,13 @@ class Persona:
                     # Convert income code to actual income value
                     income_value = self._income_code_to_value(income_code)
                     
+                    # Get household vehicle count
+                    vehicle_count = household_records.iloc[0].get('hhveh', 0)
+                    
                     # Update persona attributes
                     self.income_code = income_code
                     self.household_income = income_value
+                    self.household_vehicles = int(vehicle_count) if not pd.isna(vehicle_count) else 0
                     print(f"Loaded household income: ${income_value} (code: {income_code})")
             except Exception as e:
                 print(f"Error loading household data: {e}")
@@ -121,11 +126,21 @@ class Persona:
                     # If no age information, use the first person
                     person_id = matching_persons.iloc[0]['perno']
                 
-                # Update persona attributes
-                selected_person = person_df[(person_df['sampno'] == household_id) & (person_df['perno'] == person_id)].iloc[0]
+            # 不管是自动选择还是指定了person_id，都要更新人口统计学属性
+            try:
+                # 确保该人存在于数据中
+                matching_person = person_df[(person_df['sampno'] == household_id) & (person_df['perno'] == person_id)]
+                if matching_person.empty:
+                    print(f"No person record found for household ID={household_id}, person ID={person_id}")
+                    return False
+                    
+                selected_person = matching_person.iloc[0]
+                
+                # 更新基本人口统计学信息
                 self.age = selected_person['age']
                 self.gender = 'male' if selected_person['sex'] == 1 else 'female'
                 
+                # 更新其他人口统计学信息
                 # Process occupation information
                 if 'occup' in selected_person:
                     self.occupation = self._determine_occupation(selected_person['occup'])
@@ -145,9 +160,13 @@ class Persona:
                 # Process education level
                 if 'educ' in selected_person:
                     self.education = self._determine_education(selected_person['educ'])
+                    
+            except Exception as e:
+                print(f"Error updating demographic information: {e}")
+                import traceback
+                traceback.print_exc()
                 
             # Read location.csv to get location information
-
             location_df = pd.read_csv(self.location_csv, low_memory=False)
             
             # Find home and work locations
@@ -624,6 +643,15 @@ class Persona:
             int: Household income value, default to 50000 if not set
         """
         return getattr(self, 'household_income', 50000)
+        
+    def get_household_vehicles(self):
+        """
+        Get household vehicle count
+        
+        Returns:
+            int: Number of vehicles in household, default to 0 if not set
+        """
+        return getattr(self, 'household_vehicles', 0)
         
     def _income_code_to_value(self, code):
         """

@@ -60,9 +60,13 @@ class Activity:
             'time_preferences': {},    # Time preferences (fallback)
             'travel_times': {},        # Travel times for different activities
             'activity_durations': {},  # Duration of different activities
+            'long_activities': {},      # 添加长时间活动的专门记录
             'distances': {},           # Travel distances
             'transport_modes': {}     # Transport mode preferences
         }
+        
+        # 定义长时间活动的阈值（分钟）
+        long_activity_threshold = 180  # 3 hours以上视为长时间活动
         
         # Try LLM summary for each day in the recent days only
         for day_index, day in enumerate(recent_days):
@@ -129,13 +133,23 @@ class Activity:
                     patterns['activity_durations'][activity_type] = []
                 patterns['activity_durations'][activity_type].append(duration)
                 
+                # 识别长时间活动并增加权重
+                if duration >= long_activity_threshold:
+                    if activity_type not in patterns['long_activities']:
+                        patterns['long_activities'][activity_type] = []
+                    # 为长时间活动增加权重记录
+                    patterns['long_activities'][activity_type].append({
+                        'duration': duration
+                    })
+                
                 # Collect distance information - handle both formats
                 distance = activity.get('distance', 0)
                 if activity_type not in patterns['distances']:
                     patterns['distances'][activity_type] = []
                 # Only add non-negative distance values
                 if distance >= 0:
-                    patterns['distances'][activity_type].append(distance)
+                    # 优先记录长距离活动，给予更高权重
+                    patterns['distances'][activity_type].append({'value': distance})
                 
                 # Collect transport modes - handle both formats
                 mode = activity.get('transport_mode', activity.get('transportmode', 'unknown'))
@@ -153,6 +167,7 @@ class Activity:
         """
         Clean memory patterns by removing empty values and zero values.
         Round decimal values to 3 decimal places for better readability.
+        Sort numerical values from largest to smallest.
         
         Args:
             patterns: Dictionary containing memory patterns
@@ -189,6 +204,9 @@ class Activity:
                             cleaned_list.append(item)
                 
                 if cleaned_list:
+                    # 对数值型列表进行从大到小排序
+                    if key not in ['summaries'] and all(isinstance(item, (int, float)) for item in cleaned_list):
+                        cleaned_list = sorted(cleaned_list, reverse=True)
                     cleaned_patterns[key] = cleaned_list
             elif value and value != 0:
                 # Keep non-empty and non-zero scalar values
@@ -198,25 +216,64 @@ class Activity:
         if 'distances' in cleaned_patterns:
             distances = cleaned_patterns['distances']
             for activity_type, distance_list in list(distances.items()):
-                # Round all values to 3 decimal places and remove zeros
-                rounded_distances = [round(d, 3) for d in distance_list if d > 0]
-                if rounded_distances:
-                    distances[activity_type] = rounded_distances
+                # 处理新格式的距离数据（带权重的字典）
+                if isinstance(distance_list[0], dict):
+                    # 筛选掉零值
+                    filtered_distances = [d for d in distance_list if d['value'] > 0]
+                    # 按照value从大到小排序，优先长距离活动
+                    sorted_distances = sorted(filtered_distances, key=lambda x: x['value'], reverse=True)
+                    if sorted_distances:
+                        distances[activity_type] = sorted_distances
+                    else:
+                        del distances[activity_type]
                 else:
-                    del distances[activity_type]
+                    # 处理旧格式的距离数据（纯数值）
+                    # Round all values to 3 decimal places and remove zeros
+                    rounded_distances = [round(d, 3) for d in distance_list if d > 0]
+                    # 从大到小排序
+                    rounded_distances = sorted(rounded_distances, reverse=True)
+                    if rounded_distances:
+                        distances[activity_type] = rounded_distances
+                    else:
+                        del distances[activity_type]
                     
         if 'travel_times' in cleaned_patterns:
             travel_times = cleaned_patterns['travel_times']
             for activity_type, time_list in list(travel_times.items()):
                 # Remove all zero values
                 filtered_times = [t for t in time_list if t > 0]
+                # 从大到小排序
+                filtered_times = sorted(filtered_times, reverse=True)
                 if filtered_times:
                     travel_times[activity_type] = filtered_times
                 else:
                     del travel_times[activity_type]
         
+        # 处理活动持续时间，从大到小排序
+        if 'activity_durations' in cleaned_patterns:
+            durations = cleaned_patterns['activity_durations']
+            for activity_type, duration_list in list(durations.items()):
+                filtered_durations = [d for d in duration_list if d > 0]
+                # 从大到小排序
+                filtered_durations = sorted(filtered_durations, reverse=True)
+                if filtered_durations:
+                    durations[activity_type] = filtered_durations
+                else:
+                    del durations[activity_type]
+        
+        # 处理长时间活动，保留权重信息并按持续时间从大到小排序
+        if 'long_activities' in cleaned_patterns:
+            long_acts = cleaned_patterns['long_activities']
+            for activity_type, acts_list in list(long_acts.items()):
+                if acts_list:
+                    # 按持续时间从大到小排序
+                    sorted_acts = sorted(acts_list, key=lambda x: x['duration'], reverse=True)
+                    long_acts[activity_type] = sorted_acts
+                else:
+                    del long_acts[activity_type]
+        
         # Make sure we're not storing any activity types with empty lists
-        for dict_key in ['time_preferences', 'travel_times', 'activity_durations', 'distances']:
+        for dict_key in ['time_preferences', 'travel_times', 'activity_durations', 'distances', 'long_activities', 'transport_modes']:
             if dict_key in cleaned_patterns:
                 nested_dict = cleaned_patterns[dict_key]
                 for activity_type in list(nested_dict.keys()):
@@ -856,6 +913,7 @@ class Activity:
             race=persona.race,
             education=persona.education,
             household_income=persona.get_household_income(),
+            household_vehicles=persona.get_household_vehicles(),
             occupation=persona.occupation,
             day_of_week=day_of_week,
             date=date,

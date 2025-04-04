@@ -278,6 +278,12 @@ class Destination:
                 household_income = persona.get_household_income()
             except Exception:
                 household_income = 50000  # Default value
+
+            # Get household vehicles safely
+            try:
+                household_vehicles = persona.get_household_vehicles()
+            except Exception:
+                household_vehicles = 0  # Default value     
                 
             # Get activity details safely
             activity_description = activity.get('description', 'unknown activity')
@@ -292,6 +298,7 @@ class Destination:
                 age=age,
                 race=race,
                 household_income=household_income,
+                household_vehicles=household_vehicles,
                 education=education,
                 occupation=occupation,
                 activity_description=activity_description,
@@ -1404,6 +1411,12 @@ class Destination:
                 household_income = persona.get_household_income()
             except Exception:
                 household_income = 50000  # Default value
+
+            # Get household vehicles safely
+            try:
+                household_vehicles = persona.get_household_vehicles()
+            except Exception:
+                household_vehicles = 0  # Default value
             
             # Format distance value
             distance_str = f"{float(distance):.1f}" if isinstance(distance, (int, float)) else "1.0"
@@ -1416,6 +1429,7 @@ class Destination:
                 education=education,
                 occupation=occupation,
                 household_income=household_income,
+                household_vehicles=household_vehicles,
                 traits=traits_str,
                 activity=activity_type,
                 minutes=available_minutes,
