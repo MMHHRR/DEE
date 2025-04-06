@@ -344,10 +344,6 @@ class Activity:
         
         # Stage 1: Generate basic activities with LLM
         basic_activities = self._generate_activities_with_llm(persona, date, day_of_week, memory_patterns, is_weekend)
-        
-        print('--------------------------')
-        print(basic_activities)
-        print('--------------------------')
 
         # Initialize destination selector if needed
         if not hasattr(self, 'destination_selector'):
