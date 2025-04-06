@@ -13,7 +13,7 @@ import pandas as pd
 import math
 from config import (
     GOOGLE_MAPS_API_KEY,
-    LLM_MODEL,
+    BASIC_LLM_MODEL,
     LLM_TEMPERATURE,
     LLM_MAX_TOKENS,
     USE_GOOGLE_MAPS,
@@ -47,7 +47,7 @@ class Destination:
     def __init__(self, config=None):
         """Initialize the Destination selector."""
         self.google_maps_api_key = GOOGLE_MAPS_API_KEY
-        self.model = LLM_MODEL
+        self.model = BASIC_LLM_MODEL
         self.temperature = LLM_TEMPERATURE
         self.max_tokens = LLM_MAX_TOKENS
         self.use_google_maps = USE_GOOGLE_MAPS

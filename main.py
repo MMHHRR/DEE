@@ -270,7 +270,7 @@ def main(args=None):
                               help='Maximum number of batches to process (None for all)') ##10 is processed batch
             parser.add_argument('--llm_rate_limit', type=float, default=0.5,
                               help='Minimum seconds between LLM requests to avoid rate limiting')
-            parser.add_argument('--no_threading', action='store_true', default=False,
+            parser.add_argument('--no_threading', action='store_true', default=True,
                               help='Disable multi-threading for debugging (runs in single thread)') ##True是单线程，False是多线程
             parser.add_argument('--sample_size', type=int, default=None,
                               help='Number of household-person pairs to randomly sample')

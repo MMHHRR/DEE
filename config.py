@@ -16,10 +16,12 @@ DEEPBRICKS_API_KEY = os.getenv("DEEPBRICKS_API_KEY")
 DEEPBRICKS_BASE_URL = os.getenv("DEEPBRICKS_BASE_URL")
 USE_DEEPBRICKS_API = True  # Always use DeepBricks API
 
-# LLM Configuration
-LLM_MODEL = "gpt-4o-mini"
+ACTIVITY_LLM_MODEL = "claude-3-7-sonnet-20250219-all"  # 活动生成模块使用的模型
 LLM_TEMPERATURE = 0.5
 LLM_MAX_TOKENS = 650
+
+# 用于基础数据总结与分析的模型
+BASIC_LLM_MODEL = "gpt-4o-mini"
 
 # Simulation Parameters
 NUM_DAYS_TO_SIMULATE = 3
@@ -114,7 +116,15 @@ You are simulating the daily activity schedule for a person with the following c
 
 Based on this information, generate a realistic daily schedule for this person, MUST START from 00:00 to END at 23:59. Include at least 3-5 activities (MUST NOT to exceed 6 activities) throughout the day start at home. MUST consider the memory patterns, MAKE SURE the time is continuous and there is no blank window.
 
-IMPORTANT RULES FOR ACTIVITY TYPES (ACTIVITY DURATION PREFERENCE BASED ON Memory Patterns: 'activity_durations'):
+IMPORTANT RULES FOR DIVERSE ACTIVITY DURATION (BASED ON Memory Patterns):
+- Short activities (15-30 minutes)
+- Medium-short activities (30-60 minutes)
+- Medium activities (60-120 minutes)
+- Medium-long activities (120-180 minutes)
+- Long activities (180 minutes or more)
+- Super long activities (360 minutes or more)
+
+IMPORTANT RULES FOR ACTIVITY TYPES:
 - "sleep": ONLY for sleeping activities (night sleep, naps)
 - "work": work-related activities (office work, meetings, etc.)
 - "shopping": purchasing goods (groceries, clothes, etc.)

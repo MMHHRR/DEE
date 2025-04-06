@@ -9,7 +9,8 @@ import openai
 import random
 from datetime import datetime, timedelta
 from config import (
-    LLM_MODEL,
+    BASIC_LLM_MODEL,
+    ACTIVITY_LLM_MODEL,
     LLM_TEMPERATURE,
     LLM_MAX_TOKENS,
     ACTIVITY_GENERATION_PROMPT,
@@ -31,7 +32,8 @@ class Activity:
     
     def __init__(self, config=None):
         """Initialize the Activity generator."""
-        self.model = LLM_MODEL
+        self.model = BASIC_LLM_MODEL
+        self.act_model = ACTIVITY_LLM_MODEL
         self.temperature = LLM_TEMPERATURE
         self.max_tokens = LLM_MAX_TOKENS
         self.activity_queue = []  # For batch processing of activities
@@ -59,14 +61,10 @@ class Activity:
             'frequent_locations': {},  # Frequent locations (fallback)
             'time_preferences': {},    # Time preferences (fallback)
             'travel_times': {},        # Travel times for different activities
-            'activity_durations': {},  # Duration of different activities
-            'long_activities': {},      # 添加长时间活动的专门记录
             'distances': {},           # Travel distances
+            'activity_durations': {},  # Duration of different activities
             'transport_modes': {}     # Transport mode preferences
         }
-        
-        # 定义长时间活动的阈值（分钟）
-        long_activity_threshold = 180  # 3 hours以上视为长时间活动
         
         # Try LLM summary for each day in the recent days only
         for day_index, day in enumerate(recent_days):
@@ -133,15 +131,6 @@ class Activity:
                     patterns['activity_durations'][activity_type] = []
                 patterns['activity_durations'][activity_type].append(duration)
                 
-                # 识别长时间活动并增加权重
-                if duration >= long_activity_threshold:
-                    if activity_type not in patterns['long_activities']:
-                        patterns['long_activities'][activity_type] = []
-                    # 为长时间活动增加权重记录
-                    patterns['long_activities'][activity_type].append({
-                        'duration': duration
-                    })
-                
                 # Collect distance information - handle both formats
                 distance = activity.get('distance', 0)
                 if activity_type not in patterns['distances']:
@@ -149,7 +138,7 @@ class Activity:
                 # Only add non-negative distance values
                 if distance >= 0:
                     # 优先记录长距离活动，给予更高权重
-                    patterns['distances'][activity_type].append({'value': distance})
+                    patterns['distances'][activity_type].append(distance)
                 
                 # Collect transport modes - handle both formats
                 mode = activity.get('transport_mode', activity.get('transportmode', 'unknown'))
@@ -252,28 +241,44 @@ class Activity:
         # 处理活动持续时间，从大到小排序
         if 'activity_durations' in cleaned_patterns:
             durations = cleaned_patterns['activity_durations']
+            stats_durations = {}
             for activity_type, duration_list in list(durations.items()):
                 filtered_durations = [d for d in duration_list if d > 0]
                 # 从大到小排序
                 filtered_durations = sorted(filtered_durations, reverse=True)
                 if filtered_durations:
+                    # 计算统计值
+                    max_val = max(filtered_durations)
+                    min_val = min(filtered_durations)
+                    # 计算中位数
+                    n = len(filtered_durations)
+                    if n % 2 == 0:
+                        median_val = (filtered_durations[n//2-1] + filtered_durations[n//2]) / 2
+                    else:
+                        median_val = filtered_durations[n//2]
+                    # 计算平均值
+                    mean_val = sum(filtered_durations) / n
+                    
+                    # 保存原始数据
                     durations[activity_type] = filtered_durations
+                    
+                    # 保存统计数据
+                    stats_durations[activity_type] = {
+                        'max': max_val,
+                        'min': min_val,
+                        'median': round(median_val, 3),
+                        'mean': round(mean_val, 3),
+                        'values': filtered_durations
+                    }
                 else:
                     del durations[activity_type]
-        
-        # 处理长时间活动，保留权重信息并按持续时间从大到小排序
-        if 'long_activities' in cleaned_patterns:
-            long_acts = cleaned_patterns['long_activities']
-            for activity_type, acts_list in list(long_acts.items()):
-                if acts_list:
-                    # 按持续时间从大到小排序
-                    sorted_acts = sorted(acts_list, key=lambda x: x['duration'], reverse=True)
-                    long_acts[activity_type] = sorted_acts
-                else:
-                    del long_acts[activity_type]
+            
+            # 添加统计数据到清理后的模式中
+            if stats_durations:
+                cleaned_patterns['activity_durations'] = stats_durations
         
         # Make sure we're not storing any activity types with empty lists
-        for dict_key in ['time_preferences', 'travel_times', 'activity_durations', 'distances', 'long_activities', 'transport_modes']:
+        for dict_key in ['time_preferences', 'travel_times', 'distances', 'activity_durations', 'transport_modes']:
             if dict_key in cleaned_patterns:
                 nested_dict = cleaned_patterns[dict_key]
                 for activity_type in list(nested_dict.keys()):
@@ -340,6 +345,10 @@ class Activity:
         # Stage 1: Generate basic activities with LLM
         basic_activities = self._generate_activities_with_llm(persona, date, day_of_week, memory_patterns, is_weekend)
         
+        print('--------------------------')
+        print(basic_activities)
+        print('--------------------------')
+
         # Initialize destination selector if needed
         if not hasattr(self, 'destination_selector'):
             try:
@@ -925,7 +934,7 @@ class Activity:
         try:
             # Generate activities using LLM
             response = client.chat.completions.create(
-                model=self.model,
+                model=self.act_model,
                 messages=[{"role": "user", "content": prompt}],
                 temperature=self.temperature,
                 max_tokens=self.max_tokens
