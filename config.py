@@ -114,15 +114,7 @@ You are simulating the daily activity schedule for a person with the following c
 
 Based on this information, generate a realistic daily schedule for this person, MUST START from 00:00 to END at 23:59. Include at least 3-5 activities (MUST NOT to exceed 6 activities) throughout the day start at home. MUST consider the memory patterns, MAKE SURE the time is continuous and there is no blank window.
 
-IMPORTANT ACTIVITY DURATION PREFERENCE BASED ON Memory Patterns: 'activity_durations' and 'long_activities':
-- Short activities (15-30 minutes)
-- Medium-short activities (30-60 minutes)
-- Medium activities (60-120 minutes)
-- Medium-long activities (120-180 minutes)
-- Long activities (180 minutes or more)
-- Super long activities (360 minutes or more)
-
-IMPORTANT RULES FOR ACTIVITY TYPES:
+IMPORTANT RULES FOR ACTIVITY TYPES (ACTIVITY DURATION PREFERENCE BASED ON Memory Patterns: 'activity_durations'):
 - "sleep": ONLY for sleeping activities (night sleep, naps)
 - "work": work-related activities (office work, meetings, etc.)
 - "shopping": purchasing goods (groceries, clothes, etc.)

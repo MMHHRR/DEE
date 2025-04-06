@@ -272,6 +272,12 @@ def main(args=None):
                               help='Minimum seconds between LLM requests to avoid rate limiting')
             parser.add_argument('--no_threading', action='store_true', default=False,
                               help='Disable multi-threading for debugging (runs in single thread)') ##True是单线程，False是多线程
+            parser.add_argument('--sample_size', type=int, default=None,
+                              help='Number of household-person pairs to randomly sample')
+            parser.add_argument('--sample_percent', type=float, default=None,
+                              help='Percentage of household-person pairs to randomly sample (0-100)')
+            parser.add_argument('--random_seed', type=int, default=42,
+                              help='Random seed for reproducibility')
             
             args = parser.parse_args()
         
@@ -293,6 +299,26 @@ def main(args=None):
         if not household_person_pairs:
             print("No valid household-person pairs found, cannot proceed with simulation")
             return {}
+            
+        # Perform random sampling if requested
+        if args.sample_size is not None or args.sample_percent is not None:
+            # Set random seed for reproducibility
+            np.random.seed(args.random_seed)
+            
+            # Determine sample size
+            total_pairs = len(household_person_pairs)
+            if args.sample_size is not None:
+                sample_size = min(args.sample_size, total_pairs)
+            elif args.sample_percent is not None:
+                sample_size = int(total_pairs * args.sample_percent / 100)
+                sample_size = max(1, min(sample_size, total_pairs))  # Ensure at least 1 pair, but not more than total
+            
+            # Randomly sample pairs
+            indices = np.random.choice(total_pairs, sample_size, replace=False)
+            sampled_pairs = [household_person_pairs[i] for i in indices]
+            
+            print(f"Randomly sampled {len(sampled_pairs)} out of {total_pairs} household-person pairs (seed={args.random_seed})")
+            household_person_pairs = sampled_pairs
         
         # Create a rate limiting semaphore for LLM API calls
         llm_semaphore = Semaphore(args.max_concurrent_llm)
