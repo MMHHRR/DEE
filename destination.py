@@ -1059,7 +1059,7 @@ class Destination:
                         
                         # Skip if location is too far
                         estimated_time_minutes = (distance / 30) * 60
-                        if available_minutes and estimated_time_minutes > available_minutes * 0.8:
+                        if available_minutes and estimated_time_minutes > available_minutes * 0.75:
                             continue
                         
                         # Get name and address

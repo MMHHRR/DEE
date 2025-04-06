@@ -16,9 +16,10 @@ DEEPBRICKS_API_KEY = os.getenv("DEEPBRICKS_API_KEY")
 DEEPBRICKS_BASE_URL = os.getenv("DEEPBRICKS_BASE_URL")
 USE_DEEPBRICKS_API = True  # Always use DeepBricks API
 
-ACTIVITY_LLM_MODEL = "claude-3-7-sonnet-20250219-all"  # 活动生成模块使用的模型
+# 活动生成模块使用的模型
+ACTIVITY_LLM_MODEL = "gpt-4o-mini"  
 LLM_TEMPERATURE = 0.5
-LLM_MAX_TOKENS = 650
+LLM_MAX_TOKENS = 600
 
 # 用于基础数据总结与分析的模型
 BASIC_LLM_MODEL = "gpt-4o-mini"
@@ -114,19 +115,21 @@ You are simulating the daily activity schedule for a person with the following c
 - Work location: {work_location}
 - Memory patterns: {memory_patterns}
 
-Based on this information, generate a realistic daily schedule for this person, MUST START from 00:00 to END at 23:59. Include at least 3-5 activities (MUST NOT to exceed 6 activities) throughout the day start at home. MUST consider the memory patterns, MAKE SURE the time is continuous and there is no blank window.
+Based on this information, generate a realistic daily schedule for this person, MUST START from 00:00 to END at 23:59 for ONE DAY. MAKE SURE the time is continuous and there is no blank window and MUST consider the Memory patterns, especially the 'activity duration'.
 
-IMPORTANT RULES FOR DIVERSE ACTIVITY DURATION (BASED ON Memory Patterns):
-- Short activities (15-30 minutes)
-- Medium-short activities (30-60 minutes)
-- Medium activities (60-120 minutes)
-- Medium-long activities (120-180 minutes)
-- Long activities (180 minutes or more)
-- Super long activities (360 minutes or more)
+CRITICAL: Your schedule must follow a heavy-tailed distribution for activity durations, with SIGNIFICANT emphasis on 2-3 very long activities rather than many short ones.
+
+IMPORTANT - FOLLOW THESE DURATION GUIDELINES STRICTLY:
+1. Super long activities (>= 480 minutes): At least 1-2 activities MUST be this long (especially sleep and work)
+2. Long activities (240-480 minutes): At least 1 activity MUST be in this range
+3. Medium activities (120-240 minutes): Only 1-2 activities maximum in this range
+4. Short activities (< 120 minutes): Maximum of 1 such activity, ONLY if necessary
+
+The TOTAL daily activities MUST be limited to 4-6 maximum. Over 70 percent of the day MUST be spent on activities longer than 240 minutes.
 
 IMPORTANT RULES FOR ACTIVITY TYPES:
 - "sleep": ONLY for sleeping activities (night sleep, naps)
-- "work": work-related activities (office work, meetings, etc.)
+- "work": work-related activities (office work, meetings, etc)
 - "shopping": purchasing goods (groceries, clothes, etc.)
 - "commuting": travel between home and work
 - "travel": travel between locations
@@ -169,7 +172,7 @@ For each activity, specify:
 1. Activity type (MUST be one from the list above)
 2. Start time (MUST be the same as the previous activity's end time)
 3. End time (Next activity MUST start at this time)
-4. Detailed description of the activity (limited to 30 words)
+4. Detailed description of the activity (limited to 20 words)
 5. Location type (MUST be one from the location types list above)
 
 Format your response as a JSON array of activities:
