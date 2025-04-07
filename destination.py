@@ -138,11 +138,6 @@ class Destination:
                 available_minutes
             )
 
-            print('----------------------')
-            print(location)
-            print(details)
-            print('----------------------')
-
             # Step 4: 确保距离被正确计算
             if 'distance' not in details or not isinstance(details['distance'], (int, float)):
                 details['distance'] = calculate_distance(current_location, location)
@@ -407,6 +402,7 @@ class Destination:
                 'lunch': {'place_type': 'restaurant', 'search_query': 'restaurant'},
                 'breakfast': {'place_type': 'cafe', 'search_query': 'cafe'},
                 'cafe': {'place_type': 'cafe', 'search_query': 'cafe'},
+                'café': {'place_type': 'cafe', 'search_query': 'cafe'},
                 'coffee': {'place_type': 'cafe', 'search_query': 'cafe'},
                 'fast food': {'place_type': 'fast_food', 'search_query': 'fast_food'},
                 'food court': {'place_type': 'food_court', 'search_query': 'food_court'},
@@ -844,32 +840,16 @@ class Destination:
             search_query = destination_type.get('search_query', '').lower()
             
             # 1. 直接处理搜索查询，获取更精确的搜索词
-            processed_destination_type = self._process_search_query(
-                {'search_query': search_query}, 
-                f"finding {search_query}"
-            )
-            processed_query = processed_destination_type.get('search_query', '').lower()
-            
-            # 2. 尝试直接匹配类别
             if search_query:
                 category_match = filtered_pois[
-                    filtered_pois['category'].str.lower().str.contains(search_query, na=False)
+                    filtered_pois['category'].str.lower().str.contains(search_query, na=False) |
+                    filtered_pois['name'].str.lower().str.contains(search_query, na=False) |
+                    filtered_pois['address'].str.lower().str.contains(search_query, na=False)
                 ]
                 
                 if len(category_match) > 0:
                     filtered_pois = category_match
-            
-            # 3. 如果原始查询没有匹配且处理后查询不同，使用处理后的查询
-            if len(filtered_pois) == 0 and processed_query and processed_query != search_query:
-                processed_match = filtered_pois[
-                    filtered_pois['category'].str.lower().str.contains(processed_query, na=False) |
-                    filtered_pois['name'].str.lower().str.contains(processed_query, na=False)
-                ]
-                
-                if len(processed_match) > 0:
-                    filtered_pois = processed_match
-                    print(f"Found matches using processed query: {processed_query}")
-            
+
             if len(filtered_pois) == 0:
                 print(f"No POIs match the search query: {search_query}")
                 random_location = generate_random_location_near(current_location, max_radius * 0.5, validate=False)
@@ -897,11 +877,8 @@ class Destination:
             )
             
             # 根据综合评分选择POI
-            selected_poi = filtered_pois.nlargest(1, 'score').iloc[0]
-
-            print('========================')
-            print(selected_poi)
-            print('========================')
+            top_pois = filtered_pois.nlargest(5, 'score')
+            selected_poi = top_pois.iloc[random.randint(0, len(top_pois)-1)]
             
             location = (selected_poi['latitude'], selected_poi['longitude'])
             details = {

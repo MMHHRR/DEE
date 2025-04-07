@@ -276,7 +276,7 @@ def main(args=None):
                               help='Percentage of household-person pairs to randomly sample (0-100)')
             parser.add_argument('--random_seed', type=int, default=42,
                               help='Random seed for reproducibility')
-            parser.add_argument('--no_threading', action='store_true', default=True,
+            parser.add_argument('--no_threading', action='store_true', default=False,
                               help='Disable multi-threading for debugging (runs in single thread)') ##True是单线程，False是多线程
             
             args = parser.parse_args()

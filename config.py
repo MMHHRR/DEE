@@ -17,8 +17,8 @@ DEEPBRICKS_BASE_URL = os.getenv("DEEPBRICKS_BASE_URL")
 USE_DEEPBRICKS_API = True  # Always use DeepBricks API
 
 # 活动生成模块使用的模型
-ACTIVITY_LLM_MODEL = "gemini-2.0-flash"  
-LLM_TEMPERATURE = 0.5
+ACTIVITY_LLM_MODEL = "gpt-4o-mini"  
+LLM_TEMPERATURE = 0.6
 LLM_MAX_TOKENS = 600
 
 # 用于基础数据总结与分析的模型
@@ -126,7 +126,7 @@ You are simulating the daily activity schedule for a person with the following c
 
 Based on this information, generate a realistic daily schedule for this person, MUST START from 00:00 to END at 23:59 for ONE DAY. MAKE SURE the time is continuous and there is no blank window and MUST consider the Memory patterns, especially the 'activity duration'.
 
-CRITICAL: Your schedule must follow a heavy-tailed distribution for activity durations, with SIGNIFICANT emphasis on 2-3 very long activities (such as sleep or work) rather than many short ones.
+CRITICAL: Your schedule must follow a heavy-tailed distribution for activity durations, with SIGNIFICANT emphasis on 2-3 very long activities (such as work) rather than many short ones.
 
 IMPORTANT - FOLLOW THESE DURATION GUIDELINES STRICTLY:
 1. Super long activities (>= 480 minutes): At least 1-2 activities MUST be this long (especially sleep and work)
@@ -181,7 +181,7 @@ For each activity, specify:
 1. Activity type (MUST be one from the list above)
 2. Start time (MUST be the same as the previous activity's end time)
 3. End time (Next activity MUST start at this time)
-4. Detailed description of the activity (limited to 20 words)
+4. Detailed description of the activity (limited to 25 words)
 5. Location type (MUST be one from the location types list above)
 
 Format your response as a JSON array of activities:
