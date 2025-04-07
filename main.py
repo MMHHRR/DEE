@@ -256,9 +256,9 @@ def main(args=None):
                               help='Number of parallel workers')
             parser.add_argument('--memory_days', type=int, default=MEMORY_DAYS,
                               help='Number of days to keep in memory')
-            parser.add_argument('--summary', action='store_true', default=True,
+            parser.add_argument('--summary', action='store_true', default=False,
                               help='Generate summary report')
-            parser.add_argument('--compress', action='store_true', default=True,
+            parser.add_argument('--compress', action='store_true', default=False,
                               help='Compress output files')
             parser.add_argument('--household_ids', type=str, default='',
                               help='Comma-separated list of household IDs to simulate (optional)')

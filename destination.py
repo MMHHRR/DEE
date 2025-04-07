@@ -843,8 +843,7 @@ class Destination:
             if search_query:
                 category_match = filtered_pois[
                     filtered_pois['category'].str.lower().str.contains(search_query, na=False) |
-                    filtered_pois['name'].str.lower().str.contains(search_query, na=False) |
-                    filtered_pois['address'].str.lower().str.contains(search_query, na=False)
+                    filtered_pois['name'].str.lower().str.contains(search_query, na=False)
                 ]
                 
                 if len(category_match) > 0:

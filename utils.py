@@ -19,6 +19,7 @@ import functools
 import gzip
 import shutil
 import pandas as pd
+import threading
 
 # Caching system implementation
 class Cache:
@@ -28,35 +29,46 @@ class Cache:
         self.cache_misses = 0
         self.enabled = ENABLE_CACHING
         self.expiry = CACHE_EXPIRY
+        self._lock = threading.Lock()  # 添加线程锁
         
-        # Ensure cache directory exists
-        os.makedirs(os.path.join(RESULTS_DIR, 'cache'), exist_ok=True)
-        self.cache_file = os.path.join(RESULTS_DIR, 'cache', 'function_cache.json')
-        self.load_cache()
+        # 确保缓存目录存在
+        try:
+            cache_dir = os.path.join(RESULTS_DIR, 'cache')
+            os.makedirs(cache_dir, exist_ok=True)
+            self.cache_file = os.path.join(cache_dir, 'function_cache.json')
+            self.load_cache()
+        except Exception as e:
+            print(f"Warning: Could not initialize cache directory: {e}")
+            self.enabled = False
     
     def get(self, key):
         """Get value from cache"""
         if not self.enabled:
             return None
             
-        if key in self.cache:
-            value, timestamp = self.cache[key]
-            # Check if expired
-            if time.time() - timestamp < self.expiry:
-                self.cache_hits += 1
-                return value
-        self.cache_misses += 1
-        return None
+        with self._lock:  # 使用线程锁
+            if key in self.cache:
+                value, timestamp = self.cache[key]
+                # Check if expired
+                if time.time() - timestamp < self.expiry:
+                    self.cache_hits += 1
+                    return value
+            self.cache_misses += 1
+            return None
     
     def set(self, key, value):
         """Set cache value"""
         if not self.enabled:
             return
             
-        self.cache[key] = (value, time.time())
-        # Save every 100 cache operations
-        if (self.cache_hits + self.cache_misses) % 100 == 0:
-            self.save_cache()
+        with self._lock:  # 使用线程锁
+            try:
+                self.cache[key] = (value, time.time())
+                # Save every 100 cache operations
+                if (self.cache_hits + self.cache_misses) % 100 == 0:
+                    self.save_cache()
+            except Exception as e:
+                print(f"Warning: Could not set cache value: {e}")
     
     def load_cache(self):
         """Load cache from file"""
@@ -65,11 +77,12 @@ class Cache:
             
         if os.path.exists(self.cache_file):
             try:
-                with open(self.cache_file, 'r', encoding='utf-8') as f:
-                    loaded_cache = json.load(f)
-                    self.cache = {k: (v[0], v[1]) for k, v in loaded_cache.items()}
+                with self._lock:  # 使用线程锁
+                    with open(self.cache_file, 'r', encoding='utf-8') as f:
+                        loaded_cache = json.load(f)
+                        self.cache = {k: (v[0], v[1]) for k, v in loaded_cache.items()}
             except Exception as e:
-                print(f"Error loading cache: {e}")
+                print(f"Warning: Could not load cache: {e}")
                 self.cache = {}
     
     def save_cache(self):
@@ -78,38 +91,65 @@ class Cache:
             return
             
         try:
-            # Create a JSON serializable version of the cache
-            json_safe_cache = {}
-            for k, v in self.cache.items():
-                # Convert keys to strings if they're not already JSON serializable
-                if isinstance(k, (str, int, float, bool)) or k is None:
-                    json_key = k
-                else:
-                    json_key = str(k)
-                json_safe_cache[json_key] = v
+            with self._lock:  # 使用线程锁
+                # 创建临时文件
+                temp_file = f"{self.cache_file}.tmp"
                 
-            with open(self.cache_file, 'w', encoding='utf-8') as f:
-                json.dump(json_safe_cache, f)
+                # 创建JSON可序列化的缓存版本
+                json_safe_cache = {}
+                for k, v in self.cache.items():
+                    try:
+                        # 转换键为字符串
+                        if isinstance(k, (str, int, float, bool)) or k is None:
+                            json_key = k
+                        else:
+                            json_key = str(k)
+                        json_safe_cache[json_key] = v
+                    except Exception as e:
+                        print(f"Warning: Could not serialize cache key {k}: {e}")
+                        continue
+                
+                # 先写入临时文件
+                with open(temp_file, 'w', encoding='utf-8') as f:
+                    json.dump(json_safe_cache, f)
+                
+                # 如果临时文件写入成功，替换原文件
+                if os.path.exists(temp_file):
+                    if os.path.exists(self.cache_file):
+                        os.replace(temp_file, self.cache_file)
+                    else:
+                        os.rename(temp_file, self.cache_file)
         except Exception as e:
-            print(f"Error saving cache: {e}")
+            print(f"Warning: Could not save cache: {e}")
+            # 清理临时文件
+            if os.path.exists(temp_file):
+                try:
+                    os.remove(temp_file)
+                except:
+                    pass
     
     def clear(self):
         """Clear cache"""
-        self.cache = {}
-        if os.path.exists(self.cache_file):
-            os.remove(self.cache_file)
+        with self._lock:  # 使用线程锁
+            self.cache = {}
+            if os.path.exists(self.cache_file):
+                try:
+                    os.remove(self.cache_file)
+                except Exception as e:
+                    print(f"Warning: Could not remove cache file: {e}")
     
     def stats(self):
         """Return cache statistics"""
-        total = self.cache_hits + self.cache_misses
-        hit_ratio = self.cache_hits / total if total > 0 else 0
-        return {
-            "hits": self.cache_hits,
-            "misses": self.cache_misses,
-            "total": total,
-            "hit_ratio": hit_ratio,
-            "size": len(self.cache)
-        }
+        with self._lock:  # 使用线程锁
+            total = self.cache_hits + self.cache_misses
+            hit_ratio = self.cache_hits / total if total > 0 else 0
+            return {
+                "hits": self.cache_hits,
+                "misses": self.cache_misses,
+                "total": total,
+                "hit_ratio": hit_ratio,
+                "size": len(self.cache)
+            }
 
 # Create global cache instance
 cache = Cache()
@@ -855,77 +895,3 @@ def generate_summary_report(results, output_dir):
     except Exception as e:
         print(f"Error generating summary report: {e}")
         return None
-
-def create_batch_visualizations(results_dir, max_personas_per_vis=10):
-    """
-    Create batch visualizations for simulation results
-    
-    Args:
-        results_dir: Results directory
-        max_personas_per_vis: Maximum number of personas per visualization
-    """
-    import folium
-    from folium.plugins import MarkerCluster
-    
-    # Find all household result files
-    household_files = []
-    for filename in os.listdir(results_dir):
-        if filename.startswith("household_") and filename.endswith(".json"):
-            household_files.append(os.path.join(results_dir, filename))
-    
-    if not household_files:
-        print("No household result files found")
-        return
-    
-    # Create visualizations by batch
-    for batch_idx in range(0, len(household_files), max_personas_per_vis):
-        batch_files = household_files[batch_idx:batch_idx + max_personas_per_vis]
-        
-        # Create map
-        m = folium.Map(location=[41.8781, -87.6298], zoom_start=11)  # Centered on Chicago
-        
-        # Create a feature group for each household
-        for household_file in batch_files:
-            try:
-                # Read household data
-                with open(household_file, 'r') as f:
-                    data = json.load(f)
-                
-                household_id = data.get('persona_id', 'unknown')
-                
-                # Create feature group for this household
-                fg = folium.FeatureGroup(name=f"Household {household_id}")
-                
-                # Add trajectory points
-                for day in data.get('days', []):
-                    date = day.get('date', '')
-                    
-                    # Create trajectory line
-                    locations = []
-                    for point in day.get('trajectory', []):
-                        if 'location' in point and point['location']:
-                            locations.append(point['location'])
-                    
-                    if len(locations) > 1:
-                        # Add trajectory line
-                        folium.PolyLine(
-                            locations,
-                            color=f'#{hash(str(household_id)) % 0xFFFFFF:06x}',  # Generate unique color based on household_id
-                            weight=2,
-                            opacity=0.7,
-                            popup=f"Household {household_id} on {date}"
-                        ).add_to(fg)
-                
-                # Add feature group to map
-                fg.add_to(m)
-                
-            except Exception as e:
-                print(f"Error processing {household_file}: {e}")
-        
-        # Add layer control
-        folium.LayerControl().add_to(m)
-        
-        # Save map
-        output_file = os.path.join(results_dir, f"batch_visualization_{batch_idx // max_personas_per_vis + 1}.html")
-        m.save(output_file)
-        print(f"Created batch visualization: {output_file}") 
