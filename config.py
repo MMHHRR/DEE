@@ -17,7 +17,7 @@ DEEPBRICKS_BASE_URL = os.getenv("DEEPBRICKS_BASE_URL")
 USE_DEEPBRICKS_API = True  # Always use DeepBricks API
 
 # 活动生成模块使用的模型
-ACTIVITY_LLM_MODEL = "gpt-4o-mini"  
+ACTIVITY_LLM_MODEL = "gemini-2.0-flash"  
 LLM_TEMPERATURE = 0.5
 LLM_MAX_TOKENS = 600
 
@@ -28,6 +28,8 @@ BASIC_LLM_MODEL = "gpt-4o-mini"
 NUM_DAYS_TO_SIMULATE = 3
 SIMULATION_START_DATE = "2025-03-10"
 USE_GOOGLE_MAPS = False  # 设置为False，使用OSM而不是Google Maps
+USE_OSM = False  # 禁用OpenStreetMap
+USE_LOCAL_POI = True  # 启用本地POI数据
 MEMORY_DAYS = 2  # Number of days to keep in memory
 
 # File Paths
@@ -38,6 +40,13 @@ PERSON_CSV_PATH = "data/person.csv"
 LOCATION_CSV_PATH = "data/location_new.csv"
 GPS_PLACE_CSV_PATH = "data/gps_place.csv"
 HOUSEHOLD_CSV_PATH = "data/household.csv"
+POI_CSV_PATH = "D:/A_Research/A_doing_research/20250228_LLM+green exposure/data/chicago_poi/meta-Illinois_selected.csv"  # POI数据文件路径
+
+# POI Data Source Configuration
+USE_GOOGLE_MAPS = False  # 禁用Google Maps API
+USE_OSM = False  # 禁用OpenStreetMap
+USE_LOCAL_POI = True  # 启用本地POI数据
+POI_SEARCH_RADIUS = 50.0  # 默认搜索半径（公里）
 
 # # Processing Options
 BATCH_PROCESSING = False  # Whether to use batch processing
@@ -117,7 +126,7 @@ You are simulating the daily activity schedule for a person with the following c
 
 Based on this information, generate a realistic daily schedule for this person, MUST START from 00:00 to END at 23:59 for ONE DAY. MAKE SURE the time is continuous and there is no blank window and MUST consider the Memory patterns, especially the 'activity duration'.
 
-CRITICAL: Your schedule must follow a heavy-tailed distribution for activity durations, with SIGNIFICANT emphasis on 2-3 very long activities rather than many short ones.
+CRITICAL: Your schedule must follow a heavy-tailed distribution for activity durations, with SIGNIFICANT emphasis on 2-3 very long activities (such as sleep or work) rather than many short ones.
 
 IMPORTANT - FOLLOW THESE DURATION GUIDELINES STRICTLY:
 1. Super long activities (>= 480 minutes): At least 1-2 activities MUST be this long (especially sleep and work)
@@ -206,8 +215,9 @@ Generate a specific destination type and preferences for a person with the follo
 
 Based on this information, especially considering the historical behavior patterns if available, provide:
 1. A specific type of destination suitable for {activity_type}
-2. Price preference (budget, mid-range, upscale, or a numeric value 1-4)
-3. Distance preference (on a scale of 1-10, where 1 means very close to current location and 10 means can be quite far)
+2. Distance preference (on a scale of 1-10, where 1 means very close to current location and 10 means can be quite far)
+3. Rating preference (on a scale of 1-5, where 1 means doesn't care about ratings, 5 means strongly prefers high-rated places)
+4. Popularity preference (on a scale of 1-5, where 1 means prefers quiet, less-visited places, 5 means strongly prefers busy, popular places with many reviews)
 
 IMPORTANT DIVERSE DISTANCES PREFERENCE FOR {activity_type} (BASED ON Memory Patterns: 'distances'):
 - Short distance travel (≤2 km): 1-3 score
@@ -220,8 +230,9 @@ Format your response as a JSON object:
 {{
   "place_type": "specific type of place",
   "search_query": "search terms for this type of place",
-  "price_level": 2,
   "distance_preference": 7,
+  "rating_preference": 3,
+  "popularity_preference": 3
 }}
 """
 

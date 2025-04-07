@@ -17,6 +17,10 @@ from config import (
     LLM_TEMPERATURE,
     LLM_MAX_TOKENS,
     USE_GOOGLE_MAPS,
+    USE_OSM,
+    USE_LOCAL_POI,
+    POI_CSV_PATH,
+    POI_SEARCH_RADIUS,
     DESTINATION_SELECTION_PROMPT,
     TRANSPORT_MODE_PROMPT,
     DEEPBRICKS_API_KEY,
@@ -51,12 +55,25 @@ class Destination:
         self.temperature = LLM_TEMPERATURE
         self.max_tokens = LLM_MAX_TOKENS
         self.use_google_maps = USE_GOOGLE_MAPS
+        self.use_osm = USE_OSM
+        self.use_local_poi = USE_LOCAL_POI
         self.config = config or {}
         
         # Initialize caches
         self.location_cache = {}
         self.transport_mode_cache = {}
         self.google_maps_cache = {}
+        
+        # Load POI data if using local POI
+        if self.use_local_poi:
+            try:
+                self.poi_data = pd.read_csv(POI_CSV_PATH, sep=',')
+                # 创建空间索引
+                self.poi_data['distance'] = 0.0  # 用于临时存储距离
+                # print(f"Successfully loaded {len(self.poi_data)} POIs from {POI_CSV_PATH}")
+            except Exception as e:
+                print(f"Error loading POI data: {e}")
+                self.poi_data = None
     
     @cached
     def select_destination(self, persona, current_location, activity_type, time, day_of_week, available_minutes, memory_patterns=None, location_type_override=None, search_query_override=None):
@@ -120,6 +137,11 @@ class Destination:
                 max_radius, 
                 available_minutes
             )
+
+            print('----------------------')
+            print(location)
+            print(details)
+            print('----------------------')
 
             # Step 4: 确保距离被正确计算
             if 'distance' not in details or not isinstance(details['distance'], (int, float)):
@@ -258,7 +280,8 @@ class Destination:
                 'place_type': 'point_of_interest',
                 'search_query': activity['activity_type'] if activity['activity_type'] else 'place',
                 'distance_preference': 5,
-                'price_level': 2
+                'rating_preference': 3,
+                'popularity_preference': 3
             }
     
     def _determine_destination_type_with_llm(self, persona, activity, time, day_of_week, memory_patterns):
@@ -332,8 +355,11 @@ class Destination:
             if 'distance_preference' not in result:
                 result['distance_preference'] = 5
                 
-            if 'price_level' not in result:
-                result['price_level'] = 2
+            if 'rating_preference' not in result:
+                result['rating_preference'] = 3
+                
+            if 'popularity_preference' not in result:
+                result['popularity_preference'] = 3
                 
             # 使用关键词映射处理搜索查询
             result = self._process_search_query(result, activity_description)
@@ -543,49 +569,57 @@ class Destination:
                     'place_type': 'store',
                     'search_query': 'shopping center',
                     'distance_preference': 4,
-                    'price_level': min(3, max(1, int(persona.get_household_income() / 25000)))
+                    'rating_preference': 3,
+                    'popularity_preference': 4
                 },
                 'dining': {
                     'place_type': 'restaurant',
                     'search_query': 'restaurant',
                     'distance_preference': 3,
-                    'price_level': min(4, max(1, int(persona.get_household_income() / 20000)))
+                    'rating_preference': 4,
+                    'popularity_preference': 3
                 },
                 'recreation': {
                     'place_type': 'park',
                     'search_query': 'park recreation area',
                     'distance_preference': 4,
-                    'price_level': 1
+                    'rating_preference': 3,
+                    'popularity_preference': 2
                 },
                 'leisure': {
                     'place_type': 'point_of_interest',
                     'search_query': 'leisure entertainment',
                     'distance_preference': 5,
-                    'price_level': min(3, max(1, int(persona.get_household_income() / 30000)))
+                    'rating_preference': 3,
+                    'popularity_preference': 3
                 },
                 'healthcare': {
                     'place_type': 'health',
                     'search_query': 'medical center',
                     'distance_preference': 6,
-                    'price_level': 2
+                    'rating_preference': 5,
+                    'popularity_preference': 2
                 },
                 'education': {
                     'place_type': 'school',
                     'search_query': 'education center',
                     'distance_preference': 5,
-                    'price_level': 2
+                    'rating_preference': 4,
+                    'popularity_preference': 3
                 },
                 'social': {
                     'place_type': 'bar',
                     'search_query': 'social venue cafe',
                     'distance_preference': 4,
-                    'price_level': min(3, max(1, int(persona.get_household_income() / 25000)))
+                    'rating_preference': 3,
+                    'popularity_preference': 5
                 },
                 'errands': {
                     'place_type': 'store',
                     'search_query': 'convenience services',
                     'distance_preference': 2,
-                    'price_level': 1
+                    'rating_preference': 2,
+                    'popularity_preference': 2
                 }
             }
             
@@ -626,7 +660,6 @@ class Destination:
                 'doctor': {'place_type': 'doctor', 'search_query': 'doctor clinic'},
                 'hospital': {'place_type': 'hospital', 'search_query': 'hospital'},
                 'bar': {'place_type': 'bar', 'search_query': 'bar pub'},
-                'bank': {'place_type': 'bank', 'search_query': 'bank'},
                 'pharmacy': {'place_type': 'pharmacy', 'search_query': 'pharmacy'},
                 'school': {'place_type': 'school', 'search_query': 'school'},
                 'university': {'place_type': 'university', 'search_query': 'university'},
@@ -640,7 +673,8 @@ class Destination:
                 'place_type': 'point_of_interest',
                 'search_query': activity['activity_type'],
                 'distance_preference': 5,
-                'price_level': 2
+                'rating_preference': 3,
+                'popularity_preference': 3
             }).copy()
             
             # Based on description keyword optimization
@@ -649,11 +683,6 @@ class Destination:
                     destination['place_type'] = mapping['place_type']
                     destination['search_query'] = mapping['search_query']
                     break
-            
-            # Further adjust based on day of week and time
-            if day_of_week in ['Saturday', 'Sunday']:
-                # Weekend may prefer better venue
-                destination['price_level'] = min(4, destination['price_level'] + 1)
             
             hour = int(time.split(':')[0])
             if 17 <= hour <= 20:
@@ -669,7 +698,8 @@ class Destination:
                 'place_type': 'point_of_interest',
                 'search_query': activity['activity_type'] if activity['activity_type'] else 'place',
                 'distance_preference': 5,
-                'price_level': 2
+                'rating_preference': 3,
+                'popularity_preference': 3
             }
     
     def _retrieve_location(self, current_location, destination_type, max_radius, available_minutes):
@@ -690,7 +720,6 @@ class Destination:
             # Validate inputs
             if not current_location or not isinstance(current_location, (tuple, list)) or len(current_location) != 2:
                 print(f"Invalid current_location format: {current_location}, using fallback")
-                # Use a default location if the input is invalid
                 return self._generate_fallback_location(max_radius)
             
             # Convert list to tuple if needed for consistency
@@ -704,34 +733,199 @@ class Destination:
                     'place_type': 'point_of_interest',
                     'search_query': 'place',
                     'distance_preference': 5,
-                    'price_level': 2
                 }
                 
             # Validate and correct max_radius if necessary
             if not isinstance(max_radius, (int, float)) or max_radius <= 0:
-                max_radius = 50.0  # Default 50km
+                max_radius = POI_SEARCH_RADIUS
                 
             # Select method based on configuration
-            if self.use_google_maps:
+            if self.use_local_poi and self.poi_data is not None:
+                return self._retrieve_location_local_poi(
+                    current_location, 
+                    destination_type, 
+                    max_radius, 
+                    available_minutes
+                )
+            elif self.use_google_maps:
                 return self._retrieve_location_google_maps(
                     current_location, 
                     destination_type, 
                     max_radius, 
                     available_minutes
                 )
-            else:
-                # 使用OpenStreetMap作为替代
+            elif self.use_osm:
                 return self._retrieve_location_osm(
                     current_location,
                     destination_type,
                     max_radius,
                     available_minutes
                 )
+            else:
+                # 如果所有方法都禁用，使用随机位置生成
+                return self._generate_fallback_location(max_radius, current_location)
         
         except Exception as e:
             print(f"Error in _retrieve_location: {str(e)}")
             return self._generate_fallback_location(max_radius, current_location)
+
+    def _retrieve_location_local_poi(self, current_location, destination_type, max_radius, available_minutes):
+        """
+        Use local POI data to get destination location
+        
+        Args:
+            current_location: Current location (latitude, longitude)
+            destination_type: Destination type information
+            max_radius: Maximum search radius (kilometers)
+            available_minutes: Available time (minutes)
+        
+        Returns:
+            tuple: ((latitude, longitude), location_details)
+        """
+        try:
+            # 使用空间索引进行初步筛选
+            lat_min = current_location[0] - (max_radius / 111.32)  # 1度约111.32公里
+            lat_max = current_location[0] + (max_radius / 111.32)
+            lon_min = current_location[1] - (max_radius / (111.32 * math.cos(math.radians(current_location[0]))))
+            lon_max = current_location[1] + (max_radius / (111.32 * math.cos(math.radians(current_location[0]))))
             
+            # 初步筛选在矩形范围内的POI
+            filtered_pois = self.poi_data[
+                (self.poi_data['latitude'] >= lat_min) &
+                (self.poi_data['latitude'] <= lat_max) &
+                (self.poi_data['longitude'] >= lon_min) &
+                (self.poi_data['longitude'] <= lon_max)
+            ]
+            
+            if len(filtered_pois) == 0:
+                print(f"No POIs found in initial spatial filter")
+                random_location = generate_random_location_near(current_location, max_radius * 0.5, validate=False)
+                return random_location, {
+                    'name': f'Location for {destination_type.get("search_query", "activity")}',
+                    'address': f'Generated Location',
+                    'is_fallback': True
+                }
+            
+            # 创建明确的副本
+            filtered_pois = filtered_pois.copy()
+            
+            # 计算精确距离
+            filtered_pois['distance'] = filtered_pois.apply(
+                lambda row: calculate_distance(
+                    current_location, 
+                    (row['latitude'], row['longitude'])
+                ),
+                axis=1
+            )
+            
+            # 处理缺失值
+            filtered_pois['avg_rating'] = filtered_pois['avg_rating'].fillna(3.0)  # 默认评分3.0
+            filtered_pois['num_of_reviews'] = filtered_pois['num_of_reviews'].fillna(1)  # 默认评论数1
+            filtered_pois['category'] = filtered_pois['category'].fillna('unknown')  # 默认类别
+            filtered_pois['name'] = filtered_pois['name'].fillna('')  # 默认空名称
+            filtered_pois['address'] = filtered_pois['address'].fillna('')  # 默认空地址
+            filtered_pois['description'] = filtered_pois['description'].fillna('')  # 默认空描述
+            
+            # 进一步筛选符合条件的POI
+            filtered_pois = filtered_pois[
+                (filtered_pois['distance'] <= max_radius)
+            ]
+            
+            if len(filtered_pois) == 0:
+                print(f"No suitable POIs found within {max_radius}km radius")
+                random_location = generate_random_location_near(current_location, max_radius * 0.5, validate=False)
+                return random_location, {
+                    'name': f'Location for {destination_type.get("search_query", "activity")}',
+                    'address': f'Generated Location',
+                    'is_fallback': True
+                }
+            
+            # 根据活动类型和搜索查询进行筛选
+            search_query = destination_type.get('search_query', '').lower()
+            
+            # 1. 直接处理搜索查询，获取更精确的搜索词
+            processed_destination_type = self._process_search_query(
+                {'search_query': search_query}, 
+                f"finding {search_query}"
+            )
+            processed_query = processed_destination_type.get('search_query', '').lower()
+            
+            # 2. 尝试直接匹配类别
+            if search_query:
+                category_match = filtered_pois[
+                    filtered_pois['category'].str.lower().str.contains(search_query, na=False)
+                ]
+                
+                if len(category_match) > 0:
+                    filtered_pois = category_match
+            
+            # 3. 如果原始查询没有匹配且处理后查询不同，使用处理后的查询
+            if len(filtered_pois) == 0 and processed_query and processed_query != search_query:
+                processed_match = filtered_pois[
+                    filtered_pois['category'].str.lower().str.contains(processed_query, na=False) |
+                    filtered_pois['name'].str.lower().str.contains(processed_query, na=False)
+                ]
+                
+                if len(processed_match) > 0:
+                    filtered_pois = processed_match
+                    print(f"Found matches using processed query: {processed_query}")
+            
+            if len(filtered_pois) == 0:
+                print(f"No POIs match the search query: {search_query}")
+                random_location = generate_random_location_near(current_location, max_radius * 0.5, validate=False)
+                return random_location, {
+                    'name': f'Location for {destination_type.get("search_query", "activity")}',
+                    'address': f'Generated Location',
+                    'is_fallback': True
+                }
+            
+            # 获取偏好参数
+            rating_preference = destination_type.get('rating_preference', 3)
+            popularity_preference = destination_type.get('popularity_preference', 3)
+            
+            # 计算综合评分，使用修改后的函数
+            filtered_pois['score'] = filtered_pois.apply(
+                lambda row: self._calculate_place_score(
+                    rating=row['avg_rating'],
+                    distance=row['distance'],
+                    max_distance=max_radius,
+                    num_reviews=row['num_of_reviews'],
+                    rating_preference=rating_preference,
+                    popularity_preference=popularity_preference
+                ),
+                axis=1
+            )
+            
+            # 根据综合评分选择POI
+            selected_poi = filtered_pois.nlargest(1, 'score').iloc[0]
+
+            print('========================')
+            print(selected_poi)
+            print('========================')
+            
+            location = (selected_poi['latitude'], selected_poi['longitude'])
+            details = {
+                'name': selected_poi['name'],
+                'address': selected_poi['address'],
+                'description': selected_poi['description'],
+                'category': selected_poi['category'],
+                'rating': selected_poi['avg_rating'],
+                'reviews': selected_poi['num_of_reviews'],
+                'distance': selected_poi['distance'],
+                'score': selected_poi['score']
+            }
+            
+            return location, details
+            
+        except Exception as e:
+            print(f"Error in _retrieve_location_local_poi: {str(e)}")
+            random_location = generate_random_location_near(current_location, max_radius * 0.5, validate=False)
+            return random_location, {
+                'name': f'Location for {destination_type.get("search_query", "activity")}',
+                'address': f'Generated Location',
+                'is_fallback': True
+            }
+
     def _retrieve_location_google_maps(self, current_location, destination_type, max_radius, available_minutes):
         """
         Use Google Maps API to get destination location
@@ -818,9 +1012,6 @@ class Destination:
         results = data.get('results')[:5]
         candidates = []
         
-        # 获取价格偏好
-        price_preference = destination_type.get('price_level', 2)
-        
         for result in results:
             try:
                 # Get location coordinates
@@ -844,15 +1035,12 @@ class Destination:
                 
                 # Get rating and price level
                 rating = result.get('rating', 3.0) or 3.0
-                place_price_level = result.get('price_level', 2)
                 
                 # 使用优化后的评分函数，传递所有需要的参数
                 score = self._calculate_place_score(
                     rating=rating, 
                     distance=distance, 
-                    max_distance=max_radius, 
-                    price_level=place_price_level, 
-                    price_preference=price_preference
+                    max_distance=max_radius
                 )
                 
                 # Add to candidate list
@@ -863,7 +1051,6 @@ class Destination:
                         'address': result.get('vicinity', 'Unknown Address'),
                         'place_id': result.get('place_id', ''),
                         'rating': rating,
-                        'price_level': place_price_level,
                         'distance': distance
                     },
                     'score': score
@@ -910,15 +1097,12 @@ class Destination:
                 'name': f"{search_query.capitalize()}",
                 'address': f"Distance: {round(calculate_distance(current_location, backup_location), 1)}km",
                 'rating': 3.0,
-                'price_level': 2,
                 'distance': calculate_distance(current_location, backup_location)
             }
             
             # Limit search radius to avoid Bad Request errors - 确保最大搜索半径为50公里(50000米)
             MAX_RADIUS_METERS = 50000  # 最大搜索半径50公里
             radius_meters = min(MAX_RADIUS_METERS, int(max_radius * 1000))
-
-            price_preference = destination_type.get('price_level', 2)
             
             # Google Places type to OSM tag mapping
             osm_tag_mapping = {
@@ -1071,15 +1255,12 @@ class Destination:
                         
                         # 使用固定默认值替代推断的评分和价格
                         rating = 4.5
-                        price_level = 2
                         
                         # Calculate score
                         score = self._calculate_place_score(
                             rating=rating,
                             distance=distance,
-                            max_distance=max_radius,
-                            price_level=price_level,
-                            price_preference=price_preference
+                            max_distance=max_radius
                         )
                         
                         # Add to candidate list
@@ -1090,7 +1271,6 @@ class Destination:
                                 'address': address,
                                 'place_id': str(result.get("id", "")),
                                 'rating': rating,
-                                'price_level': price_level,
                                 'distance': distance
                             },
                             'score': score
@@ -1120,44 +1300,51 @@ class Destination:
             random_location = generate_random_location_near(current_location, max_radius * 0.5, validate=True)
             return random_location, {'name': f'Random Location (OSM Error)', 'address': f'Distance: {round(calculate_distance(current_location, random_location), 1)}km'}
 
-
-    def _calculate_place_score(self, rating, distance, max_distance, price_level, price_preference):
+    def _calculate_place_score(self, rating, distance, max_distance, num_reviews=1, rating_preference=3, popularity_preference=3):
         """
-        Calculate a comprehensive score for a place based on rating, distance and price match
+        计算POI的综合评分
         
         Args:
-            rating: Place rating (1-5)
-            distance: Distance in kilometers
-            max_distance: Maximum search radius
-            price_level: Place price level (1-4)
-            price_preference: User price preference (1-4)
+            rating: POI评分 (1-5)
+            distance: 到当前位置的距离（公里）
+            max_distance: 最大搜索半径（公里）
+            num_reviews: 评论数量
+            rating_preference: 评分偏好 (1-5)，值越高表示越重视高评分
+            popularity_preference: 热度偏好 (1-5)，值越高表示越重视高人气(评论数量)
             
         Returns:
-            float: Score value
+            float: 综合评分 (0-1)
         """
-        # Ensure parameters are valid
+        # 确保参数有效
         if not isinstance(rating, (int, float)):
             rating = 3.0
         if not isinstance(distance, (int, float)):
-            distance = max_distance / 2  # Default to middle of search radius
+            distance = max_distance / 2  # 默认使用搜索半径的一半
         if not isinstance(max_distance, (int, float)) or max_distance <= 0:
             max_distance = 50.0  # 默认最大距离为50公里
-        if not isinstance(price_level, (int, float)):
-            price_level = 2
-        if not isinstance(price_preference, (int, float)):
-            price_preference = 2
-            
-        # Normalize rating (20%)
-        rating_factor = (min(5.0, max(1.0, rating)) / 5.0) * 0.2
+        if not isinstance(num_reviews, (int, float)):
+            num_reviews = 1
+        if not isinstance(rating_preference, (int, float)) or rating_preference < 1 or rating_preference > 5:
+            rating_preference = 3
+        if not isinstance(popularity_preference, (int, float)) or popularity_preference < 1 or popularity_preference > 5:
+            popularity_preference = 3
         
-        # 简化距离因素计算 (60%) - 距离越近分数越高
-        distance_factor = max(0, 1 - (distance / max_distance)) * 0.6
+        # 评分因素 (30%) - 根据评分偏好调整权重
+        rating_weight = 0.3 * (rating_preference / 3)  # 评分偏好标准为3时权重为0.3
+        rating_factor = (min(5.0, max(1.0, rating)) / 5.0) * rating_weight
         
-        # Price match (20%) - 价格等级与偏好匹配程度
-        price_match = 1 - (abs(price_level - price_preference) / 4)
-        price_factor = max(0, price_match) * 0.2
+        # 距离因素 (40%) - 距离越近分数越高
+        distance_factor = max(0, 1 - (distance / max_distance)) * 0.4
         
-        return rating_factor + distance_factor + price_factor
+        # 评论数量因素 (30%) - 根据热度偏好调整权重
+        popularity_weight = 0.3 * (popularity_preference / 3)  # 热度偏好标准为3时权重为0.3
+        reviews_factor = min(1.0, math.log(num_reviews + 1) / math.log(100)) * popularity_weight
+        
+        # 确保总权重为1
+        remaining_weight = 1.0 - (rating_weight + popularity_weight)
+        distance_factor = distance_factor * (remaining_weight / 0.4)
+        
+        return rating_factor + distance_factor + reviews_factor
 
     def _generate_random_point_geometrically(self, center, max_distance_km):
         """Generate a random point at a given distance from center point"""
@@ -1214,11 +1401,6 @@ class Destination:
                             result['distance_preference'] = float(json_data['distance_preference'])
                         except (ValueError, TypeError):
                             result['distance_preference'] = 5.0
-                    if 'price_level' in json_data:
-                        try:
-                            result['price_level'] = int(json_data['price_level'])
-                        except (ValueError, TypeError):
-                            result['price_level'] = 2
                     
                     return result
                 except json.JSONDecodeError:
@@ -1236,7 +1418,6 @@ class Destination:
             'place_type': ['place type', 'type of place', 'destination type', 'place_type'],
             'search_query': ['search query', 'search term', 'search for', 'keyword', 'search_query'],
             'distance_preference': ['distance', 'how far', 'kilometers', 'miles', 'distance_preference'],
-            'price_level': ['price', 'cost', 'expensive', 'budget', 'price_level']
         }
         
         # Extract information from each line
@@ -1280,8 +1461,6 @@ class Destination:
             destination['search_query'] = 'place'
         if 'distance_preference' not in destination:
             destination['distance_preference'] = 5.0
-        if 'price_level' not in destination:
-            destination['price_level'] = 2
             
         return destination
     
@@ -1302,23 +1481,6 @@ class Destination:
             if numbers:
                 return float(numbers[0])
             return 5.0  # Default
-        
-        elif key == 'price_level':
-            # Try to map price descriptions to levels
-            value = value.lower()
-            if 'high' in value or 'expensive' in value or 'premium' in value:
-                return 4
-            elif 'mid-high' in value or 'above average' in value:
-                return 3
-            elif 'mid' in value or 'average' in value or 'moderate' in value:
-                return 2
-            elif 'low' in value or 'budget' in value or 'cheap' in value:
-                return 1
-            # Try to extract numbers
-            numbers = re.findall(r'\d+', value)
-            if numbers:
-                return min(4, max(1, int(numbers[0])))
-            return 2  # Default
         
         return value
 

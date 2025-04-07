@@ -10,7 +10,7 @@ import numpy as np
 from geopy.distance import geodesic
 import folium
 import matplotlib.pyplot as plt
-from config import RESULTS_DIR, TRANSPORT_MODES, ENABLE_CACHING, CACHE_EXPIRY
+from config import RESULTS_DIR, TRANSPORT_MODES, ENABLE_CACHING, CACHE_EXPIRY, USE_LOCAL_POI, POI_CSV_PATH
 import requests
 import math
 import hashlib
@@ -18,6 +18,7 @@ import time
 import functools
 import gzip
 import shutil
+import pandas as pd
 
 # Caching system implementation
 class Cache:
@@ -550,16 +551,17 @@ def time_to_minutes(time_str):
         return 0
 
 @cached
-def generate_random_location_near(center, max_distance_km=50.0, max_attempts=10, validate=True):
+def generate_random_location_near(center, max_distance_km=50.0, max_attempts=10, validate=True, search_query=None):
     """
-    Generate a random location within a specified distance from a center point,
-    using OpenStreetMap instead of Google Maps API to ensure the location is reasonable.
+    Generate a random location within a specified distance from a center point.
+    If local POI data is available, use it to generate more realistic locations.
     
     Args:
         center: Center point (lat, lon)
         max_distance_km: Maximum distance in kilometers
         max_attempts: Maximum number of attempts
-        validate: Whether to validate the location is valid (avoid water areas, etc.)
+        validate: Whether to validate the location is valid
+        search_query: Search query for filtering POIs
         
     Returns:
         tuple: (lat, lon) of random location
@@ -567,72 +569,87 @@ def generate_random_location_near(center, max_distance_km=50.0, max_attempts=10,
     # 限制最大距离为50公里
     max_distance_km = min(max_distance_km, 50.0)
     
-    # If validation is not needed, directly use geometric algorithm to generate a random point
+    # 如果不需要验证，直接使用几何算法生成随机点
     if not validate:
         return _generate_random_point_geometrically(center, max_distance_km)
     
-    import requests
-    import random
-    
-    # Method 1: Use OSM Overpass API to get real POI points
+    # 尝试从本地POI数据生成位置
     try:
-        # 检查是否已有相同中心点和距离的缓存结果
-        cache_key = f"random_location_{center[0]}_{center[1]}_{max_distance_km}"
-        cached_result = cache.get(cache_key)
-        if cached_result:
-            return cached_result
+        if USE_LOCAL_POI:
+            # 使用制表符分隔符读取CSV文件
+            poi_data = pd.read_csv(POI_CSV_PATH, sep=',')
             
-        # 限制搜索半径，避免Bad Request错误并使范围更小
-        # 将随机搜索半径限制在最大1000米内
-        search_radius = int(min(1000, random.uniform(0.2, 0.6) * max_distance_km * 1000))
-        
-        # Randomly select OSM tag to ensure randomness and diversity
-        osm_tags = [
-            "amenity", "shop", "tourism", "leisure", "highway", 
-            "building", "natural", "historic", "office", "public_transport"
-        ]
-        selected_tag = random.choice(osm_tags)
-        
-        # Build Overpass API query
-        overpass_url = "https://overpass-api.de/api/interpreter"
-        overpass_query = f"""
-        [out:json];
-        (
-          node[{selected_tag}](around:{search_radius},{center[0]},{center[1]});
-          way[{selected_tag}](around:{search_radius},{center[0]},{center[1]});
-        );
-        out center;
-        """
-        
-        # Send request
-        response = requests.post(overpass_url, data={"data": overpass_query})
-        response.raise_for_status()
-        data = response.json()
-        
-        # If results found
-        if "elements" in data and data["elements"]:
-            # Randomly select a result
-            result = random.choice(data["elements"])
-            if "center" in result:
-                location = (result["center"]["lat"], result["center"]["lon"])
-                cache.set(cache_key, location)
-                return location
-            elif "lat" in result and "lon" in result:
-                location = (result["lat"], result["lon"])
-                cache.set(cache_key, location)
-                return location
+            # 使用空间索引进行初步筛选
+            lat_min = center[0] - (max_distance_km / 111.32)  # 1度约111.32公里
+            lat_max = center[0] + (max_distance_km / 111.32)
+            lon_min = center[1] - (max_distance_km / (111.32 * math.cos(math.radians(center[0]))))
+            lon_max = center[1] + (max_distance_km / (111.32 * math.cos(math.radians(center[0]))))
             
+            # 初步筛选在矩形范围内的POI
+            filtered_pois = poi_data[
+                (poi_data['latitude'] >= lat_min) &
+                (poi_data['latitude'] <= lat_max) &
+                (poi_data['longitude'] >= lon_min) &
+                (poi_data['longitude'] <= lon_max)
+            ]
+            
+            if len(filtered_pois) == 0:
+                return _generate_random_point_geometrically(center, max_distance_km)
+            
+            # 创建明确的副本并计算精确距离
+            filtered_pois = filtered_pois.copy()
+            filtered_pois['distance'] = filtered_pois.apply(
+                lambda row: calculate_distance(
+                    center, 
+                    (row['latitude'], row['longitude'])
+                ),
+                axis=1
+            )
+            
+            # 处理缺失值
+            filtered_pois['category'] = filtered_pois['category'].fillna('unknown')
+            
+            # 进一步筛选符合条件的POI
+            filtered_pois = filtered_pois[
+                (filtered_pois['distance'] <= max_distance_km)
+            ]
+            
+            # 如果有搜索查询，进行进一步筛选
+            if search_query and len(filtered_pois) > 0:
+                search_query = search_query.lower()
+                
+                # 尝试直接匹配类别
+                category_match = filtered_pois[
+                    filtered_pois['category'].str.lower().str.contains(search_query, na=False)
+                ]
+                
+                if len(category_match) > 0:
+                    filtered_pois = category_match
+                else:
+                    # 如果没有找到匹配，尝试拆分关键词
+                    search_keywords = search_query.split()
+                    if len(search_keywords) > 1:
+                        mask = pd.Series(False, index=filtered_pois.index)
+                        for keyword in search_keywords:
+                            if len(keyword) > 2:  # 忽略太短的关键词
+                                keyword_mask = (
+                                    filtered_pois['category'].str.lower().str.contains(keyword, na=False)
+                                )
+                                mask = mask | keyword_mask
+                        
+                        keyword_matches = filtered_pois[mask]
+                        if len(keyword_matches) > 0:
+                            filtered_pois = keyword_matches
+            
+            if len(filtered_pois) > 0:
+                # 随机选择一个POI
+                selected_poi = filtered_pois.sample(n=1).iloc[0]
+                return (selected_poi['latitude'], selected_poi['longitude'])
     except Exception as e:
-        print(f"Failed to generate random location using OSM Overpass API: {e}")
+        print(f"Error using local POI data for random location: {e}")
     
-    # Fallback: try with a smaller radius
-    if max_distance_km > 1.0:
-        return generate_random_location_near(center, max_distance_km=max_distance_km/2, 
-                                           max_attempts=max_attempts, validate=False)
-    
-    # Last resort: return a simple geometric random point
-    result = _generate_random_point_geometrically(center, max_distance_km * 0.5)
-    return result
+    # 如果上述过程失败，使用几何算法生成随机点
+    return _generate_random_point_geometrically(center, max_distance_km)
 
 def _generate_random_point_geometrically(center, max_distance_km):
     """

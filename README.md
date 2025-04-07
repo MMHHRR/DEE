@@ -29,7 +29,6 @@ The simulation creates realistic daily activity schedules and travel patterns fo
 
 1. Set up your `.env` file with API keys:
 ```
-GOOGLE_MAPS_API_KEY=your_google_maps_api_key
 DEEPBRICKS_API_KEY=your_openai_api_key
 DEEPBRICKS_BASE_URL=https://api.openai.com/v1
 ```

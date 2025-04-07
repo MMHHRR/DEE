@@ -258,7 +258,7 @@ def main(args=None):
                               help='Number of days to keep in memory')
             parser.add_argument('--summary', action='store_true', default=True,
                               help='Generate summary report')
-            parser.add_argument('--compress', action='store_true', default=False,
+            parser.add_argument('--compress', action='store_true', default=True,
                               help='Compress output files')
             parser.add_argument('--household_ids', type=str, default='',
                               help='Comma-separated list of household IDs to simulate (optional)')
@@ -266,7 +266,7 @@ def main(args=None):
                               help='Maximum number of concurrent LLM requests')
             parser.add_argument('--batch_size', type=int, default=BATCH_SIZE,
                               help='Number of simulations to batch process')
-            parser.add_argument('--max_batches', type=int, default=10,
+            parser.add_argument('--max_batches', type=int, default=50,
                               help='Maximum number of batches to process (None for all)') ##10 is processed batch
             parser.add_argument('--llm_rate_limit', type=float, default=0.5,
                               help='Minimum seconds between LLM requests to avoid rate limiting')
@@ -276,7 +276,7 @@ def main(args=None):
                               help='Percentage of household-person pairs to randomly sample (0-100)')
             parser.add_argument('--random_seed', type=int, default=42,
                               help='Random seed for reproducibility')
-            parser.add_argument('--no_threading', action='store_true', default=False,
+            parser.add_argument('--no_threading', action='store_true', default=True,
                               help='Disable multi-threading for debugging (runs in single thread)') ##True是单线程，False是多线程
             
             args = parser.parse_args()
