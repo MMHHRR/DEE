@@ -470,8 +470,8 @@ def main(args=None):
                               help='Minimum seconds between LLM requests to avoid rate limiting')
             parser.add_argument('--random_seed', type=int, default=42,
                               help='Random seed for reproducibility')
-            parser.add_argument('--no_threading', action='store_true', default=True,
-                              help='Disable multi-threading for debugging (runs in single thread)')
+            parser.add_argument('--no_threading', action='store_true', default=False,
+                              help='Disable multi-threading for debugging (runs in single thread)') #False是多线程
             parser.add_argument('--use_processes', action='store_true', default=BATCH_PROCESSING,
                               help='Use processes instead of threads for better performance on CPU-bound tasks')
             

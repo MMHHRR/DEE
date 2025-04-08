@@ -67,9 +67,9 @@ class Destination:
         # Load POI data if using local POI
         if self.use_local_poi:
             try:
-                self.poi_data = pd.read_csv(POI_CSV_PATH, sep=',')
+                self.poi_data = pd.read_csv(POI_CSV_PATH, sep=',', encoding='utf-8')
                 # 创建空间索引
-                self.poi_data['distance'] = 0.0  # 用于临时存储距离
+                self.poi_data['distance'] = 0.0  # use for temporary storage of distance
                 # print(f"Successfully loaded {len(self.poi_data)} POIs from {POI_CSV_PATH}")
             except Exception as e:
                 print(f"Error loading POI data: {e}")
@@ -88,8 +88,8 @@ class Destination:
             day_of_week: Day of week string
             available_minutes: Available time (minutes)
             memory_patterns: Historical memory patterns for LLM analysis (optional)
-            location_type_override: 根据活动描述提取的位置类型信息 (optional)
-            search_query_override: 根据活动描述提取的搜索查询信息 (optional)
+            location_type_override: Location type information extracted from activity description (optional)
+            search_query_override: Search query information extracted from activity description (optional)
         
         Returns:
             tuple: ((latitude, longitude), location_details)
@@ -98,7 +98,7 @@ class Destination:
             # Step 1: Determine appropriate destination type
             if location_type_override:
 
-                # 首先获取正常的目的地类型信息
+                # Get normal destination type information first
                 destination_type = self._determine_destination_type(
                     persona, 
                     {"activity_type": activity_type, "description": f"{activity_type} activity"}, 
@@ -107,7 +107,7 @@ class Destination:
                     memory_patterns
                 )
 
-                # 然后用覆盖值替换特定字段
+                # Then replace specific fields with override values
                 destination_type['place_type'] = location_type_override
                 if search_query_override:
                     destination_type['search_query'] = search_query_override
@@ -120,7 +120,7 @@ class Destination:
                     memory_patterns
                 )
                 
-                # 使用_process_search_query方法处理LLM返回的查询结果
+                # Use _process_search_query method to process the query result returned by LLM
                 destination_type = self._process_search_query(
                     destination_type,
                     f"{activity_type} activity"
@@ -138,11 +138,11 @@ class Destination:
                 available_minutes
             )
 
-            # Step 4: 确保距离被正确计算
+            # Step 4: Ensure distance is calculated correctly
             if 'distance' not in details or not isinstance(details['distance'], (int, float)):
                 details['distance'] = calculate_distance(current_location, location)
 
-            # Step 5: Determine transportation details - 仅在目的地确定后才确定交通方式
+            # Step 5: Determine transportation details 
             transport_mode = self._determine_transport_mode(
                 persona, 
                 activity_type,
@@ -151,7 +151,7 @@ class Destination:
                 memory_patterns
             )
             
-            # Step 6: 计算选定交通方式下的旅行时间
+            # Step 6: Calculate travel time for selected transport mode
             travel_time, _ = estimate_travel_time(current_location, location, transport_mode)
                 
             # Step 7: Update location details with transport information
@@ -159,7 +159,7 @@ class Destination:
                 'name': details['name'],
                 'transport_mode': transport_mode,
                 'travel_time': travel_time,
-                'distance': details['distance']  # 确保距离信息存在
+                'distance': details['distance']  # Ensure distance information exists
             })
             
             return location, details
@@ -230,8 +230,8 @@ class Destination:
             # Adjust base radius
             final_radius = base_radius * distance_factor
         
-        # 3. Apply upper limit - 确保最大搜索半径为50公里
-        MAX_ALLOWED_RADIUS = 50.0  # 最大允许搜索半径为50公里
+        # 3. Apply upper limit - Ensure maximum search radius is 50 kilometers
+        MAX_ALLOWED_RADIUS = 50.0  # Maximum allowed search radius is 50 kilometers
         final_radius = min(final_radius, MAX_ALLOWED_RADIUS)
         
         # Ensure minimum radius
@@ -331,7 +331,7 @@ class Destination:
                 model=self.model,
                 messages=[{"role": "user", "content": enhanced_prompt}],
                 temperature=self.temperature,
-                max_tokens=100
+                max_tokens=50
             )
             
             # Extract structured data from LLM response
@@ -367,26 +367,31 @@ class Destination:
     
     def _process_search_query(self, destination_type, description):
         """
-        处理搜索查询，使用关键词映射来替换不正确的查询
+        Process search query, use keyword mapping to replace incorrect queries
         
         Args:
-            destination_type: 目标地点类型字典
-            description: 活动描述
+            destination_type: Target location type dictionary
+            description: Activity description
             
         Returns:
-            dict: 处理后的目标地点类型字典
+            dict: Processed target location type dictionary
         """
         try:
-            # 如果没有search_query或search_query包含明显的错误模式，如"Office spaces near transit stations"
-            search_query = destination_type.get('search_query', '').lower()
+            # If there is no search_query, initialize it as an empty string
+            search_query = destination_type.get('search_query', '')
             
-            # 关键词映射列表
+            # Ensure query is a string and remove leading/trailing spaces
+            if not isinstance(search_query, str):
+                search_query = str(search_query)
+            search_query = search_query.strip().lower()
+            
+            # Keyword mapping list
             place_keywords = {
-                # 金融服务 (Financial Services)
+                # Financial Services
                 'bank': {'place_type': 'bank', 'search_query': 'bank'},
                 'atm': {'place_type': 'atm', 'search_query': 'atm'},
                 
-                # 食品购物 (Food Shopping)
+                # Food Shopping
                 'grocery': {'place_type': 'grocery_or_supermarket', 'search_query': 'grocery'},
                 'supermarket': {'place_type': 'grocery_or_supermarket', 'search_query': 'supermarket'},
                 'bakery': {'place_type': 'bakery', 'search_query': 'bakery'},
@@ -395,7 +400,7 @@ class Destination:
                 'seafood': {'place_type': 'fishmonger', 'search_query': 'seafood'},
                 'greengrocer': {'place_type': 'greengrocer', 'search_query': 'greengrocer'},
                 
-                # 餐饮场所 (Food & Drink)
+                # Food & Drink
                 'restaurant': {'place_type': 'restaurant', 'search_query': 'restaurant'},
                 'dining': {'place_type': 'restaurant', 'search_query': 'restaurant'},
                 'dinner': {'place_type': 'restaurant', 'search_query': 'restaurant'},
@@ -410,7 +415,7 @@ class Destination:
                 'bar': {'place_type': 'bar', 'search_query': 'bar'},
                 'ice cream': {'place_type': 'ice_cream', 'search_query': 'ice_cream'},
                 
-                # 休闲娱乐 (Leisure & Entertainment)
+                # Leisure & Entertainment
                 'gym': {'place_type': 'gym', 'search_query': 'fitness_centre'},
                 'fitness': {'place_type': 'gym', 'search_query': 'fitness_centre'},
                 'workout': {'place_type': 'gym', 'search_query': 'fitness_centre'},
@@ -423,7 +428,7 @@ class Destination:
                 'swimming': {'place_type': 'swimming_pool', 'search_query': 'swimming_pool'},
                 'nightclub': {'place_type': 'night_club', 'search_query': 'nightclub'},
                 
-                # 文化与教育 (Culture & Education)
+                # Culture & Education
                 'library': {'place_type': 'library', 'search_query': 'library'},
                 'museum': {'place_type': 'museum', 'search_query': 'museum'},
                 'art gallery': {'place_type': 'art_gallery', 'search_query': 'gallery'},
@@ -432,7 +437,7 @@ class Destination:
                 'university': {'place_type': 'university', 'search_query': 'university'},
                 'college': {'place_type': 'university', 'search_query': 'college'},
                 
-                # 医疗健康 (Healthcare)
+                # Healthcare
                 'hospital': {'place_type': 'hospital', 'search_query': 'hospital'},
                 'doctor': {'place_type': 'doctor', 'search_query': 'clinic'},
                 'medical': {'place_type': 'medical_center', 'search_query': 'hospital'},
@@ -442,7 +447,7 @@ class Destination:
                 'drugstore': {'place_type': 'pharmacy', 'search_query': 'chemist'},
                 'veterinary': {'place_type': 'veterinary_care', 'search_query': 'veterinary'},
                 
-                # 购物场所 (Shopping)
+                # Shopping
                 'shop': {'place_type': 'store', 'search_query': 'mall'},
                 'shopping': {'place_type': 'store', 'search_query': 'mall'},
                 'shopping mall': {'place_type': 'store', 'search_query': 'mall'},
@@ -456,7 +461,7 @@ class Destination:
                 'jewelry': {'place_type': 'jewelry_store', 'search_query': 'jewelry'},
                 'toys': {'place_type': 'toy_store', 'search_query': 'toys'},
                 
-                # 个人服务 (Personal Services)
+                # Personal Services
                 'hair': {'place_type': 'beauty_salon', 'search_query': 'beauty'},
                 'salon': {'place_type': 'beauty_salon', 'search_query': 'beauty'},
                 'barber': {'place_type': 'beauty_salon', 'search_query': 'beauty'},
@@ -464,13 +469,13 @@ class Destination:
                 'laundry': {'place_type': 'laundry', 'search_query': 'laundry'},
                 'dry cleaning': {'place_type': 'dry_cleaning', 'search_query': 'dry_cleaning'},
                 
-                # 住宿 (Accommodation)
+                # Accommodation
                 'hotel': {'place_type': 'lodging', 'search_query': 'hotel'},
                 'motel': {'place_type': 'lodging', 'search_query': 'motel'},
                 'hostel': {'place_type': 'lodging', 'search_query': 'hostel'},
                 'guest house': {'place_type': 'lodging', 'search_query': 'guest_house'},
                 
-                # 交通服务 (Transportation)
+                # Transportation
                 'gas station': {'place_type': 'gas_station', 'search_query': 'gas'},
                 'car repair': {'place_type': 'car_repair', 'search_query': 'car_repair'},
                 'car wash': {'place_type': 'car_wash', 'search_query': 'car_wash'},
@@ -481,55 +486,79 @@ class Destination:
                 'subway': {'place_type': 'subway_station', 'search_query': 'subway'},
                 'airport': {'place_type': 'airport', 'search_query': 'aerodrome'},
                 
-                # 日常便利设施 (Convenience)
+                # Convenience
                 'grocery store': {'place_type': 'grocery_or_supermarket', 'search_query': 'retail'},
                 'convenience store': {'place_type': 'convenience_store', 'search_query': 'convenience'},
                 'post office': {'place_type': 'post_office', 'search_query': 'post_office'},
                 
-                # 公共服务 (Public Services)
+                # Public Services
                 'police': {'place_type': 'police', 'search_query': 'police'},
                 'fire station': {'place_type': 'fire_station', 'search_query': 'fire_station'},
                 'town hall': {'place_type': 'city_hall', 'search_query': 'government'},
                 'courthouse': {'place_type': 'courthouse', 'search_query': 'courthouse'},
                 'embassy': {'place_type': 'embassy', 'search_query': 'diplomatic'},
                 
-                # 工作场所 (Work Places)
+                # Work Places
                 'office': {'place_type': 'point_of_interest', 'search_query': 'office_building'},
                 'workplace': {'place_type': 'point_of_interest', 'search_query': 'office_building'},
             }
             
-            # 检查搜索查询是否有问题（包含近乎自然语言的描述）
+            # Extended problematic pattern list
             problematic_patterns = [
                 "near", "close to", "around", "spaces", "located", 
-                "looking for", "find", "searching", "seeking"
+                "looking for", "find", "searching", "seeking",
+                "next to", "nearby", "within", "by the", "available",
+                "nearest", "area", "places", "in the", "center",
+                "at the", "with", "for", "me", "near me"
             ]
             
+            # 1. First check if there is a predefined exact match
+            if search_query in place_keywords:
+                destination_type['place_type'] = place_keywords[search_query]['place_type']
+                destination_type['search_query'] = place_keywords[search_query]['search_query']
+                return destination_type
+                
+            # 2. Check if the search query contains problematic patterns or is too long
             is_problematic = any(pattern in search_query for pattern in problematic_patterns)
             
-            # 如果搜索查询存在问题，尝试从描述中提取关键词
-            if is_problematic or len(search_query.split()) > 3:
-                description = description.lower()
+            # Remove common problematic words (e.g. "near me") to try to get keywords
+            cleaned_query = search_query
+            for pattern in problematic_patterns:
+                cleaned_query = cleaned_query.replace(pattern, ' ')
+            cleaned_query = ' '.join(cleaned_query.split())  # Process extra spaces
+            
+            # If the cleaned query exists in the keywords, use it
+            if cleaned_query in place_keywords:
+                destination_type['place_type'] = place_keywords[cleaned_query]['place_type']
+                destination_type['search_query'] = place_keywords[cleaned_query]['search_query']
+                return destination_type
+            
+            # If the search query has problems or is more than 3 words
+            if is_problematic or len(search_query.split()) > 3 or not search_query:
+                description = description.lower() if description else ""
                 
-                # 首先尝试匹配多词短语
-                multi_word_keywords = [k for k in place_keywords.keys() if ' ' in k]
+                # Try to match multi-word keywords
+                multi_word_keywords = sorted([k for k in place_keywords.keys() if ' ' in k], 
+                                           key=len, reverse=True)
+                
                 for keyword in multi_word_keywords:
                     if keyword in description:
                         destination_type['place_type'] = place_keywords[keyword]['place_type']
                         destination_type['search_query'] = place_keywords[keyword]['search_query']
                         return destination_type
                 
-                # 如果没有匹配到多词短语，再检查单词匹配
+                # If no multi-word phrase matches, check word matches
                 for keyword, place_info in place_keywords.items():
                     if ' ' not in keyword and keyword in description:
-                        # 避免部分匹配（例如，避免将"background"匹配为"back"）
+                        # Avoid partial matches (e.g. avoid matching "background" as "back")
                         word_boundaries = [' ', '.', ',', '!', '?', ';', ':', '-', '(', ')', '[', ']', '\n', '\t']
                         
-                        # 检查关键词前后是否是单词边界或字符串的开始/结束
-                        keyword_positions = [m.start() for m in re.finditer(keyword, description)]
+                        # Check if the keyword is at the beginning/end of a word or string
+                        keyword_positions = [m.start() for m in re.finditer(re.escape(keyword), description)]
                         for pos in keyword_positions:
-                            # 检查前边界
+                            # Check the left boundary
                             before_ok = (pos == 0 or description[pos-1] in word_boundaries)
-                            # 检查后边界
+                            # Check the right boundary
                             after_pos = pos + len(keyword)
                             after_ok = (after_pos >= len(description) or description[after_pos] in word_boundaries)
                             
@@ -537,11 +566,32 @@ class Destination:
                                 destination_type['place_type'] = place_info['place_type']
                                 destination_type['search_query'] = place_info['search_query']
                                 return destination_type
+                    
+                # If still no match, try to extract keywords from the search query 
+                if cleaned_query:
+                    words = cleaned_query.split()
+                    for word in words:
+                        if word in place_keywords:
+                            destination_type['place_type'] = place_keywords[word]['place_type']
+                            destination_type['search_query'] = place_keywords[word]['search_query']
+                            return destination_type
+            
+            # If the query has problems but no better match is found, use the default value
+            if is_problematic or len(search_query.split()) > 3:
+                # Default to "point_of_interest" as a fallback option
+                destination_type['place_type'] = 'point_of_interest'
+                destination_type['search_query'] = 'place'
+            else:
+                # Clean the original query to the minimum extent (remove spaces, normalize)
+                destination_type['search_query'] = search_query.strip()
             
             return destination_type
             
         except Exception as e:
             print(f"Error processing search query: {e}")
+            # Use safe default values when there is an error
+            destination_type['place_type'] = destination_type.get('place_type', 'point_of_interest')
+            destination_type['search_query'] = 'place'
             return destination_type
     
     def _generate_default_destination(self, persona, activity, time, day_of_week, memory_patterns=None):
@@ -758,7 +808,7 @@ class Destination:
                     available_minutes
                 )
             else:
-                # 如果所有方法都禁用，使用随机位置生成
+                # If all methods are disabled, use random location generation
                 return self._generate_fallback_location(max_radius, current_location)
         
         except Exception as e:
@@ -779,13 +829,13 @@ class Destination:
             tuple: ((latitude, longitude), location_details)
         """
         try:
-            # 使用空间索引进行初步筛选
+            # Use spatial index for initial screening
             lat_min = current_location[0] - (max_radius / 111.32)  # 1度约111.32公里
             lat_max = current_location[0] + (max_radius / 111.32)
             lon_min = current_location[1] - (max_radius / (111.32 * math.cos(math.radians(current_location[0]))))
             lon_max = current_location[1] + (max_radius / (111.32 * math.cos(math.radians(current_location[0]))))
-            
-            # 初步筛选在矩形范围内的POI
+
+            # Initial screening of POIs within the rectangular range
             filtered_pois = self.poi_data[
                 (self.poi_data['latitude'] >= lat_min) &
                 (self.poi_data['latitude'] <= lat_max) &
@@ -794,7 +844,7 @@ class Destination:
             ]
             
             if len(filtered_pois) == 0:
-                print(f"No POIs found in initial spatial filter")
+                # print(f"No POIs found in initial spatial filter")
                 random_location = generate_random_location_near(current_location, max_radius * 0.5, validate=False)
                 return random_location, {
                     'name': f'Location for {destination_type.get("search_query", "activity")}',
@@ -802,10 +852,10 @@ class Destination:
                     'is_fallback': True
                 }
             
-            # 创建明确的副本
+            # Create a clear copy
             filtered_pois = filtered_pois.copy()
             
-            # 计算精确距离
+            # Calculate exact distance
             filtered_pois['distance'] = filtered_pois.apply(
                 lambda row: calculate_distance(
                     current_location, 
@@ -814,22 +864,46 @@ class Destination:
                 axis=1
             )
             
-            # 处理缺失值
-            filtered_pois['avg_rating'] = filtered_pois['avg_rating'].fillna(3.0)  # 默认评分3.0
-            filtered_pois['num_of_reviews'] = filtered_pois['num_of_reviews'].fillna(1)  # 默认评论数1
-            filtered_pois['category'] = filtered_pois['category'].fillna('unknown')  # 默认类别
+            # Handle missing values
+            filtered_pois['avg_rating'] = filtered_pois['avg_rating'].fillna(3.0)  # Default rating 3.0
+            filtered_pois['num_of_reviews'] = filtered_pois['num_of_reviews'].fillna(1)  # Default number of reviews 1
+            filtered_pois['category'] = filtered_pois['category'].fillna('unknown')  # Default category
             filtered_pois['name'] = filtered_pois['name'].fillna('')  # 默认空名称
             filtered_pois['address'] = filtered_pois['address'].fillna('')  # 默认空地址
             filtered_pois['description'] = filtered_pois['description'].fillna('')  # 默认空描述
             
-            # 进一步筛选符合条件的POI
+            # Further筛选符合条件的POI
             filtered_pois = filtered_pois[
                 (filtered_pois['distance'] <= max_radius)
             ]
             
+            # Try up to 3 times with increasing radius if no POIs found
+            original_max_radius = max_radius
+            retry_count = 0
+            max_retry = 3
+            
+            while len(filtered_pois) == 0 and retry_count < max_retry:
+                if retry_count > 0:  # Skip the first time as we've already searched
+                    # Increase search radius by 50% each time
+                    max_radius = original_max_radius * (1 + 0.5 * retry_count)
+                    print(f"Attempt {retry_count+1}: Increasing search radius to {max_radius:.1f}km")
+                    
+                    # Re-filter POIs with new radius
+                    filtered_pois = self.poi_data[
+                        (self.poi_data['distance'] <= max_radius)
+                    ]
+                    
+                    # Apply category filter on expanded results
+                    filtered_pois['category'] = filtered_pois['category'].fillna('unknown')
+                    filtered_pois['name'] = filtered_pois['name'].fillna('')
+                    filtered_pois['address'] = filtered_pois['address'].fillna('')
+                    filtered_pois['description'] = filtered_pois['description'].fillna('')
+                
+                retry_count += 1
+            
             if len(filtered_pois) == 0:
-                print(f"No suitable POIs found within {max_radius}km radius")
-                random_location = generate_random_location_near(current_location, max_radius * 0.5, validate=False)
+                print(f"No suitable POIs found after {retry_count} attempts with max radius {max_radius:.1f}km")
+                random_location = generate_random_location_near(current_location, original_max_radius * 0.5, validate=False)
                 return random_location, {
                     'name': f'Location for {destination_type.get("search_query", "activity")}',
                     'address': f'Generated Location',
@@ -838,6 +912,10 @@ class Destination:
             
             # 根据活动类型和搜索查询进行筛选
             search_query = destination_type.get('search_query', '').lower()
+
+            print('=======================')
+            print(search_query)
+            print('=======================')
             
             # 1. 直接处理搜索查询，获取更精确的搜索词
             if search_query:
@@ -851,7 +929,7 @@ class Destination:
 
             if len(filtered_pois) == 0:
                 print(f"No POIs match the search query: {search_query}")
-                random_location = generate_random_location_near(current_location, max_radius * 0.5, validate=False)
+                random_location = generate_random_location_near(current_location, original_max_radius * 0.5, validate=False)
                 return random_location, {
                     'name': f'Location for {destination_type.get("search_query", "activity")}',
                     'address': f'Generated Location',

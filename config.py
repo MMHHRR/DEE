@@ -27,9 +27,6 @@ BASIC_LLM_MODEL = "gpt-4o-mini"
 # Simulation Parameters
 NUM_DAYS_TO_SIMULATE = 3
 SIMULATION_START_DATE = "2025-03-10"
-USE_GOOGLE_MAPS = False  # 设置为False，使用OSM而不是Google Maps
-USE_OSM = False  # 禁用OpenStreetMap
-USE_LOCAL_POI = True  # 启用本地POI数据
 MEMORY_DAYS = 2  # Number of days to keep in memory
 
 # File Paths
@@ -50,7 +47,7 @@ USE_LOCAL_POI = True  # 启用本地POI数据
 POI_SEARCH_RADIUS = 50.0  # 默认搜索半径（公里）
 
 # # Processing Options
-BATCH_PROCESSING = False  # Whether to use batch processing
+BATCH_PROCESSING = True  # Whether to use batch processing
 BATCH_SIZE = 10  # Number of items to process in a batch
 ENABLE_CACHING = True  # Whether to enable function result caching
 CACHE_EXPIRY = 86400  # Cache expiry time in seconds (24 hours)
