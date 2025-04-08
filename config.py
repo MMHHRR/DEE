@@ -18,7 +18,7 @@ USE_DEEPBRICKS_API = True  # Always use DeepBricks API
 
 # 活动生成模块使用的模型
 ACTIVITY_LLM_MODEL = "gpt-4o-mini"  
-LLM_TEMPERATURE = 0.5
+LLM_TEMPERATURE = 0.6
 LLM_MAX_TOKENS = 600
 
 # 用于基础数据总结与分析的模型

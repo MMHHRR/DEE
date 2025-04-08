@@ -306,7 +306,7 @@ class Activity:
                 model=self.model,
                 messages=[
                     {"role": "system", "content": "You are a helpful assistant."},
-                    {"role": "user", "content": f"Please summarize the following activities for the day in a concise, coherent paragraph, MUST NOT to exceed 100 words: {activities_json}"}
+                    {"role": "user", "content": f"Please summarize the following activities for the day in a concise, coherent paragraph, not exceeding 100 words. When summarizing, focus on regular routine activities and selectively ignore or downplay sudden urgent matters and temporary activities. Only focus on activities that are most representative of this person's daily life patterns: {activities_json}"}
                 ],
                 max_tokens=100,  # Reduced for faster response
                 temperature=self.temperature
@@ -965,6 +965,20 @@ class Activity:
         if not activities:
             return activities
             
+        # 首先处理跨午夜的活动（结束时间为00:00）
+        for activity in activities:
+            if activity['end_time'] == '00:00':
+                activity['end_time'] = '23:59'
+            
+        # 移除全天闲暇活动（00:00-23:59）
+        activities = [activity for activity in activities 
+                      if not (activity['start_time'] == '00:00' and 
+                              activity['end_time'] == '23:59')]
+        
+        # 如果删除后没有活动，则返回空列表
+        if not activities:
+            return activities
+            
         # Sort activities by start time
         activities = sorted(activities, key=lambda x: x['start_time'])
         
@@ -979,7 +993,7 @@ class Activity:
             # Add a new activity from the last activity's end time to 23:59
             new_activity = {
                 'activity_type': 'leisure',
-                'start_time': last_activity['end_time'],
+                'start_time': last_activity['start_time'],
                 'end_time': '23:59',
                 'description': 'Relaxing at home before bedtime.',
                 'location_type': 'home'

@@ -14,12 +14,15 @@ import numpy as np
 import argparse
 import gc
 import concurrent.futures
+from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
+import multiprocessing
 from functools import partial
 import time
 import threading
 import queue
 from threading import Semaphore, Lock
 import random
+import psutil
 
 from config import (
     RESULTS_DIR,
@@ -31,7 +34,8 @@ from config import (
     LOCATION_CSV_PATH,
     GPS_PLACE_CSV_PATH,
     HOUSEHOLD_CSV_PATH,
-    BATCH_SIZE
+    BATCH_SIZE,
+    BATCH_PROCESSING
 )
 from persona import Persona
 from activity import Activity
@@ -375,6 +379,59 @@ def load_household_ids(stratified_sample=False, sample_size=None, seed=42, use_s
         return [(1, 1)]  # Default test pair
 
 
+def process_household_person_pair(pair, args_dict):
+    household_id, person_id = pair
+    try:
+        # Create a basic persona for each household-person pair
+        persona_data = {
+            'id': f"{household_id}_{person_id}",
+            'name': f"Person-{household_id}-{person_id}",
+            'gender': 'unknown',  # 将在load_historical_data中被适当更新
+            'age': 0,             # 将在load_historical_data中被适当更新
+            'race': 'unknown',    # 将在load_historical_data中被适当更新
+            'education': 'unknown', # 将在load_historical_data中被适当更新
+            'occupation': 'unknown', # 将在load_historical_data中被适当更新
+            'household_income': 50000, # 默认值，将在load_historical_data中被适当更新
+            'household_vehicles': 0   # 默认值，将在load_historical_data中被适当更新
+        }
+        
+        # Simulate persona with specified household and person IDs
+        memory = simulate_persona(
+            persona_data, 
+            num_days=args_dict['days'], 
+            start_date=args_dict['start_date'],
+            memory_days=args_dict['memory_days'],
+            household_id=household_id,
+            person_id=person_id
+        )
+        
+        if memory:
+            pair_id = f"{household_id}_{person_id}"
+            
+            # Save activity data
+            output_file = os.path.join(args_dict['output'], f"{pair_id}.json")
+            memory.save_to_file(output_file)
+            
+            # Save activity data to CSV format (only LLM generated days)
+            memory.save_llm_days_to_csv(output_dir=args_dict['output'], persona_id=person_id)
+            
+            # Compress data if needed
+            if args_dict['compress']:
+                try:
+                    compress_trajectory_data(output_file, method='gzip')
+                except Exception as e:
+                    print(f"Error compressing data: {e}")
+            
+            # Return results for collection
+            print(f"✓ Completed household {household_id}, person {person_id}")
+            return pair_id, memory
+        return None
+    except Exception as e:
+        print(f"Error processing household {household_id}, person {person_id}: {e}")
+        traceback.print_exc()
+        return None
+
+
 def main(args=None):
     """Main entry point for the simulation."""
     try:
@@ -387,8 +444,8 @@ def main(args=None):
                               help='Start date (YYYY-MM-DD)')
             parser.add_argument('--output', type=str, default=RESULTS_DIR,
                               help='Output directory')
-            parser.add_argument('--workers', type=int, default=4,
-                              help='Number of parallel workers')
+            parser.add_argument('--workers', type=int, default=0,
+                              help='Number of parallel workers (0 for auto-detection)')
             parser.add_argument('--memory_days', type=int, default=MEMORY_DAYS,
                               help='Number of days to keep in memory')
             parser.add_argument('--summary', action='store_true', default=False,
@@ -397,18 +454,20 @@ def main(args=None):
                               help='Compress output files')
             parser.add_argument('--household_ids', type=str, default='',
                               help='Comma-separated list of household IDs to simulate (optional)')
-            parser.add_argument('--max_concurrent_llm', type=int, default=5, 
+            parser.add_argument('--max_concurrent_llm', type=int, default=10, 
                               help='Maximum number of concurrent LLM requests')
             parser.add_argument('--batch_size', type=int, default=BATCH_SIZE,
                               help='Number of simulations to batch process')
             parser.add_argument('--max_batches', type=int, default=None,
                               help='Maximum number of batches to process (None for all)')
-            parser.add_argument('--llm_rate_limit', type=float, default=0.5,
+            parser.add_argument('--llm_rate_limit', type=float, default=0.1,
                               help='Minimum seconds between LLM requests to avoid rate limiting')
             parser.add_argument('--random_seed', type=int, default=42,
                               help='Random seed for reproducibility')
-            parser.add_argument('--no_threading', action='store_true', default=False,
-                              help='Disable multi-threading for debugging (runs in single thread)') ##True是单线程，False是多线程
+            parser.add_argument('--no_threading', action='store_true', default=True,
+                              help='Disable multi-threading for debugging (runs in single thread)')
+            parser.add_argument('--use_processes', action='store_true', default=BATCH_PROCESSING,
+                              help='Use processes instead of threads for better performance on CPU-bound tasks')
             
             # 分层抽样相关参数
             parser.add_argument('--stratified_sample', action='store_true', default=True,
@@ -481,59 +540,7 @@ def main(args=None):
         results_lock = Lock()  # Lock for thread-safe results dictionary updates
         
         # Define worker function for parallel processing
-        def process_household_person_pair(pair, args_dict):
-            household_id, person_id = pair
-            try:
-                # Create a basic persona for each household-person pair
-                persona_data = {
-                    'id': f"{household_id}_{person_id}",
-                    'name': f"Person-{household_id}-{person_id}",
-                    'gender': 'unknown',  # 将在load_historical_data中被适当更新
-                    'age': 0,             # 将在load_historical_data中被适当更新
-                    'race': 'unknown',    # 将在load_historical_data中被适当更新
-                    'education': 'unknown', # 将在load_historical_data中被适当更新
-                    'occupation': 'unknown', # 将在load_historical_data中被适当更新
-                    'household_income': 50000, # 默认值，将在load_historical_data中被适当更新
-                    'household_vehicles': 0   # 默认值，将在load_historical_data中被适当更新
-                }
-                
-                # Simulate persona with specified household and person IDs
-                memory = simulate_persona(
-                    persona_data, 
-                    num_days=args_dict['days'], 
-                    start_date=args_dict['start_date'],
-                    memory_days=args_dict['memory_days'],
-                    household_id=household_id,
-                    person_id=person_id
-                )
-                
-                if memory:
-                    pair_id = f"{household_id}_{person_id}"
-                    
-                    # Save activity data
-                    output_file = os.path.join(args_dict['output'], f"{pair_id}.json")
-                    memory.save_to_file(output_file)
-                    
-                    # Save activity data to CSV format (only LLM generated days)
-                    memory.save_llm_days_to_csv(output_dir=args_dict['output'], persona_id=person_id)
-                    
-                    # Compress data if needed
-                    if args_dict['compress']:
-                        try:
-                            compress_trajectory_data(output_file, method='gzip')
-                        except Exception as e:
-                            print(f"Error compressing data: {e}")
-                    
-                    # Thread-safe results update
-                    with results_lock:
-                        # Update progress information
-                        print(f"✓ Completed household {household_id}, person {person_id}")
-                        return pair_id, memory
-                return None
-            except Exception as e:
-                print(f"Error processing household {household_id}, person {person_id}: {e}")
-                traceback.print_exc()
-                return None
+        # 注意：process_household_person_pair 已移至外部，不再在此处定义
         
         # Prepare arguments for worker function
         args_dict = {
@@ -544,14 +551,47 @@ def main(args=None):
             'compress': args.compress
         }
         
-        # Determine number of workers
-        workers = min(args.workers, len(household_person_pairs))
-        workers = max(1, workers)  # Ensure at least 1 worker
+        # 自动检测系统并行度
+        if args.workers <= 0:
+            # 使用可用CPU核心数，但最多使用物理核心数的80%，至少1个
+            cpu_count = psutil.cpu_count(logical=False) or multiprocessing.cpu_count()
+            available_workers = max(1, int(cpu_count * 0.8))
+            workers = available_workers
+            print(f"Auto-detected {cpu_count} CPU cores, using {workers} worker{'s' if workers > 1 else ''}")
+        else:
+            workers = args.workers
+        
+        # 确保至少使用1个worker，但不超过数据量
+        workers = min(workers, len(household_person_pairs))
+        workers = max(1, workers)  
+        
+        # 根据系统内存动态调整批处理大小
+        def get_optimal_batch_size(requested_size):
+            try:
+                # 获取系统可用内存 (GB)
+                available_memory_gb = psutil.virtual_memory().available / (1024 ** 3)
+                # 每个模拟估计使用的内存 (GB)，可根据实际观察调整
+                estimated_memory_per_simulation = 0.1
+                # 根据可用内存计算最佳批处理大小，确保不使用超过70%的可用内存
+                memory_based_size = int(available_memory_gb * 0.7 / estimated_memory_per_simulation)
+                # 使用请求的批处理大小和基于内存的大小中较小的一个
+                optimal_size = min(requested_size, memory_based_size)
+                # 确保至少处理1个
+                return max(1, optimal_size)
+            except Exception as e:
+                print(f"Warning: Error calculating optimal batch size: {e}")
+                # 默认返回原始请求大小
+                return requested_size
+        
+        # 优化批处理大小
+        optimized_batch_size = get_optimal_batch_size(args.batch_size)
+        if optimized_batch_size != args.batch_size:
+            print(f"Adjusted batch size from {args.batch_size} to {optimized_batch_size} based on available system memory")
         
         # Process in batches to avoid memory issues and improve throughput
         def process_batches():
             total_pairs = len(household_person_pairs)
-            batch_size = min(args.batch_size, total_pairs)
+            batch_size = min(optimized_batch_size, total_pairs)
             total_batches = (total_pairs + batch_size - 1) // batch_size
             
             # Limit number of batches if requested
@@ -581,22 +621,42 @@ def main(args=None):
                             with results_lock:
                                 results[pair_id] = memory
                 else:
-                    # Use ThreadPoolExecutor for IO-bound operations (better for API calls)
-                    with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as executor:
-                        # Submit all tasks in this batch
-                        futures = {executor.submit(process_household_person_pair, pair, args_dict): pair 
-                                  for pair in batch}
-                        
-                        # Process results as they complete
-                        for future in tqdm(concurrent.futures.as_completed(futures), 
-                                          total=len(futures), 
-                                          desc="Processing pairs"):
-                            pair = futures[future]
-                            result = future.result()
-                            if result:
-                                pair_id, memory = result
-                                with results_lock:
-                                    results[pair_id] = memory
+                    # 使用ProcessPoolExecutor处理CPU密集型任务
+                    if args.use_processes:
+                        print(f"Using ProcessPoolExecutor with {workers} workers")
+                        with ProcessPoolExecutor(max_workers=workers) as executor:
+                            # Submit all tasks in this batch
+                            futures = {executor.submit(process_household_person_pair, pair, args_dict): pair 
+                                    for pair in batch}
+                            
+                            # Process results as they complete
+                            for future in tqdm(concurrent.futures.as_completed(futures), 
+                                            total=len(futures), 
+                                            desc="Processing pairs"):
+                                pair = futures[future]
+                                result = future.result()
+                                if result:
+                                    pair_id, memory = result
+                                    with results_lock:
+                                        results[pair_id] = memory
+                    else:
+                        # 使用ThreadPoolExecutor处理IO密集型任务
+                        print(f"Using ThreadPoolExecutor with {workers} workers")
+                        with ThreadPoolExecutor(max_workers=workers) as executor:
+                            # Submit all tasks in this batch
+                            futures = {executor.submit(process_household_person_pair, pair, args_dict): pair 
+                                    for pair in batch}
+                            
+                            # Process results as they complete
+                            for future in tqdm(concurrent.futures.as_completed(futures), 
+                                            total=len(futures), 
+                                            desc="Processing pairs"):
+                                pair = futures[future]
+                                result = future.result()
+                                if result:
+                                    pair_id, memory = result
+                                    with results_lock:
+                                        results[pair_id] = memory
                 
                 batch_counter += 1
                 # Explicit garbage collection between batches
@@ -605,7 +665,7 @@ def main(args=None):
         # Start batch processing
         print(f"Starting simulation with {workers} parallel workers, " 
               f"max {args.max_concurrent_llm} concurrent LLM requests, "
-              f"and {args.batch_size} simulations per batch")
+              f"and {optimized_batch_size} simulations per batch")
         if args.no_threading:
             print("Warning: Threading disabled. Running in single-thread mode for debugging.")
         process_batches()
