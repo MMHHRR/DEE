@@ -130,11 +130,11 @@ IMPORTANT - FOLLOW THESE DURATION GUIDELINES STRICTLY:
 1. Super long activities (>= 480 minutes): At least 1-2 activities MUST be this long (especially sleep and work)
 2. Long activities (240-480 minutes): At least 2-3 activity MUST be in this range
 3. Medium activities (120-240 minutes): Only 2-3 activities maximum in this range
-4. Short activities (< 120 minutes): Maximum of 2 such activity, ONLY if necessary
+4. Short activities (< 120 minutes): Maximum of 3 such activity, ONLY if necessary
 
-The TOTAL daily activities MUST be limited to 4-6 maximum. Over 60 percent of the day MUST be spent on activities longer than 240 minutes.
+The TOTAL daily activities MUST be limited to 4-7 maximum. Over 60 percent of the day MUST be spent on activities longer than 240 minutes.
 
-IMPORTANT RULES FOR ACTIVITY TYPES:
+IMPORTANT RULES FOR DIVERSE ACTIVITY TYPES:
 - "sleep": ONLY for sleeping activities (night sleep, naps)
 - "work": work-related activities (office work, meetings, etc)
 - "shopping": purchasing goods (groceries, clothes, etc.)

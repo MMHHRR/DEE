@@ -1012,15 +1012,25 @@ class Activity:
         parenthesis_match = re.search(r'\((\d{1,2}):(\d{2})\)', time_str)
         if parenthesis_match:
             hour = int(parenthesis_match.group(1))
-            minute = parenthesis_match.group(2)
-            return f"{hour:02d}:{minute}"
+            minute = int(parenthesis_match.group(2))
+            # 处理无效的分钟值
+            if minute >= 60:
+                hour += minute // 60
+                minute = minute % 60
+            return f"{hour:02d}:{minute:02d}"
             
         # First, check if it's an ISO 8601 format datetime string
         iso_match = re.search(r'(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})', time_str)
         if iso_match:
             # Extract time part
             hours, minutes = iso_match.group(4), iso_match.group(5)
-            return f"{hours}:{minutes}"
+            # 处理无效的分钟值
+            hours_int = int(hours)
+            minutes_int = int(minutes)
+            if minutes_int >= 60:
+                hours_int += minutes_int // 60
+                minutes_int = minutes_int % 60
+            return f"{hours_int:02d}:{minutes_int:02d}"
             
         # Try different formats
         formats = [
@@ -1035,6 +1045,16 @@ class Activity:
         # First, clean up the string
         time_str = time_str.strip().upper().replace('.', '')
         
+        # 处理明显的无效时间格式，如"21:60"
+        time_components = re.match(r'(\d{1,2}):(\d{2})', time_str)
+        if time_components:
+            hour = int(time_components.group(1))
+            minute = int(time_components.group(2))
+            if minute >= 60:
+                hour += minute // 60
+                minute = minute % 60
+                return f"{hour:02d}:{minute:02d}"
+        
         # Try to parse with each format
         for fmt in formats:
             try:
@@ -1047,16 +1067,21 @@ class Activity:
         time_pattern = re.search(r'(\d{1,2})[:\.](\d{2})(?:\s*([APap][Mm])?)?', time_str)
         if time_pattern:
             hour = int(time_pattern.group(1))
-            minute = time_pattern.group(2)
-            ampm = time_pattern.group(3)
+            minute = int(time_pattern.group(2))
+            
+            # 处理无效的分钟值
+            if minute >= 60:
+                hour += minute // 60
+                minute = minute % 60
             
             # Handle AM/PM
+            ampm = time_pattern.group(3)
             if ampm and ampm.upper() == 'PM' and hour < 12:
                 hour += 12
             elif ampm and ampm.upper() == 'AM' and hour == 12:
                 hour = 0
                 
-            return f"{hour:02d}:{minute}"
+            return f"{hour:02d}:{minute:02d}"
         
         # If all formats fail, raise ValueError
         raise ValueError(f"Could not parse time string: {time_str}")
