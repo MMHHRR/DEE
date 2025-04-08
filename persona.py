@@ -581,7 +581,23 @@ class Persona:
             97: "other"
         }
         
-        return dtype_mapping.get(int(dtype_code), None)
+        # 处理可能包含多个类型的情况（用分号分隔）
+        if isinstance(dtype_code, str) and ';' in dtype_code:
+            disability_types = []
+            for code in dtype_code.split(';'):
+                try:
+                    disability_type = dtype_mapping.get(int(code.strip()), None)
+                    if disability_type:
+                        disability_types.append(disability_type)
+                except (ValueError, TypeError):
+                    pass
+            return disability_types if disability_types else None
+        
+        # 处理单一类型的情况
+        try:
+            return dtype_mapping.get(int(dtype_code), None)
+        except (ValueError, TypeError):
+            return None
     
     def _determine_education(self, educ_code):
         """Determine education level"""
