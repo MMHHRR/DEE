@@ -910,14 +910,10 @@ class Destination:
                     'is_fallback': True
                 }
             
-            # 根据活动类型和搜索查询进行筛选
+            # Filter based on activity type and search query
             search_query = destination_type.get('search_query', '').lower()
-
-            print('=======================')
-            print(search_query)
-            print('=======================')
             
-            # 1. 直接处理搜索查询，获取更精确的搜索词
+            # 1. Directly process the search query to get more accurate search terms
             if search_query:
                 category_match = filtered_pois[
                     filtered_pois['category'].str.lower().str.contains(search_query, na=False) |
@@ -936,11 +932,11 @@ class Destination:
                     'is_fallback': True
                 }
             
-            # 获取偏好参数
+            # Get preference parameters
             rating_preference = destination_type.get('rating_preference', 3)
             popularity_preference = destination_type.get('popularity_preference', 3)
             
-            # 计算综合评分，使用修改后的函数
+            # Calculate comprehensive score, using the modified function
             filtered_pois['score'] = filtered_pois.apply(
                 lambda row: self._calculate_place_score(
                     rating=row['avg_rating'],
@@ -953,7 +949,7 @@ class Destination:
                 axis=1
             )
             
-            # 根据综合评分选择POI
+            # Select POI based on comprehensive score
             top_pois = filtered_pois.nlargest(5, 'score')
             selected_poi = top_pois.iloc[random.randint(0, len(top_pois)-1)]
             
