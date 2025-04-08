@@ -245,6 +245,12 @@ def load_household_ids(stratified_sample=False, sample_size=None, seed=42, use_s
         if os.path.exists(GPS_PLACE_CSV_PATH):
             # Read 'sampno' and 'perno' columns
             place_df = pd.read_csv(GPS_PLACE_CSV_PATH, usecols=['sampno', 'perno'])
+            
+            # 筛选出'sampno'和'perno'组合出现至少10次的数据
+            counts = place_df.groupby(['sampno', 'perno']).size().reset_index(name='count')
+            valid_pairs = counts[counts['count'] >= 10]
+            place_df = place_df.merge(valid_pairs[['sampno', 'perno']], on=['sampno', 'perno'], how='inner')
+
             # Get unique combinations of sampno and perno
             household_person_pairs = place_df[['sampno', 'perno']].drop_duplicates()
             

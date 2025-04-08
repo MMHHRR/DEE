@@ -337,17 +337,13 @@ class Activity:
         memory_patterns = None
         if hasattr(persona, 'memory') and persona.memory and persona.memory.days:
             memory_patterns = self.analyze_memory_patterns(persona.memory, persona)
-        
+
         # Check if it's a weekend, get weekend/weekday activity preferences from history
         day_of_week = get_day_of_week(date)
         is_weekend = day_of_week in ['Saturday', 'Sunday']
         
         # Stage 1: Generate basic activities with LLM
         basic_activities = self._generate_activities_with_llm(persona, date, day_of_week, memory_patterns, is_weekend)
-
-        # print('-----------------------')
-        # print(basic_activities)
-        # print('-----------------------')     
 
         # Initialize destination selector if needed
         if not hasattr(self, 'destination_selector'):
