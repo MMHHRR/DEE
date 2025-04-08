@@ -17,7 +17,7 @@ DEEPBRICKS_BASE_URL = os.getenv("DEEPBRICKS_BASE_URL")
 USE_DEEPBRICKS_API = True  # Always use DeepBricks API
 
 # 活动生成模块使用的模型
-ACTIVITY_LLM_MODEL = "deepseek-v3"  
+ACTIVITY_LLM_MODEL = "gpt-4o-mini"  
 LLM_TEMPERATURE = 0.5
 LLM_MAX_TOKENS = 600
 
@@ -34,6 +34,7 @@ MEMORY_DAYS = 2  # Number of days to keep in memory
 
 # File Paths
 RESULTS_DIR = "data/results/"
+SAMPLE_DIR = "data/samples/"
 
 # CSV Data Files
 PERSON_CSV_PATH = "data/person.csv"

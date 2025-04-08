@@ -19,9 +19,11 @@ import time
 import threading
 import queue
 from threading import Semaphore, Lock
+import random
 
 from config import (
     RESULTS_DIR,
+    SAMPLE_DIR,
     NUM_DAYS_TO_SIMULATE,
     SIMULATION_START_DATE,
     MEMORY_DAYS,
@@ -36,18 +38,7 @@ from activity import Activity
 from destination import Destination
 from memory import Memory
 from utils import (
-    load_json,
-    save_json,
-    calculate_distance,
     generate_date_range,
-    get_day_of_week,
-    time_difference_minutes,
-    parse_time,
-    normalize_transport_mode,
-    estimate_travel_time,
-    cached,
-    format_time_after_minutes,
-    time_to_minutes,
     compress_trajectory_data,
     generate_summary_report
 )
@@ -213,20 +204,163 @@ def simulate_persona(persona_data, num_days=7, start_date=None, memory_days=2, h
         return None
 
 
-def load_household_ids():
+def load_household_ids(stratified_sample=False, sample_size=None, seed=42, use_saved_sample=False, save_sample=False):
     """
     Load list of household and person IDs from the GPS place CSV file
     
+    Args:
+        stratified_sample (bool): Whether to use stratified sampling based on gender, age and income
+        sample_size (int): Size of sample to take, None means all records
+        seed (int): Random seed for reproducibility
+        use_saved_sample (bool): Whether to use previously saved sample
+        save_sample (bool): Whether to save the current sample
+        
     Returns:
         list: List of tuples (household_id, person_id)
     """
     try:
+        # 设置固定的随机种子
+        np.random.seed(seed)
+        random.seed(seed)
+        
+        # 检查是否存在已保存的抽样结果
+        sample_file = os.path.join(SAMPLE_DIR, f'stratified_sample_{sample_size}.json')
+        
+        if use_saved_sample and os.path.exists(sample_file):
+            print(f"Loading saved stratified sample from {sample_file}")
+            with open(sample_file, 'r') as f:
+                saved_data = json.load(f)
+                household_person_pairs = saved_data['household_person_pairs']
+                print("\nSaved Sample Statistics:")
+                print(f"Gender distribution: {saved_data['statistics']['gender']}")
+                print(f"Age group distribution: {saved_data['statistics']['age']}")
+                print(f"Income group distribution: {saved_data['statistics']['income']}")
+                return household_person_pairs
+        
         # Read household IDs and person IDs from the GPS place CSV file using pandas
         if os.path.exists(GPS_PLACE_CSV_PATH):
             # Read 'sampno' and 'perno' columns
             place_df = pd.read_csv(GPS_PLACE_CSV_PATH, usecols=['sampno', 'perno'])
             # Get unique combinations of sampno and perno
-            household_person_pairs = place_df[['sampno', 'perno']].drop_duplicates().values.tolist()
+            household_person_pairs = place_df[['sampno', 'perno']].drop_duplicates()
+            
+            if stratified_sample and sample_size:
+                # We need to get demographic data for stratification
+                person_df = pd.read_csv(PERSON_CSV_PATH, low_memory=False)
+                household_df = pd.read_csv(HOUSEHOLD_CSV_PATH, low_memory=False)
+                
+                # 将household_person_pairs与人口和家庭数据合并
+                merged_df = household_person_pairs.merge(
+                    person_df[['sampno', 'perno', 'sex', 'age']], 
+                    on=['sampno', 'perno'], 
+                    how='inner'
+                )
+                
+                merged_df = merged_df.merge(
+                    household_df[['sampno', 'hhinc']], 
+                    on='sampno', 
+                    how='inner'
+                )
+                
+                # 创建分层变量
+                # 性别分类
+                merged_df['gender_group'] = merged_df['sex'].apply(lambda x: 'male' if x == 1 else 'female')
+                
+                # 年龄分组 - 使用默认分箱
+                age_bins = [0, 18, 35, 50, 65, 200]
+                age_labels = ['child', 'young_adult', 'adult', 'middle_age', 'senior']
+                merged_df['age_group'] = pd.cut(
+                    merged_df['age'], 
+                    bins=age_bins, 
+                    labels=age_labels
+                )
+                
+                # 计算收入的分位数（0%, 25%, 50%, 75%, 100%）
+                quantiles = [0, 0.25, 0.5, 0.75, 1.0]
+                income_bins = [0] + list(merged_df['hhinc'].quantile(quantiles[1:]))
+                # 确保最小值为0，处理可能的舍入误差
+                income_bins[0] = 0
+                # 确保所有值唯一且递增
+                income_bins = sorted(set(income_bins))
+                
+                # 收入标签
+                income_labels = ['low', 'medium_low', 'medium', 'high']
+                
+                # 应用收入分组
+                merged_df['income_group'] = pd.cut(
+                    merged_df['hhinc'], 
+                    bins=income_bins, 
+                    labels=income_labels
+                )
+                
+                # 进行分层抽样
+                try:
+                    stratified_df = merged_df.groupby(['gender_group', 'age_group', 'income_group'], dropna=False).apply(
+                        lambda x: x.sample(min(len(x), max(1, int(sample_size * len(x) / len(merged_df)))), random_state=seed)
+                    ).reset_index(drop=True)
+                    
+                    # 如果分层抽样后的样本量少于总体需要的样本量，从剩余样本中随机抽取补充
+                    if len(stratified_df) < sample_size and len(stratified_df) < len(merged_df):
+                        # 找出已被抽样的索引
+                        sampled_indices = set(zip(stratified_df['sampno'], stratified_df['perno']))
+                        
+                        # 找出未被抽样的数据
+                        unsampled_df = merged_df[~merged_df.apply(lambda row: (row['sampno'], row['perno']) in sampled_indices, axis=1)]
+                        
+                        # 确定需要额外抽样的数量
+                        extra_samples_needed = min(sample_size - len(stratified_df), len(unsampled_df))
+                        
+                        if extra_samples_needed > 0:
+                            # 随机抽取额外样本
+                            extra_samples = unsampled_df.sample(extra_samples_needed, random_state=seed)
+                            
+                            # 将额外样本添加到分层样本中
+                            stratified_df = pd.concat([stratified_df, extra_samples])
+                
+                except Exception as e:
+                    print(f"Error during stratified sampling, falling back to random sampling: {e}")
+                    traceback.print_exc()
+                    # 如果分层抽样失败，则进行简单随机抽样
+                    if sample_size and sample_size < len(household_person_pairs):
+                        household_person_pairs = household_person_pairs.sample(sample_size, random_state=seed).values.tolist()
+                        return household_person_pairs
+                
+                # 提取最终的 household_id 和 person_id 对
+                household_person_pairs = stratified_df[['sampno', 'perno']].values.tolist()
+                
+                print(f"Successfully created stratified sample of {len(household_person_pairs)} household-person pairs")
+                
+                # 打印样本的分层统计信息
+                print("\nStratified Sample Statistics:")
+                gender_stats = stratified_df['gender_group'].value_counts().to_dict()
+                age_stats = stratified_df['age_group'].value_counts().to_dict()
+                income_stats = stratified_df['income_group'].value_counts().to_dict()
+                print(f"Gender distribution: {gender_stats}")
+                print(f"Age group distribution: {age_stats}")
+                print(f"Income group distribution: {income_stats}")
+                
+                # 如果请求保存样本，则保存到文件
+                # if save_sample:
+                os.makedirs(SAMPLE_DIR, exist_ok=True)
+                sample_data = {
+                    'household_person_pairs': household_person_pairs,
+                    'statistics': {
+                        'gender': gender_stats,
+                        'age': age_stats,
+                        'income': income_stats
+                    }
+                }
+                with open(sample_file, 'w') as f:
+                    json.dump(sample_data, f, indent=2)
+                print(f"\nSaved stratified sample to {sample_file}")
+                
+            else:
+                # 如果不使用分层抽样但指定了样本大小，则进行简单随机抽样
+                if sample_size and sample_size < len(household_person_pairs):
+                    household_person_pairs = household_person_pairs.sample(sample_size, random_state=seed)
+                
+                # 转换为列表
+                household_person_pairs = household_person_pairs.values.tolist()
             
             print(f"Successfully loaded {len(household_person_pairs)} household-person pairs from {GPS_PLACE_CSV_PATH}")
             return household_person_pairs
@@ -237,6 +371,7 @@ def load_household_ids():
         
     except Exception as e:
         print(f"Error loading household IDs: {e}")
+        traceback.print_exc()
         return [(1, 1)]  # Default test pair
 
 
@@ -266,18 +401,22 @@ def main(args=None):
                               help='Maximum number of concurrent LLM requests')
             parser.add_argument('--batch_size', type=int, default=BATCH_SIZE,
                               help='Number of simulations to batch process')
-            parser.add_argument('--max_batches', type=int, default=50,
-                              help='Maximum number of batches to process (None for all)') ##10 is processed batch
+            parser.add_argument('--max_batches', type=int, default=None,
+                              help='Maximum number of batches to process (None for all)')
             parser.add_argument('--llm_rate_limit', type=float, default=0.5,
                               help='Minimum seconds between LLM requests to avoid rate limiting')
-            parser.add_argument('--sample_size', type=int, default=None,
-                              help='Number of household-person pairs to randomly sample')
-            parser.add_argument('--sample_percent', type=float, default=None,
-                              help='Percentage of household-person pairs to randomly sample (0-100)')
             parser.add_argument('--random_seed', type=int, default=42,
                               help='Random seed for reproducibility')
             parser.add_argument('--no_threading', action='store_true', default=False,
                               help='Disable multi-threading for debugging (runs in single thread)') ##True是单线程，False是多线程
+            
+            # 分层抽样相关参数
+            parser.add_argument('--stratified_sample', action='store_true', default=True,
+                              help='Use stratified sampling based on gender, age and income')
+            parser.add_argument('--sample_size', type=int, default=300,
+                              help='Number of household-person pairs to sample (None for all)')
+            parser.add_argument('--use_saved_sample', action='store_true', default=True,
+                              help='Use previously saved stratified sample')
             
             args = parser.parse_args()
         
@@ -292,33 +431,26 @@ def main(args=None):
             household_person_pairs = [(hid, 1) for hid in household_ids]
             print(f"Using command line provided {len(household_person_pairs)} household IDs for simulation")
         else:
-            # Otherwise load from file
-            household_person_pairs = load_household_ids()
+            # Otherwise load from file with stratified sampling if requested
+            household_person_pairs = load_household_ids(
+                stratified_sample=args.stratified_sample,
+                sample_size=args.sample_size,
+                seed=args.random_seed,
+                use_saved_sample=args.use_saved_sample
+            )
             print(f"Will simulate {len(household_person_pairs)} household-person pairs")
             
         if not household_person_pairs:
             print("No valid household-person pairs found, cannot proceed with simulation")
             return {}
             
-        # Perform random sampling if requested
-        if args.sample_size is not None or args.sample_percent is not None:
-            # Set random seed for reproducibility
-            np.random.seed(args.random_seed)
-            
-            # Determine sample size
-            total_pairs = len(household_person_pairs)
-            if args.sample_size is not None:
-                sample_size = min(args.sample_size, total_pairs)
-            elif args.sample_percent is not None:
-                sample_size = int(total_pairs * args.sample_percent / 100)
-                sample_size = max(1, min(sample_size, total_pairs))  # Ensure at least 1 pair, but not more than total
-            
-            # Randomly sample pairs
-            indices = np.random.choice(total_pairs, sample_size, replace=False)
-            sampled_pairs = [household_person_pairs[i] for i in indices]
-            
-            print(f"Randomly sampled {len(sampled_pairs)} out of {total_pairs} household-person pairs (seed={args.random_seed})")
-            household_person_pairs = sampled_pairs
+        # 如果使用分层抽样，确保样本量不超过max_batches * batch_size
+        if args.stratified_sample and args.max_batches is not None:
+            max_total_samples = args.max_batches * args.batch_size
+            if len(household_person_pairs) > max_total_samples:
+                print(f"Warning: Stratified sample size ({len(household_person_pairs)}) exceeds max_batches * batch_size ({max_total_samples})")
+                print("Adjusting sample size to match max_batches * batch_size")
+                household_person_pairs = household_person_pairs[:max_total_samples]
         
         # Create a rate limiting semaphore for LLM API calls
         llm_semaphore = Semaphore(args.max_concurrent_llm)
