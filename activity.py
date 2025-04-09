@@ -15,7 +15,9 @@ from config import (
     LLM_MAX_TOKENS,
     ACTIVITY_GENERATION_PROMPT,
     DEEPBRICKS_API_KEY,
-    DEEPBRICKS_BASE_URL
+    DEEPBRICKS_BASE_URL,
+    ZETA_API_KEY,
+    ZETA_BASE_URL,
 )
 from utils import cached, get_day_of_week, calculate_distance, estimate_travel_time,generate_random_location_near
 
@@ -23,6 +25,12 @@ from utils import cached, get_day_of_week, calculate_distance, estimate_travel_t
 client = openai.OpenAI(
     api_key = DEEPBRICKS_API_KEY,
     base_url = DEEPBRICKS_BASE_URL,
+)
+
+# Create Zeta client
+zeta_client = openai.OpenAI(
+    api_key = ZETA_API_KEY,
+    base_url = ZETA_BASE_URL,
 )
 
 class Activity:
@@ -929,7 +937,7 @@ class Activity:
 
         try:
             # Generate activities using LLM
-            response = client.chat.completions.create(
+            response = zeta_client.chat.completions.create(
                 model=self.act_model,
                 messages=[{"role": "user", "content": prompt}],
                 temperature=self.temperature,

@@ -11,17 +11,15 @@ load_dotenv()
 # API Keys
 GOOGLE_MAPS_API_KEY = os.getenv("GOOGLE_MAPS_API_KEY")
 
-# DeepBricks API configuration
-DEEPBRICKS_API_KEY = os.getenv("DEEPBRICKS_API_KEY")
-DEEPBRICKS_BASE_URL = os.getenv("DEEPBRICKS_BASE_URL")
-USE_DEEPBRICKS_API = True  # Always use DeepBricks API
-
-# 活动生成模块使用的模型
+ZETA_API_KEY = os.getenv("ZETA_API_KEY")
+ZETA_BASE_URL = os.getenv("ZETA_BASE_URL")
 ACTIVITY_LLM_MODEL = "gpt-4o-mini"  
 LLM_TEMPERATURE = 0.6
 LLM_MAX_TOKENS = 600
 
-# 用于基础数据总结与分析的模型
+# DeepBricks API configuration
+DEEPBRICKS_API_KEY = os.getenv("DEEPBRICKS_API_KEY")
+DEEPBRICKS_BASE_URL = os.getenv("DEEPBRICKS_BASE_URL")
 BASIC_LLM_MODEL = "gpt-4o-mini"
 
 # Simulation Parameters
