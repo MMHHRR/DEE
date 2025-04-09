@@ -466,7 +466,7 @@ def main(args=None):
                               help='Number of simulations to batch process')
             parser.add_argument('--max_batches', type=int, default=None,
                               help='Maximum number of batches to process (None for all)')
-            parser.add_argument('--llm_rate_limit', type=float, default=0.3,
+            parser.add_argument('--llm_rate_limit', type=float, default=0.2,
                               help='Minimum seconds between LLM requests to avoid rate limiting')
             parser.add_argument('--random_seed', type=int, default=42,
                               help='Random seed for reproducibility')

@@ -124,12 +124,12 @@ You are simulating the daily activity schedule for a person with the following c
 
 Based on this information, generate a realistic daily schedule for this person, MUST START from 00:00 to END at 23:59 for ONE DAY. MAKE SURE the time is continuous and there is no blank window and MUST consider the Memory patterns.
 
-CRITICAL: Your schedule must follow a heavy-tailed distribution for activity durations, with SIGNIFICANT emphasis on 2-3 very long activities rather than many short ones.
+CRITICAL: Your schedule MUST follow a heavy-tailed distribution for activity durations, with SIGNIFICANT emphasis on 2-3 very long activities rather than many short ones. Your schedule MUST follow a heavy-tailed distribution for activity durations at home and work.
 
 IMPORTANT - FOLLOW THESE DURATION GUIDELINES STRICTLY:
-1. Super long activities (>= 480 minutes): At least 1-2 activities MUST be this long (especially sleep and work)
-2. Long activities (240-480 minutes): At least 2-3 activity MUST be in this range
-3. Medium activities (120-240 minutes): Only 2-3 activities maximum in this range
+1. Super long activities (>= 480 minutes): At least 1-2 activities MUST be this long
+2. Long activities (240-480 minutes): At least 2-5 activities MUST be in this range
+3. Medium activities (120-240 minutes): Only 2-5 activities maximum in this range
 4. Short activities (< 120 minutes): Maximum of 3 such activity, ONLY if necessary
 
 The TOTAL daily activities MUST be limited to 4-7 maximum. Over 60 percent of the day MUST be spent on activities longer than 240 minutes.
