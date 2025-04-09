@@ -19,19 +19,19 @@ from config import (
     ZETA_API_KEY,
     ZETA_BASE_URL,
 )
-from utils import cached, get_day_of_week, calculate_distance, estimate_travel_time,generate_random_location_near
+from utils import cached, get_day_of_week, calculate_distance, estimate_travel_time, generate_random_location_near, llm_manager
 
-# Create OpenAI client
-client = openai.OpenAI(
-    api_key = DEEPBRICKS_API_KEY,
-    base_url = DEEPBRICKS_BASE_URL,
-)
+# Create OpenAI client - 弃用的代码，改用LLMManager
+# client = openai.OpenAI(
+#     api_key = DEEPBRICKS_API_KEY,
+#     base_url = DEEPBRICKS_BASE_URL,
+# )
 
-# Create Zeta client
-zeta_client = openai.OpenAI(
-    api_key = ZETA_API_KEY,
-    base_url = ZETA_BASE_URL,
-)
+# Create Zeta client - 弃用的代码，改用LLMManager
+# zeta_client = openai.OpenAI(
+#     api_key = ZETA_API_KEY,
+#     base_url = ZETA_BASE_URL,
+# )
 
 class Activity:
     """
@@ -310,14 +310,12 @@ class Activity:
         activities_json = json.dumps(activities, ensure_ascii=False)
         
         try:
-            response = client.chat.completions.create(
+            # 使用LLMManager替代直接调用client
+            response = llm_manager.completion_basic(
+                f"Please summarize the following activities for the day in a concise, coherent paragraph, not exceeding 100 words. When summarizing, focus on regular routine activities and selectively ignore or downplay sudden urgent matters and temporary activities. Only focus on activities that are most representative of this person's daily life patterns: {activities_json}",
                 model=self.model,
-                messages=[
-                    {"role": "system", "content": "You are a helpful assistant."},
-                    {"role": "user", "content": f"Please summarize the following activities for the day in a concise, coherent paragraph, not exceeding 100 words. When summarizing, focus on regular routine activities and selectively ignore or downplay sudden urgent matters and temporary activities. Only focus on activities that are most representative of this person's daily life patterns: {activities_json}"}
-                ],
-                max_tokens=100,  # Reduced for faster response
-                temperature=self.temperature
+                temperature=self.temperature,
+                max_tokens=100  # Reduced for faster response
             )
             
             return response.choices[0].message.content.strip()
@@ -936,10 +934,10 @@ class Activity:
         ) + job_info
 
         try:
-            # Generate activities using LLM
-            response = zeta_client.chat.completions.create(
+            # 使用LLMManager替代直接调用zeta_client
+            response = llm_manager.completion_activity(
+                prompt,
                 model=self.act_model,
-                messages=[{"role": "user", "content": prompt}],
                 temperature=self.temperature,
                 max_tokens=self.max_tokens
             )

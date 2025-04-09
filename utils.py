@@ -1122,3 +1122,135 @@ def generate_summary_report(results, output_dir):
     except Exception as e:
         print(f"Error generating summary report: {e}")
         return None
+
+# LLM Management Class
+class LLMManager:
+    """
+    A class to manage multiple LLM clients, providing a unified interface to access different LLM services.
+    """
+    
+    def __init__(self):
+        """initialize LLM manager, create all needed LLM clients."""
+        from config import (
+            DEEPBRICKS_API_KEY, DEEPBRICKS_BASE_URL, BASIC_LLM_MODEL,
+            ZETA_API_KEY, ZETA_BASE_URL, ACTIVITY_LLM_MODEL,
+            LLM_TEMPERATURE, LLM_MAX_TOKENS
+        )
+        import openai
+        import threading
+        import time
+        
+        # create basic LLM client (DeepBricks)
+        self.basic_client = openai.OpenAI(
+            api_key=DEEPBRICKS_API_KEY,
+            base_url=DEEPBRICKS_BASE_URL,
+        )
+        self.basic_model = BASIC_LLM_MODEL
+        
+        # create activity LLM client (Zeta)
+        self.activity_client = openai.OpenAI(
+            api_key=ZETA_API_KEY,
+            base_url=ZETA_BASE_URL,
+        )
+        self.activity_model = ACTIVITY_LLM_MODEL
+        
+        # default parameters
+        self.temperature = LLM_TEMPERATURE
+        self.max_tokens = LLM_MAX_TOKENS
+        
+        # basic LLM's rate limit and concurrency control
+        self.basic_rate_limit = 0.2  # default request interval (seconds)
+        self.basic_max_concurrent = 5  # default maximum concurrent requests
+        self.basic_semaphore = threading.Semaphore(self.basic_max_concurrent)
+        self.basic_rate_lock = threading.Lock()
+        self.basic_last_request_time = time.time() - self.basic_rate_limit
+        
+        # activity LLM's rate limit and concurrency control
+        self.activity_rate_limit = 0.2  # default request interval (seconds)
+        self.activity_max_concurrent = 5  # default maximum concurrent requests
+        self.activity_semaphore = threading.Semaphore(self.activity_max_concurrent)
+        self.activity_rate_lock = threading.Lock()
+        self.activity_last_request_time = time.time() - self.activity_rate_limit
+    
+    def set_basic_rate_limit(self, rate_limit):
+        """set basic LLM request rate limit"""
+        if rate_limit >= 0:
+            self.basic_rate_limit = rate_limit
+    
+    def set_activity_rate_limit(self, rate_limit):
+        """set activity LLM request rate limit"""
+        if rate_limit >= 0:
+            self.activity_rate_limit = rate_limit
+    
+    def set_basic_concurrency_limit(self, max_concurrent):
+        """set basic LLM request maximum concurrent requests"""
+        if max_concurrent > 0:
+            self.basic_max_concurrent = max_concurrent
+            self.basic_semaphore = threading.Semaphore(max_concurrent)
+    
+    def set_activity_concurrency_limit(self, max_concurrent):
+        """set activity LLM request maximum concurrent requests"""
+        if max_concurrent > 0:
+            self.activity_max_concurrent = max_concurrent
+            self.activity_semaphore = threading.Semaphore(max_concurrent)
+    
+    def _apply_basic_rate_limit(self):
+        """apply basic LLM's rate limit"""
+        if self.basic_rate_limit <= 0:
+            return
+            
+        with self.basic_rate_lock:
+            current_time = time.time()
+            elapsed = current_time - self.basic_last_request_time
+            
+            if elapsed < self.basic_rate_limit:
+                time.sleep(self.basic_rate_limit - elapsed)
+                
+            self.basic_last_request_time = time.time()
+    
+    def _apply_activity_rate_limit(self):
+        """apply activity LLM's rate limit"""
+        if self.activity_rate_limit <= 0:
+            return
+            
+        with self.activity_rate_lock:
+            current_time = time.time()
+            elapsed = current_time - self.activity_last_request_time
+            
+            if elapsed < self.activity_rate_limit:
+                time.sleep(self.activity_rate_limit - elapsed)
+                
+            self.activity_last_request_time = time.time()
+    
+    def completion_basic(self, prompt, model=None, temperature=None, max_tokens=None):
+        """use basic LLM client to create a completion request"""
+        # use basic LLM's semaphore to control concurrency
+        with self.basic_semaphore:
+            # apply basic LLM's rate limit
+            self._apply_basic_rate_limit()
+            
+            # send actual request
+            return self.basic_client.chat.completions.create(
+                model=model or self.basic_model,
+                messages=[{"role": "user", "content": prompt}],
+                temperature=temperature or self.temperature,
+                max_tokens=max_tokens or self.max_tokens
+            )
+    
+    def completion_activity(self, prompt, model=None, temperature=None, max_tokens=None):
+        """use activity LLM client to create a completion request"""
+        # use activity LLM's semaphore to control concurrency
+        with self.activity_semaphore:
+            # apply activity LLM's rate limit
+            self._apply_activity_rate_limit()
+            
+            # send actual request
+            return self.activity_client.chat.completions.create(
+                model=model or self.activity_model,
+                messages=[{"role": "user", "content": prompt}],
+                temperature=temperature or self.temperature,
+                max_tokens=max_tokens or self.max_tokens
+            )
+
+# create a global LLM manager instance
+llm_manager = LLMManager()

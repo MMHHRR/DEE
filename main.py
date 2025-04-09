@@ -44,7 +44,8 @@ from memory import Memory
 from utils import (
     generate_date_range,
     compress_trajectory_data,
-    generate_summary_report
+    generate_summary_report,
+    llm_manager
 )
 
 
@@ -460,14 +461,22 @@ def main(args=None):
                               help='Compress output files')
             parser.add_argument('--household_ids', type=str, default='',
                               help='Comma-separated list of household IDs to simulate (optional)')
-            parser.add_argument('--max_concurrent_llm', type=int, default=10, 
-                              help='Maximum number of concurrent LLM requests')
             parser.add_argument('--batch_size', type=int, default=BATCH_SIZE,
                               help='Number of simulations to batch process')
             parser.add_argument('--max_batches', type=int, default=None,
                               help='Maximum number of batches to process (None for all)')
-            parser.add_argument('--llm_rate_limit', type=float, default=0.2,
-                              help='Minimum seconds between LLM requests to avoid rate limiting')
+            
+            # LLM rate limit and concurrency control
+            parser.add_argument('--basic_rate_limit', type=float, default=0.2, 
+                                help='basic LLM request minimum interval time (seconds)')
+            parser.add_argument('--basic_max_concurrent', type=int, default=8, 
+                                help='basic LLM maximum concurrent requests')
+            parser.add_argument('--activity_rate_limit', type=float, default=0.4,   
+                                help='activity LLM request minimum interval time (seconds)')
+            parser.add_argument('--activity_max_concurrent', type=int, default=4, 
+                                help='activity LLM maximum concurrent requests')
+            
+            # random seed for reproducibility
             parser.add_argument('--random_seed', type=int, default=42,
                               help='Random seed for reproducibility')
             parser.add_argument('--no_threading', action='store_true', default=False,
@@ -475,7 +484,7 @@ def main(args=None):
             parser.add_argument('--use_processes', action='store_true', default=BATCH_PROCESSING,
                               help='Use processes instead of threads for better performance on CPU-bound tasks')
             
-            # 分层抽样相关参数
+            # stratified sampling related parameters
             parser.add_argument('--stratified_sample', action='store_true', default=True,
                               help='Use stratified sampling based on gender, age and income')
             parser.add_argument('--sample_size', type=int, default=300,
@@ -487,6 +496,12 @@ def main(args=None):
         
         # Create results directory if it doesn't exist
         os.makedirs(args.output, exist_ok=True)
+        
+
+        llm_manager.set_basic_rate_limit(args.basic_rate_limit)
+        llm_manager.set_activity_rate_limit(args.activity_rate_limit)
+        llm_manager.set_basic_concurrency_limit(args.basic_max_concurrent)
+        llm_manager.set_activity_concurrency_limit(args.activity_max_concurrent)
         
         # Load household-person pairs
         household_person_pairs = []
@@ -509,7 +524,7 @@ def main(args=None):
             print("No valid household-person pairs found, cannot proceed with simulation")
             return {}
             
-        # 如果使用分层抽样，确保样本量不超过max_batches * batch_size
+        # if using stratified sampling, ensure the sample size does not exceed max_batches * batch_size
         if args.stratified_sample and args.max_batches is not None:
             max_total_samples = args.max_batches * args.batch_size
             if len(household_person_pairs) > max_total_samples:
@@ -517,36 +532,12 @@ def main(args=None):
                 print("Adjusting sample size to match max_batches * batch_size")
                 household_person_pairs = household_person_pairs[:max_total_samples]
         
-        # Create a rate limiting semaphore for LLM API calls
-        llm_semaphore = Semaphore(args.max_concurrent_llm)
-        rate_limit_lock = Lock()
-        last_request_time = [time.time() - args.llm_rate_limit]  # Use list for mutable reference
-        
-        # Patch Activity.generate_daily_schedule to implement rate limiting
-        original_generate_daily_schedule = Activity.generate_daily_schedule
-        
-        def rate_limited_generate_daily_schedule(self, *method_args, **kwargs):
-            with llm_semaphore:
-                # Apply rate limiting
-                with rate_limit_lock:
-                    time_since_last = time.time() - last_request_time[0]
-                    if time_since_last < args.llm_rate_limit:  # Use the command line args object
-                        sleep_time = args.llm_rate_limit - time_since_last
-                        time.sleep(sleep_time)
-                    last_request_time[0] = time.time()
-                
-                # Call original method
-                return original_generate_daily_schedule(self, *method_args, **kwargs)
-        
-        # Apply the patch
-        Activity.generate_daily_schedule = rate_limited_generate_daily_schedule
-        
         # Simulate each household-person pair
         results = {}
         results_lock = Lock()  # Lock for thread-safe results dictionary updates
         
         # Define worker function for parallel processing
-        # 注意：process_household_person_pair 已移至外部，不再在此处定义
+        # Note: process_household_person_pair is moved to external, not defined here
         
         # Prepare arguments for worker function
         args_dict = {
@@ -557,9 +548,9 @@ def main(args=None):
             'compress': args.compress
         }
         
-        # 自动检测系统并行度
+        # auto-detect system parallelism
         if args.workers <= 0:
-            # 使用可用CPU核心数，但最多使用物理核心数的80%，至少1个
+            # use available CPU cores, but no more than 80% of physical cores, at least 1
             cpu_count = psutil.cpu_count(logical=False) or multiprocessing.cpu_count()
             available_workers = max(1, int(cpu_count * 0.8))
             workers = available_workers
@@ -567,29 +558,29 @@ def main(args=None):
         else:
             workers = args.workers
         
-        # 确保至少使用1个worker，但不超过数据量
+        # ensure at least 1 worker, but not more than the data size
         workers = min(workers, len(household_person_pairs))
         workers = max(1, workers)  
         
-        # 根据系统内存动态调整批处理大小
+        # dynamically adjust batch size based on system memory
         def get_optimal_batch_size(requested_size):
             try:
-                # 获取系统可用内存 (GB)
+                # get available system memory (GB)
                 available_memory_gb = psutil.virtual_memory().available / (1024 ** 3)
-                # 每个模拟估计使用的内存 (GB)，可根据实际观察调整
+                # estimated memory (GB) per simulation, can be adjusted based on actual observation
                 estimated_memory_per_simulation = 0.1
-                # 根据可用内存计算最佳批处理大小，确保不使用超过70%的可用内存
+                # calculate optimal batch size based on available memory, ensuring no more than 70% of available memory
                 memory_based_size = int(available_memory_gb * 0.7 / estimated_memory_per_simulation)
-                # 使用请求的批处理大小和基于内存的大小中较小的一个
+                # use the smaller of the requested batch size and the memory-based size
                 optimal_size = min(requested_size, memory_based_size)
-                # 确保至少处理1个
+                # ensure at least 1 simulation
                 return max(1, optimal_size)
             except Exception as e:
                 print(f"Warning: Error calculating optimal batch size: {e}")
-                # 默认返回原始请求大小
+                # default return the original requested size
                 return requested_size
         
-        # 优化批处理大小
+        # optimize batch size
         optimized_batch_size = get_optimal_batch_size(args.batch_size)
         if optimized_batch_size != args.batch_size:
             print(f"Adjusted batch size from {args.batch_size} to {optimized_batch_size} based on available system memory")
@@ -627,7 +618,7 @@ def main(args=None):
                             with results_lock:
                                 results[pair_id] = memory
                 else:
-                    # 使用ProcessPoolExecutor处理CPU密集型任务
+                    # use ProcessPoolExecutor to handle CPU-bound tasks
                     if args.use_processes:
                         print(f"Using ProcessPoolExecutor with {workers} workers")
                         with ProcessPoolExecutor(max_workers=workers) as executor:
@@ -646,7 +637,7 @@ def main(args=None):
                                     with results_lock:
                                         results[pair_id] = memory
                     else:
-                        # 使用ThreadPoolExecutor处理IO密集型任务
+                        # use ThreadPoolExecutor to handle IO-bound tasks
                         print(f"Using ThreadPoolExecutor with {workers} workers")
                         with ThreadPoolExecutor(max_workers=workers) as executor:
                             # Submit all tasks in this batch
@@ -670,7 +661,8 @@ def main(args=None):
         
         # Start batch processing
         print(f"Starting simulation with {workers} parallel workers, " 
-              f"max {args.max_concurrent_llm} concurrent LLM requests, "
+              f"max {args.basic_max_concurrent} concurrent LLM requests (managed by LLMManager), "
+              f"rate limit {args.basic_rate_limit}s, "
               f"and {optimized_batch_size} simulations per batch")
         if args.no_threading:
             print("Warning: Threading disabled. Running in single-thread mode for debugging.")
@@ -681,9 +673,6 @@ def main(args=None):
             summary_file = generate_summary_report(results, args.output)
             print(f"Generated summary report: {summary_file}")
             
-        # Restore original method
-        Activity.generate_daily_schedule = original_generate_daily_schedule
-        
         print(f"Completed simulation for {len(results)} household-person pairs")
         return results
         

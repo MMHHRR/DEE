@@ -13,14 +13,15 @@ GOOGLE_MAPS_API_KEY = os.getenv("GOOGLE_MAPS_API_KEY")
 
 ZETA_API_KEY = os.getenv("ZETA_API_KEY")
 ZETA_BASE_URL = os.getenv("ZETA_BASE_URL")
-ACTIVITY_LLM_MODEL = "gpt-4o-mini"  
-LLM_TEMPERATURE = 0.6
-LLM_MAX_TOKENS = 600
+ACTIVITY_LLM_MODEL = "gpt-3.5-turbo-0125"  # Zeta model
 
 # DeepBricks API configuration
 DEEPBRICKS_API_KEY = os.getenv("DEEPBRICKS_API_KEY")
 DEEPBRICKS_BASE_URL = os.getenv("DEEPBRICKS_BASE_URL")
-BASIC_LLM_MODEL = "gpt-4o-mini"
+BASIC_LLM_MODEL = "gpt-4o-mini"  # DeepBricks model
+
+LLM_TEMPERATURE = 0.6
+LLM_MAX_TOKENS = 600
 
 # Simulation Parameters
 NUM_DAYS_TO_SIMULATE = 3

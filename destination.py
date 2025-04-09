@@ -34,14 +34,15 @@ from utils import (
     cached, 
     normalize_transport_mode,
     estimate_travel_time, 
-    cache
+    cache,
+    llm_manager
 )
 
-# Create OpenAI client
-client = openai.OpenAI(
-    api_key=DEEPBRICKS_API_KEY,
-    base_url=DEEPBRICKS_BASE_URL,
-)
+# Create OpenAI client - 弃用的代码，改用LLMManager
+# client = openai.OpenAI(
+#     api_key=DEEPBRICKS_API_KEY,
+#     base_url=DEEPBRICKS_BASE_URL,
+# )
 
 class Destination:
     """
@@ -326,10 +327,10 @@ class Destination:
                 memory_context=memory_context
             )
             
-            # Call LLM
-            response = client.chat.completions.create(
+            # 使用LLMManager替代直接调用client
+            response = llm_manager.completion_basic(
+                enhanced_prompt,
                 model=self.model,
-                messages=[{"role": "user", "content": enhanced_prompt}],
                 temperature=self.temperature,
                 max_tokens=50
             )
@@ -1574,12 +1575,12 @@ class Destination:
                 memory_patterns
             )
             
-            # Call LLM
-            response = client.chat.completions.create(
+            # 使用LLMManager替代直接调用client
+            response = llm_manager.completion_basic(
+                prompt,
                 model=self.model,
-                messages=[{"role": "user", "content": prompt}],
                 temperature=self.temperature,
-                max_tokens=20,  # Only need a short answer
+                max_tokens=20  # Only need a short answer
             )
             
             # Get and normalize response
