@@ -1247,7 +1247,8 @@ class LLMManager:
             # send actual request
             return self.activity_client.chat.completions.create(
                 model=model or self.activity_model,
-                messages=[{"role": "user", "content": prompt}],
+                messages=[{"role": "system", "content": "You are a helpful activity planner."},
+                          {"role": "user", "content": prompt}],
                 temperature=temperature or self.temperature,
                 max_tokens=max_tokens or self.max_tokens
             )

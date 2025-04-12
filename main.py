@@ -469,9 +469,9 @@ def main(args=None):
             # LLM rate limit and concurrency control
             parser.add_argument('--basic_rate_limit', type=float, default=0.2, 
                                 help='basic LLM request minimum interval time (seconds)')
-            parser.add_argument('--basic_max_concurrent', type=int, default=8, 
+            parser.add_argument('--basic_max_concurrent', type=int, default=4, 
                                 help='basic LLM maximum concurrent requests')
-            parser.add_argument('--activity_rate_limit', type=float, default=0.4,   
+            parser.add_argument('--activity_rate_limit', type=float, default=0.2,   
                                 help='activity LLM request minimum interval time (seconds)')
             parser.add_argument('--activity_max_concurrent', type=int, default=4, 
                                 help='activity LLM maximum concurrent requests')
@@ -491,6 +491,14 @@ def main(args=None):
                               help='Number of household-person pairs to sample (None for all)')
             parser.add_argument('--use_saved_sample', action='store_true', default=True,
                               help='Use previously saved stratified sample')
+            
+            # 恢复执行相关的参数
+            parser.add_argument('--resume', action='store_true', default=True,
+                              help='Resume execution from previous interruption')
+            parser.add_argument('--start_batch', type=int, default=0,
+                              help='Start execution from this batch number (0-indexed)')
+            parser.add_argument('--skip_completed', action='store_true', default=True,
+                              help='Skip already completed household-person pairs based on output files')
             
             args = parser.parse_args()
         
@@ -603,10 +611,52 @@ def main(args=None):
                 if batch_counter >= max_batches:
                     print(f"Reached maximum number of batches ({max_batches}), stopping.")
                     break
+                
+                # 如果设置了从特定批次恢复，则跳过之前的批次
+                if args.resume and batch_counter < args.start_batch:
+                    print(f"Skipping batch {batch_counter + 1}/{max_batches} due to resume flag")
+                    batch_counter += 1
+                    continue
                     
                 batch = household_person_pairs[i:i + batch_size]
                 print(f"\nProcessing batch {batch_counter + 1}/{max_batches} " 
                       f"({len(batch)} household-person pairs)")
+                
+                # 过滤已完成的家庭-人物对
+                if args.resume and args.skip_completed:
+                    filtered_batch = []
+                    for pair in batch:
+                        household_id, person_id = pair
+                        pair_id = f"{household_id}_{person_id}"
+                        output_file = os.path.join(args.output, f"{pair_id}.json")
+                        csv_file = os.path.join(args.output, f"household_{household_id}_persona_{person_id}_llm_activities.csv")
+                        
+                        # 检查JSON和CSV文件是否都已存在
+                        if os.path.exists(output_file) and os.path.exists(csv_file):
+                            print(f"Skipping completed household-person pair: {household_id}, {person_id}")
+                            # 将已完成的结果添加到结果字典中
+                            try:
+                                # 尝试从已有文件加载Memory对象
+                                with open(output_file, 'r') as f:
+                                    memory_data = json.load(f)
+                                # 暂时将结果标记为已完成
+                                with results_lock:
+                                    results[pair_id] = "COMPLETED"
+                            except Exception as e:
+                                print(f"Warning: Error loading completed result for {pair_id}: {e}")
+                        else:
+                            filtered_batch.append(pair)
+                    
+                    # 更新当前批次为过滤后的批次
+                    if len(filtered_batch) < len(batch):
+                        print(f"Filtered out {len(batch) - len(filtered_batch)} already completed pairs, processing {len(filtered_batch)} remaining pairs")
+                        batch = filtered_batch
+                    
+                    # 如果当前批次中没有需要处理的对，跳过此批次
+                    if not batch:
+                        print(f"Batch {batch_counter + 1}/{max_batches} has no pairs to process after filtering, skipping to next batch")
+                        batch_counter += 1
+                        continue
                 
                 if args.no_threading:
                     # Single-threaded mode for debugging

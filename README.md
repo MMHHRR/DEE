@@ -1,12 +1,14 @@
 # LLM-based Mobility Simulation
 
-This project simulates human daily mobility patterns using LLM (Large Language Model) for activity generation.
+This project simulates human daily mobility using LLM (Large Language Model) for activity generation.
 
 ## Overview
 
 The simulation creates realistic daily activity schedules and travel patterns for virtual personas. It uses LLMs to generate activities based on demographic information, and then plans their movements through space and time.
 
-<img src=".\data\framework.png">
+<img src=".\data\research_framework.png">
+
+<iframe src=".\data\demo.html" width="100%" height="300px"></iframe>  
 
 ## Key Features
 

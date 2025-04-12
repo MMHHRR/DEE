@@ -13,7 +13,7 @@ GOOGLE_MAPS_API_KEY = os.getenv("GOOGLE_MAPS_API_KEY")
 
 ZETA_API_KEY = os.getenv("ZETA_API_KEY")
 ZETA_BASE_URL = os.getenv("ZETA_BASE_URL")
-ACTIVITY_LLM_MODEL = "gpt-3.5-turbo-0125"  # Zeta model
+ACTIVITY_LLM_MODEL = "gemini-2.0-flash"  # Zeta model
 
 # DeepBricks API configuration
 DEEPBRICKS_API_KEY = os.getenv("DEEPBRICKS_API_KEY")
@@ -123,15 +123,15 @@ You are simulating the daily activity schedule for a person with the following c
 
 Based on this information, generate a realistic daily schedule for this person, MUST START from 00:00 to END at 23:59 for ONE DAY. MAKE SURE the time is continuous and there is no blank window and MUST consider the Memory patterns.
 
-CRITICAL: Your schedule MUST follow a heavy-tailed distribution for activity durations, with SIGNIFICANT emphasis on 2-3 very long activities rather than many short ones. Your schedule MUST follow a heavy-tailed distribution for activity durations at home and work.
+CRITICAL: Your schedule MUST follow a heavy-tailed distribution for activity durations, with SIGNIFICANT emphasis on 2-3 very long activities (such as work and sleep). Your schedule MUST follow a heavy-tailed distribution for activity durations at home and work.
 
 IMPORTANT - FOLLOW THESE DURATION GUIDELINES STRICTLY:
 1. Super long activities (>= 480 minutes): At least 1-2 activities MUST be this long
-2. Long activities (240-480 minutes): At least 2-5 activities MUST be in this range
-3. Medium activities (120-240 minutes): Only 2-5 activities maximum in this range
-4. Short activities (< 120 minutes): Maximum of 3 such activity, ONLY if necessary
+2. Long activities (120-480 minutes): At least 2-5 activities MUST be in this range
+3. Medium activities (60-120 minutes): Only 2-5 activities maximum in this range
+4. Short activities (< 60 minutes): Maximum of 5 such activities in total
 
-The TOTAL daily activities MUST be limited to 4-7 maximum. Over 60 percent of the day MUST be spent on activities longer than 240 minutes.
+The TOTAL daily activities MUST be limited to 4-8 maximum. Over 50 percent of the day MUST be spent on activities longer than 120 minutes.
 
 IMPORTANT RULES FOR DIVERSE ACTIVITY TYPES:
 - "sleep": ONLY for sleeping activities (night sleep, naps)
