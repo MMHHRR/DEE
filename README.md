@@ -4,11 +4,9 @@ This project simulates human daily mobility using LLM (Large Language Model) for
 
 ## Overview
 
-The simulation creates realistic daily activity schedules and travel patterns for virtual personas. It uses LLMs to generate activities based on demographic information, and then plans their movements through space and time.
+The simulation creates realistic daily activity schedules and travel patterns for virtual personas. It uses LLMs to generate activities based on demographic information, and then plans their movements through space and time. [Demo](https://kepler.gl/demo/map?mapUrl=https://dl.dropboxusercontent.com/scl/fi/ikk78aljubfzhugm7vz1b/keplergl_klm4o5f.json?rlkey=utijce0vjhurw2r1zqk27v30h&dl=0) here🤗
 
 <img src=".\data\research_framework.png">
-
-<iframe src=".\data\demo.html" width="100%" height="300px"></iframe>  
 
 ## Key Features
 
